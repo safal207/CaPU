@@ -8,8 +8,10 @@ The CaPU pipeline consists of four distinct stages:
 
 ### 1. Gate
 **Function:** Entry point for all incoming causes.
-*   **Validation:** Verifies the structural integrity and signatures of the vCML record.
-*   **Policy Decision:** determining if the action is currently allowed based on policies, rate limits, or static rules.
+*   **Validation:** Verifies the structural integrity of the vCML record.
+*   **Optional Attestation:** If the vCML record includes record-level attestation/proofs, Gate may validate them as part of policy.
+    *   **Note:** This is distinct from LPT transport/session crypto.
+*   **Policy Decision:** Determines if the action is currently allowed based on policies, rate limits, or static rules.
 *   **Outcome:** Can result in `ACCEPT`, `REJECT`, or `HOLD`.
 
 ### 2. Incubator

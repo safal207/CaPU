@@ -10,8 +10,9 @@ This document establishes the hard boundaries of the CaPU project. CaPU is a **s
 
 ## 2. LPT (Liminal Protocol Thread)
 * **Role:** Canonical **Transport**, Session, and Crypto layer.
-* **Responsibility:** Handles secure delivery of causes, session management, and cryptographic verification logic (signatures, encryption).
-* **CaPU Relation:** CaPU is compatible with LPT as a delivery mechanism but remains transport-agnostic. CaPU does **NOT** implement transport logic or socket handling.
+* **Responsibility:** Handles secure delivery of causes, session management, transport-level crypto, ordering, and replay protection.
+* **CaPU Relation:** CaPU is compatible with LPT as a delivery mechanism but remains transport-agnostic. CaPU does **NOT** implement transport logic, socket handling, or session crypto.
+* **Note on signatures:** Record-level attestation (if present in vCML records) may be validated by CaPU as part of policy/validation, but it is not the same as LPT transport crypto.
 * **Link:** [https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-/](https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-/)
 
 ## 3. T-Trace

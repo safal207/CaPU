@@ -32,6 +32,7 @@ graph LR
 *   **vCML:** The input format. CaPU processes vCML records.
 *   **LPT:** The transport layer. LPT delivers records to the CaPU boundary.
 *   **T-Trace:** The observability layer. CaPU decisions and state transitions are recorded via T-Trace compatible sinks.
+*   **Canonical ownership:** See [DEPENDENCIES.md](DEPENDENCIES.md) (do not re-implement vCML/LPT/T-Trace).
 
 ## Quickstart
 > **Note:** This is a **spec-first** repository. There is no runtime implementation yet.

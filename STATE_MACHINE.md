@@ -43,9 +43,10 @@ This document defines the lifecycle of a cause within the CaPU.
 | **VALIDATING** | `valid` | **ACCEPTED** | Ready to commit |
 | **HELD** | `preconditions_met` | **ACCEPTED** | Incubator releases cause |
 | **HELD** | `timeout` | **EXPIRED** | TTL reached |
-| **ACCEPTED** | (internal) | **COMMITTED** | Attempt storage commit |
+| **ACCEPTED** | (internal) | **ACCEPTED** | Attempt storage commit |
+| **ACCEPTED** | `commit_ok` | **COMMITTED** | Point of no return |
 | **ACCEPTED** | `commit_fail` | **REJECTED** | Storage error (retry logic dependent on impl) |
-| **COMMITTED** | `commit_ok` | **EXECUTED** | Trigger Executor |
+| **COMMITTED** | (internal) | **EXECUTED** | Trigger Executor (invoke side effects) |
 | **EXECUTED** | `execute_ok` | **(End)** | Trace success |
 | **EXECUTED** | `execute_fail` | **(End)** | Trace failure (cause remains COMMITTED) |
 
