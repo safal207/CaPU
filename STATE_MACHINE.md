@@ -7,11 +7,11 @@ This document defines the lifecycle of a cause within the CaPU.
 | State | Description |
 | :--- | :--- |
 | **RECEIVED** | Initial state when a cause enters the Gate. |
-| **VALIDATING** | The cause is undergoing structural and signature verification. |
+| **VALIDATING** | The cause is undergoing structural validation (and optional record-level attestation checks if present). |
 | **HELD** | Valid cause waiting for preconditions (Incubator). |
 | **ACCEPTED** | Valid cause ready for commitment. |
 | **COMMITTED** | Cause successfully persisted in causal memory. Point of no return. |
-| **EXECUTED** | Side effects successfully applied. |
+| **EXECUTED** | Execution stage (side effects attempted). Outcome is recorded via `execute_ok` / `execute_fail`. |
 | **REJECTED** | Cause failed validation or policy check. Terminal state. |
 | **EXPIRED** | Held cause timed out before preconditions were met. Terminal state. |
 
