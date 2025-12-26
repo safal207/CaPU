@@ -1,0 +1,4 @@
+{"event": "submit", "cause_id": "c_123", "payload": "hello_world"}
+{"event": "gate.accept", "cause_id": "c_123", "decision": "ACCEPT"}
+{"event": "commit.ok", "cause_id": "c_123", "storage_id": "s_999"}
+{"event": "execute.ok", "cause_id": "c_123", "result": "printed_hello"}

@@ -1,0 +1,6 @@
+{"event": "submit", "cause_id": "c_456", "payload": "mature_later"}
+{"event": "gate.hold", "cause_id": "c_456", "decision": "HOLD", "reason": "PRECONDITIONS_UNMET"}
+{"event": "preconditions_met", "cause_id": "c_456", "info": "parent_arrived"}
+{"event": "gate.accept", "cause_id": "c_456", "decision": "ACCEPT"}
+{"event": "commit.ok", "cause_id": "c_456", "storage_id": "s_1001"}
+{"event": "execute.ok", "cause_id": "c_456", "result": "processed_delayed_action"}
