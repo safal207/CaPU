@@ -23,6 +23,10 @@ graph LR
 *   **Permission-First:** Focuses on *if* and *when* an action is allowed to happen.
 *   **Modular:** Designed to work with interchangeable storage and execution backends.
 
+## CaPU as a Device
+CaPU can be seen as a **causal device** rather than a software module.
+It accepts causes, not commands, and produces effects only when causally permitted.
+
 ## What CaPU Is Not
 *   **Not a Transport:** It does not handle network sockets or delivery (see LPT).
 *   **Not a Data Format:** It does not define the cause record structure (see vCML).
