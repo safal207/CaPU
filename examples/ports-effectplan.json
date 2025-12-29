@@ -1,0 +1,14 @@
+{
+  "effect_plan": {
+    "effect_type": "ledger.append",
+    "target": "ledger://primary",
+    "parameters": {
+      "entry": "commit:cause-123"
+    },
+    "idempotency_key": "cause-123",
+    "safety": {
+      "dry_run_allowed": true,
+      "max_retries": 3
+    }
+  }
+}
