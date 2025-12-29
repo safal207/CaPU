@@ -1,0 +1,9 @@
+{
+  "decision": {
+    "decision": "HOLD",
+    "reason_code": "MISSING_PARENT",
+    "explain": "waiting for parent cause",
+    "next_check_at": "2030-01-01T00:10:00Z",
+    "policy_snapshot": "policy:v1#abc123"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "trace_event": {
+    "timestamp": "2030-01-01T00:00:01Z",
+    "cause_id": "cause-123",
+    "correlation_id": "trace-9f4c",
+    "component": "CaPU",
+    "event_type": "gate.hold",
+    "details": {
+      "decision": "HOLD",
+      "reason_code": "MISSING_PARENT",
+      "state_from": "GATE",
+      "state_to": "INCUBATE",
+      "latency_ms": 42
+    }
+  }
+}

@@ -27,6 +27,10 @@ graph LR
 CaPU can be seen as a **causal device** rather than a software module.
 It accepts causes, not commands, and produces effects only when causally permitted.
 
+## Device Ports
+**Ports define the device boundary.** See [ports/](ports/) for the CauseIn,
+PermissionOut, EffectOut, and TraceOut contracts.
+
 ## What CaPU Is Not
 *   **Not a Transport:** It does not handle network sockets or delivery (see LPT).
 *   **Not a Data Format:** It does not define the cause record structure (see vCML).
