@@ -24,7 +24,7 @@ A minimal acknowledgement that the device accepted the submission for validation
 ack:
   accepted_for_validation: boolean
   cause_id: string
-  correlation_id: string
+  correlation_id: string (optional)
 ```
 
 ## Notes

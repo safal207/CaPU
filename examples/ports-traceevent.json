@@ -1,6 +1,6 @@
 {
   "trace_event": {
-    "timestamp": "2030-01-01T00:00:01Z",
+    "timestamp": "2000-01-01T00:00:01Z",
     "cause_id": "cause-123",
     "correlation_id": "trace-9f4c",
     "component": "CaPU",
@@ -9,7 +9,7 @@
       "decision": "HOLD",
       "reason_code": "MISSING_PARENT",
       "state_from": "GATE",
-      "state_to": "INCUBATE",
+      "state_to": "GATE",
       "latency_ms": 42
     }
   }

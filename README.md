@@ -28,8 +28,13 @@ CaPU can be seen as a **causal device** rather than a software module.
 It accepts causes, not commands, and produces effects only when causally permitted.
 
 ## Device Ports
-**Ports define the device boundary.** See [ports/](ports/) for the CauseIn,
-PermissionOut, EffectOut, and TraceOut contracts.
+**Ports define the device boundary.** See [ports/README.md](ports/README.md) for the full index,
+or jump directly to each contract:
+
+- [CauseIn](ports/cause_in.md)
+- [PermissionOut](ports/permission_out.md)
+- [EffectOut](ports/effect_out.md)
+- [TraceOut](ports/trace_out.md)
 
 ## What CaPU Is Not
 *   **Not a Transport:** It does not handle network sockets or delivery (see LPT).
