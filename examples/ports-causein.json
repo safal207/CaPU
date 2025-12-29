@@ -1,0 +1,20 @@
+{
+  "submit": {
+    "envelope": {
+      "cause_id": "cause-123",
+      "received_at": "2000-01-01T00:00:00Z",
+      "source": "lpt",
+      "correlation_id": "trace-9f4c",
+      "ttl_ms": 600000,
+      "metadata": {
+        "session_id": "sess-77a"
+      }
+    },
+    "vcml_record": {
+      "cause_id": "cause-123",
+      "actor": "did:example:alice",
+      "intent": "transfer",
+      "timestamp": "2000-01-01T00:00:00Z"
+    }
+  }
+}
