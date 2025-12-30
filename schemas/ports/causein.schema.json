@@ -1,0 +1,27 @@
+{
+  "$id": "https://capu.dev/schemas/ports/causein.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CauseIn Port Example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["submit"],
+  "properties": {
+    "submit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["envelope", "vcml_record"],
+      "properties": {
+        "envelope": { "$ref": "https://capu.dev/schemas/ports/envelope.schema.json" },
+        "vcml_record": {
+          "type": "object",
+          "description": "Canonical vCML record (unmodified). CaPU does not redefine it.",
+          "required": ["cause_id"],
+          "properties": {
+            "cause_id": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

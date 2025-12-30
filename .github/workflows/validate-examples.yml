@@ -1,0 +1,25 @@
+name: Validate Examples
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: |
+          set -euxo pipefail
+          npm ci || npm install
+
+      - name: Validate JSON examples against schemas
+        run: |
+          set -euxo pipefail
+          npm run validate:examples

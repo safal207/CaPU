@@ -1,0 +1,29 @@
+{
+  "$id": "https://capu.dev/schemas/ports/effectout.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EffectOut Port Example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["effect_plan"],
+  "properties": {
+    "effect_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effect_type", "target", "parameters", "idempotency_key"],
+      "properties": {
+        "effect_type": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "parameters": { "type": "object", "additionalProperties": true },
+        "idempotency_key": { "type": "string", "minLength": 1 },
+        "safety": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dry_run_allowed": { "type": "boolean" },
+            "max_retries": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

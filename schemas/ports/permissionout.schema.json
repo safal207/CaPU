@@ -1,0 +1,28 @@
+{
+  "$id": "https://capu.dev/schemas/ports/permissionout.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PermissionOut Port Example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision"],
+  "properties": {
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "reason_code"],
+      "properties": {
+        "decision": { "type": "string", "enum": ["ACCEPT", "HOLD", "REJECT", "EXPIRE"] },
+        "reason_code": { "type": "string", "minLength": 1 },
+        "explain": { "type": "string" },
+        "next_check_at": { "type": "string", "format": "date-time" },
+        "policy_snapshot": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "decision": { "const": "HOLD" } }, "required": ["decision"] },
+          "then": { "required": ["next_check_at"] }
+        }
+      ]
+    }
+  }
+}

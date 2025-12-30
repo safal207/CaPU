@@ -1,0 +1,33 @@
+{
+  "$id": "https://capu.dev/schemas/ports/traceout.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceOut Port Example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_event"],
+  "properties": {
+    "trace_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp", "cause_id", "component", "event_type", "details"],
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "cause_id": { "type": "string", "minLength": 1 },
+        "correlation_id": { "type": "string" },
+        "component": { "type": "string", "const": "CaPU" },
+        "event_type": { "type": "string", "minLength": 1 },
+        "details": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "decision": { "type": "string" },
+            "reason_code": { "type": "string" },
+            "state_from": { "type": "string" },
+            "state_to": { "type": "string" },
+            "latency_ms": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}
