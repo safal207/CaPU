@@ -34,7 +34,16 @@ The semantics of the codes listed below MUST NOT change. New codes MAY be added,
 | **REJECT** | The cause is invalid or denied by policy. Terminal. |
 | **EXPIRE** | The cause timed out in the Incubator. Terminal. |
 
-## Reason Codes
+## Operational Reason Codes (non-canonical)
+
+The codes below are **operational / diagnostic** and MAY be used as **details** when emitting traces or explanations.
+They are **not** guaranteed to be stable across versions unless explicitly promoted into the **Canonical Decision Codes** table above.
+
+Recommended usage patterns:
+- `reason_code` (wire field) SHOULD carry a **canonical decision_code** whenever one exists.
+- Implementations MAY include additional structured detail (e.g., `explain`, `policy_snapshot`, or future fields like `subreason_code`) for diagnostic specificity.
+
+## Legacy / Diagnostic Codes
 
 | Code | Description | Typical Decision |
 | :--- | :--- | :--- |
@@ -46,3 +55,6 @@ The semantics of the codes listed below MUST NOT change. New codes MAY be added,
 | `RATE_LIMIT` | Sender exceeded rate limits. | REJECT |
 | `TTL_EXPIRED` | Cause stayed in HOLD longer than allowed TTL. | EXPIRE |
 | `STORAGE_COMMIT_FAILED`| Persistence layer failed to write the record. | REJECT (or retry) |
+
+> Note: If any of the diagnostic codes above become part of the wire-stable contract,
+> they MUST be added to **Canonical Decision Codes** with frozen semantics.

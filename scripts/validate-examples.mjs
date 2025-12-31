@@ -36,19 +36,43 @@ function readJson(rel) {
 
 // Register shared schemas so $ref resolution is deterministic.
 // (Works best when refs point to schema $id URLs.)
-const sharedSchemas = [
+const sharedSchemaPaths = [
   "schemas/ports/envelope.schema.json",
   "schemas/ports/causein.schema.json",
   "schemas/ports/permissionout.schema.json",
   "schemas/ports/effectout.schema.json",
   "schemas/ports/traceout.schema.json"
-].map(readJson);
-
-for (const s of sharedSchemas) {
-  ajv.addSchema(s);
-}
+];
 
 let ok = true;
+function fail(msg) {
+  ok = false;
+  console.error(msg);
+}
+
+function registerSharedSchemas() {
+  const sharedSchemas = sharedSchemaPaths.map(readJson);
+
+  // Ensure every shared schema has a stable $id and is registered under that $id.
+  for (const s of sharedSchemas) {
+    if (!s || typeof s !== "object") {
+      fail(`\n❌ Shared schema is not an object (check JSON): ${JSON.stringify(s)?.slice(0, 80) || "(unknown)"}\n`);
+      continue;
+    }
+    if (!s.$id || typeof s.$id !== "string") {
+      fail(`\n❌ Shared schema missing $id (required for deterministic $ref): ${s?.title || "(no title)"}\n`);
+      continue;
+    }
+    ajv.addSchema(s);
+  }
+
+  // Verify registration worked (no silent drift).
+  for (const s of sharedSchemas) {
+    if (s?.$id && !ajv.getSchema(s.$id)) {
+      fail(`\n❌ Shared schema not registered in Ajv for $id: ${s.$id}\n`);
+    }
+  }
+}
 
 function compileSchema(schemaPath) {
   const schemaObj = readJson(schemaPath);
@@ -65,6 +89,7 @@ function printErrors(prefix, validateFn) {
 }
 
 async function main() {
+  registerSharedSchemas();
   for (const { file, schema } of examples) {
     const data = readJson(file);
     const validate = compileSchema(schema);
@@ -81,8 +106,10 @@ async function main() {
 
   // Validate golden flow JSONL (each line is a single port object)
   const goldenPath = path.resolve(ROOT, goldenFlowFile);
+  let goldenOk = true;
   if (!fs.existsSync(goldenPath)) {
     ok = false;
+    goldenOk = false;
     console.error(`\n❌ Missing golden flow file: ${goldenFlowFile}\n`);
   } else {
     const validators = {};
@@ -106,6 +133,7 @@ async function main() {
         obj = JSON.parse(trimmed);
       } catch (e) {
         ok = false;
+        goldenOk = false;
         console.error(`\n❌ ${goldenFlowFile}:${lineNo} invalid JSON\n- ${String(e.message || e)}\n`);
         continue;
       }
@@ -113,6 +141,7 @@ async function main() {
       const keys = Object.keys(obj || {});
       if (keys.length !== 1) {
         ok = false;
+        goldenOk = false;
         console.error(`\n❌ ${goldenFlowFile}:${lineNo} must contain exactly one top-level key\n- got: ${keys.join(", ") || "(none)"}\n`);
         continue;
       }
@@ -121,6 +150,7 @@ async function main() {
       const validate = validators[topKey];
       if (!validate) {
         ok = false;
+        goldenOk = false;
         console.error(`\n❌ ${goldenFlowFile}:${lineNo} unknown top-level key\n- got: ${topKey}\n- allowed: ${Object.keys(schemaByTopKey).join(", ")}\n`);
         continue;
       }
@@ -128,12 +158,13 @@ async function main() {
       const valid = validate(obj);
       if (!valid) {
         ok = false;
+        goldenOk = false;
         console.error(`\n❌ Validation failed: ${goldenFlowFile}:${lineNo}\nSchema: ${schemaByTopKey[topKey]}\n`);
         printErrors("", validate);
       }
     }
 
-    if (ok) console.log(`✅ ${goldenFlowFile}`);
+    if (goldenOk) console.log(`✅ ${goldenFlowFile}`);
   }
 
   if (!ok) process.exit(1);
