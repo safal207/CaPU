@@ -1,0 +1,16 @@
+{
+  "$id": "https://capu.dev/schemas/ports/envelope.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CaPU Device Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cause_id", "received_at", "source"],
+  "properties": {
+    "cause_id": { "type": "string", "minLength": 1 },
+    "received_at": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": "string" },
+    "ttl_ms": { "type": "number", "minimum": 0 },
+    "metadata": { "type": "object", "additionalProperties": true }
+  }
+}
