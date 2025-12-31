@@ -20,7 +20,12 @@
       "allOf": [
         {
           "if": { "properties": { "decision": { "const": "HOLD" } }, "required": ["decision"] },
-          "then": { "required": ["next_check_at"] }
+          "then": {
+            "required": ["next_check_at"],
+            "properties": {
+              "next_check_at": { "type": "string", "format": "date-time" }
+            }
+          }
         }
       ]
     }
