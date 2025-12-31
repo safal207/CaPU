@@ -2,6 +2,23 @@
 
 This document lists the standardized codes used by CaPU to explain state transitions and decisions. These codes should be included in trace events.
 
+## Canonical Decision Codes (v0.1)
+
+The semantics of the codes listed below MUST NOT change. New codes MAY be added, but existing codes are only allowed to be deprecated, not repurposed.
+
+| Code | Meaning |
+| :--- | :--- |
+| `PERMIT_OK` | Cause is causally valid and permitted for execution. |
+| `REJECT_INVALID_CAUSE` | Cause is malformed or violates schema/structural constraints. |
+| `REJECT_POLICY` | Cause violates an explicit policy constraint. |
+| `REJECT_CAPACITY_LIMIT` | Execution is valid in principle but denied due to insufficient capacity. |
+| `REJECT_CAUSAL_ORDER` | Cause violates required causal or temporal ordering. |
+| `REJECT_STATE_CONFLICT` | Cause conflicts with current committed state. |
+| `DEFER_PENDING_CONTEXT` | Decision cannot be made until additional context becomes available. |
+| `ABORT_INTERNAL_ERROR` | Internal CaPU failure prevented a safe decision. |
+| `COMMIT_EXECUTED` | Decision committed and effects executed successfully. |
+| `COMMIT_NO_EFFECT` | Decision committed and produced no side effects by design. |
+
 ## Decisions
 
 | Decision | Meaning |
