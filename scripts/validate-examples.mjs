@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
+import readline from "node:readline";
 
 const ROOT = process.cwd();
 
@@ -10,6 +11,15 @@ const examples = [
   { file: "examples/ports-effectplan.json", schema: "schemas/ports/effectout.schema.json" },
   { file: "examples/ports-traceevent.json", schema: "schemas/ports/traceout.schema.json" }
 ];
+
+const goldenFlowFile = "examples/golden_flow.jsonl";
+
+const schemaByTopKey = {
+  submit: "schemas/ports/causein.schema.json",
+  decision: "schemas/ports/permissionout.schema.json",
+  effect_plan: "schemas/ports/effectout.schema.json",
+  trace_event: "schemas/ports/traceout.schema.json"
+};
 
 // Use Ajv2020 for draft 2020-12 schemas.
 const ajv = new Ajv2020({
@@ -40,24 +50,89 @@ for (const s of sharedSchemas) {
 
 let ok = true;
 
+function compileSchema(schemaPath) {
+  const schemaObj = readJson(schemaPath);
+  return (
+    (schemaObj.$id && ajv.getSchema(schemaObj.$id)) ||
+    ajv.compile(schemaObj)
+  );
+}
+
+function printErrors(prefix, validateFn) {
+  for (const err of validateFn.errors || []) {
+    console.error(`- ${prefix}${err.instancePath || "/"} ${err.message}`);
+  }
+}
+
 for (const { file, schema } of examples) {
   const data = readJson(file);
-  const schemaObj = readJson(schema);
-
-  // Compile from the already-registered schema (by $id) when possible.
-  const validate =
-    (schemaObj.$id && ajv.getSchema(schemaObj.$id)) || ajv.compile(schemaObj);
+  const validate = compileSchema(schema);
   const valid = validate(data);
 
   if (!valid) {
     ok = false;
     console.error(`\n❌ Validation failed: ${file}\nSchema: ${schema}\n`);
-    for (const err of validate.errors || []) {
-      console.error(`- ${err.instancePath || "/"} ${err.message}`);
-    }
+    printErrors("", validate);
   } else {
     console.log(`✅ ${file}`);
   }
+}
+
+// Validate golden flow JSONL (each line is a single port object)
+const goldenPath = path.resolve(ROOT, goldenFlowFile);
+if (!fs.existsSync(goldenPath)) {
+  ok = false;
+  console.error(`\n❌ Missing golden flow file: ${goldenFlowFile}\n`);
+} else {
+  const validators = {};
+  for (const [key, schemaPath] of Object.entries(schemaByTopKey)) {
+    validators[key] = compileSchema(schemaPath);
+  }
+
+  const rl = readline.createInterface({
+    input: fs.createReadStream(goldenPath, { encoding: "utf-8" }),
+    crlfDelay: Infinity
+  });
+
+  let lineNo = 0;
+  for await (const line of rl) {
+    lineNo += 1;
+    const trimmed = line.trim();
+    if (!trimmed) continue; // allow blank lines
+
+    let obj;
+    try {
+      obj = JSON.parse(trimmed);
+    } catch (e) {
+      ok = false;
+      console.error(`\n❌ ${goldenFlowFile}:${lineNo} invalid JSON\n- ${String(e.message || e)}\n`);
+      continue;
+    }
+
+    const keys = Object.keys(obj || {});
+    if (keys.length !== 1) {
+      ok = false;
+      console.error(`\n❌ ${goldenFlowFile}:${lineNo} must contain exactly one top-level key\n- got: ${keys.join(", ") || "(none)"}\n`);
+      continue;
+    }
+
+    const topKey = keys[0];
+    const validate = validators[topKey];
+    if (!validate) {
+      ok = false;
+      console.error(`\n❌ ${goldenFlowFile}:${lineNo} unknown top-level key\n- got: ${topKey}\n- allowed: ${Object.keys(schemaByTopKey).join(", ")}\n`);
+      continue;
+    }
+
+    const valid = validate(obj);
+    if (!valid) {
+      ok = false;
+      console.error(`\n❌ Validation failed: ${goldenFlowFile}:${lineNo}\nSchema: ${schemaByTopKey[topKey]}\n`);
+      printErrors("", validate);
+    }
+  }
+
+  if (ok) console.log(`✅ ${goldenFlowFile}`);
 }
 
 if (!ok) process.exit(1);
