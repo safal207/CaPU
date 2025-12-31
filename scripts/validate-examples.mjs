@@ -64,76 +64,83 @@ function printErrors(prefix, validateFn) {
   }
 }
 
-for (const { file, schema } of examples) {
-  const data = readJson(file);
-  const validate = compileSchema(schema);
-  const valid = validate(data);
+async function main() {
+  for (const { file, schema } of examples) {
+    const data = readJson(file);
+    const validate = compileSchema(schema);
+    const valid = validate(data);
 
-  if (!valid) {
-    ok = false;
-    console.error(`\n❌ Validation failed: ${file}\nSchema: ${schema}\n`);
-    printErrors("", validate);
-  } else {
-    console.log(`✅ ${file}`);
-  }
-}
-
-// Validate golden flow JSONL (each line is a single port object)
-const goldenPath = path.resolve(ROOT, goldenFlowFile);
-if (!fs.existsSync(goldenPath)) {
-  ok = false;
-  console.error(`\n❌ Missing golden flow file: ${goldenFlowFile}\n`);
-} else {
-  const validators = {};
-  for (const [key, schemaPath] of Object.entries(schemaByTopKey)) {
-    validators[key] = compileSchema(schemaPath);
-  }
-
-  const rl = readline.createInterface({
-    input: fs.createReadStream(goldenPath, { encoding: "utf-8" }),
-    crlfDelay: Infinity
-  });
-
-  let lineNo = 0;
-  for await (const line of rl) {
-    lineNo += 1;
-    const trimmed = line.trim();
-    if (!trimmed) continue; // allow blank lines
-
-    let obj;
-    try {
-      obj = JSON.parse(trimmed);
-    } catch (e) {
-      ok = false;
-      console.error(`\n❌ ${goldenFlowFile}:${lineNo} invalid JSON\n- ${String(e.message || e)}\n`);
-      continue;
-    }
-
-    const keys = Object.keys(obj || {});
-    if (keys.length !== 1) {
-      ok = false;
-      console.error(`\n❌ ${goldenFlowFile}:${lineNo} must contain exactly one top-level key\n- got: ${keys.join(", ") || "(none)"}\n`);
-      continue;
-    }
-
-    const topKey = keys[0];
-    const validate = validators[topKey];
-    if (!validate) {
-      ok = false;
-      console.error(`\n❌ ${goldenFlowFile}:${lineNo} unknown top-level key\n- got: ${topKey}\n- allowed: ${Object.keys(schemaByTopKey).join(", ")}\n`);
-      continue;
-    }
-
-    const valid = validate(obj);
     if (!valid) {
       ok = false;
-      console.error(`\n❌ Validation failed: ${goldenFlowFile}:${lineNo}\nSchema: ${schemaByTopKey[topKey]}\n`);
+      console.error(`\n❌ Validation failed: ${file}\nSchema: ${schema}\n`);
       printErrors("", validate);
+    } else {
+      console.log(`✅ ${file}`);
     }
   }
 
-  if (ok) console.log(`✅ ${goldenFlowFile}`);
+  // Validate golden flow JSONL (each line is a single port object)
+  const goldenPath = path.resolve(ROOT, goldenFlowFile);
+  if (!fs.existsSync(goldenPath)) {
+    ok = false;
+    console.error(`\n❌ Missing golden flow file: ${goldenFlowFile}\n`);
+  } else {
+    const validators = {};
+    for (const [key, schemaPath] of Object.entries(schemaByTopKey)) {
+      validators[key] = compileSchema(schemaPath);
+    }
+
+    const rl = readline.createInterface({
+      input: fs.createReadStream(goldenPath, { encoding: "utf-8" }),
+      crlfDelay: Infinity
+    });
+
+    let lineNo = 0;
+    for await (const line of rl) {
+      lineNo += 1;
+      const trimmed = line.trim();
+      if (!trimmed) continue; // allow blank lines
+
+      let obj;
+      try {
+        obj = JSON.parse(trimmed);
+      } catch (e) {
+        ok = false;
+        console.error(`\n❌ ${goldenFlowFile}:${lineNo} invalid JSON\n- ${String(e.message || e)}\n`);
+        continue;
+      }
+
+      const keys = Object.keys(obj || {});
+      if (keys.length !== 1) {
+        ok = false;
+        console.error(`\n❌ ${goldenFlowFile}:${lineNo} must contain exactly one top-level key\n- got: ${keys.join(", ") || "(none)"}\n`);
+        continue;
+      }
+
+      const topKey = keys[0];
+      const validate = validators[topKey];
+      if (!validate) {
+        ok = false;
+        console.error(`\n❌ ${goldenFlowFile}:${lineNo} unknown top-level key\n- got: ${topKey}\n- allowed: ${Object.keys(schemaByTopKey).join(", ")}\n`);
+        continue;
+      }
+
+      const valid = validate(obj);
+      if (!valid) {
+        ok = false;
+        console.error(`\n❌ Validation failed: ${goldenFlowFile}:${lineNo}\nSchema: ${schemaByTopKey[topKey]}\n`);
+        printErrors("", validate);
+      }
+    }
+
+    if (ok) console.log(`✅ ${goldenFlowFile}`);
+  }
+
+  if (!ok) process.exit(1);
+  console.log("\nAll example files are valid ✅");
 }
 
-if (!ok) process.exit(1);
-console.log("\nAll example files are valid ✅");
+main().catch((e) => {
+  console.error("\n❌ Validator crashed\n- " + String(e?.stack || e));
+  process.exit(1);
+});
