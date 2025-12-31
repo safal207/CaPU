@@ -1,16 +1,16 @@
 {
   "trace_event": {
-    "timestamp": "2000-01-01T00:00:01Z",
-    "cause_id": "cause-123",
-    "correlation_id": "trace-9f4c",
+    "timestamp": "2025-12-31T18:00:01Z",
+    "cause_id": "c-001",
+    "correlation_id": "corr-001",
     "component": "CaPU",
-    "event_type": "gate.hold",
+    "event_type": "decision_committed",
     "details": {
-      "decision": "HOLD",
-      "reason_code": "MISSING_PARENT",
-      "state_from": "GATE",
-      "state_to": "GATE",
-      "latency_ms": 42
+      "decision": "ACCEPT",
+      "reason_code": "PERMIT_OK",
+      "state_from": "INCUBATE",
+      "state_to": "EXECUTED",
+      "latency_ms": 12
     }
   }
 }
