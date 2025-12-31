@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import Ajv from "ajv";
 import draft2020 from "ajv/dist/2020.js";
-import addFormats from "ajv-formats";
 
 const ROOT = process.cwd();
 
@@ -13,9 +12,12 @@ const examples = [
   { file: "examples/ports-traceevent.json", schema: "schemas/ports/traceout.schema.json" }
 ];
 
-const ajv = new Ajv({ strict: true, allErrors: true });
-
-addFormats(ajv);
+const ajv = new Ajv({
+  strict: true,
+  allErrors: true,
+  // Avoid ajv-formats ESM meta-schema crash in CI
+  validateFormats: false
+});
 
 ajv.addMetaSchema(draft2020);
 ajv.addSchema(draft2020, "https://json-schema.org/draft/2020-12/schema");

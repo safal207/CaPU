@@ -6,7 +6,6 @@
     "validate:examples": "node scripts/validate-examples.mjs"
   },
   "devDependencies": {
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1"
+    "ajv": "^8.17.1"
   }
 }
