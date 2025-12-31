@@ -2,6 +2,12 @@
 
 This document lists the standardized codes used by CaPU to explain state transitions and decisions. These codes should be included in trace events.
 
+## Terminology note
+
+The canonical concept is **decision_code**.
+In serialized port outputs, the field name **reason_code** carries the canonical decision_code value.
+This preserves wire compatibility while keeping the spec vocabulary stable.
+
 ## Canonical Decision Codes (v0.1)
 
 The semantics of the codes listed below MUST NOT change. New codes MAY be added, but existing codes are only allowed to be deprecated, not repurposed.

@@ -1,7 +1,8 @@
-{"event":"causein.submit","cause_id":"c-001","thread_id":"t-42","vcml_record":{"cause_id":"c-001","intent":"allocate_compute","params":{"units":4}}}
-{"event":"permissionout.decision","cause_id":"c-001","decision":"ACCEPT","reason_code":"PERMIT_OK","explain":"resources available"}
-{"event":"effectout.plan","cause_id":"c-001","effect_type":"allocate","target":"compute_pool","parameters":{"units":4},"idempotency_key":"idem-c-001"}
-{"event":"traceout.event","cause_id":"c-001","component":"CaPU","event_type":"decision_committed","details":{"decision":"ACCEPT","reason_code":"PERMIT_OK","state_from":"INCUBATE","state_to":"EXECUTED"}}
-{"event":"causein.submit","cause_id":"c-002","thread_id":"t-42","vcml_record":{"cause_id":"c-002","intent":"allocate_compute","params":{"units":999}}}
-{"event":"permissionout.decision","cause_id":"c-002","decision":"REJECT","reason_code":"REJECT_CAPACITY_LIMIT","explain":"capacity exceeded"}
-{"event":"traceout.event","cause_id":"c-002","component":"CaPU","event_type":"decision_rejected","details":{"decision":"REJECT","reason_code":"REJECT_CAPACITY_LIMIT","state_from":"INCUBATE","state_to":"REJECTED"}}
+{"submit":{"envelope":{"cause_id":"c-001","received_at":"2025-12-31T18:00:00Z","source":"example","correlation_id":"corr-001","ttl_ms":60000},"vcml_record":{"cause_id":"c-001","intent":"allocate_compute","params":{"units":4},"thread_id":"t-42"}}}
+{"decision":{"decision":"ACCEPT","reason_code":"PERMIT_OK","explain":"resources available"}}
+{"effect_plan":{"effect_type":"allocate","target":"compute_pool","parameters":{"units":4},"idempotency_key":"idem-c-001","safety":{"dry_run_allowed":true,"max_retries":3}}}
+{"trace_event":{"timestamp":"2025-12-31T18:00:01Z","cause_id":"c-001","correlation_id":"corr-001","component":"CaPU","event_type":"decision_committed","details":{"decision":"ACCEPT","reason_code":"PERMIT_OK","state_from":"INCUBATE","state_to":"EXECUTED","latency_ms":12}}}
+
+{"submit":{"envelope":{"cause_id":"c-002","received_at":"2025-12-31T18:00:10Z","source":"example","correlation_id":"corr-002","ttl_ms":60000},"vcml_record":{"cause_id":"c-002","intent":"allocate_compute","params":{"units":999},"thread_id":"t-42"}}}
+{"decision":{"decision":"REJECT","reason_code":"REJECT_CAPACITY_LIMIT","explain":"capacity exceeded"}}
+{"trace_event":{"timestamp":"2025-12-31T18:00:11Z","cause_id":"c-002","correlation_id":"corr-002","component":"CaPU","event_type":"decision_rejected","details":{"decision":"REJECT","reason_code":"REJECT_CAPACITY_LIMIT","state_from":"INCUBATE","state_to":"REJECTED","latency_ms":7}}}
