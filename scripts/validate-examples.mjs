@@ -31,7 +31,17 @@ const ajv = new Ajv2020({
 
 function readJson(rel) {
   const p = path.resolve(ROOT, rel);
-  return JSON.parse(fs.readFileSync(p, "utf-8"));
+  let raw;
+  try {
+    raw = fs.readFileSync(p, "utf-8");
+  } catch (e) {
+    throw new Error(`Failed to read file: ${rel}\n- ${String(e?.message || e)}`);
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`Invalid JSON: ${rel}\n- ${String(e?.message || e)}`);
+  }
 }
 
 // Register shared schemas so $ref resolution is deterministic.
@@ -51,31 +61,58 @@ function fail(msg) {
 }
 
 function registerSharedSchemas() {
-  const sharedSchemas = sharedSchemaPaths.map(readJson);
+  const sharedSchemas = sharedSchemaPaths.map((p) => {
+    try {
+      return { path: p, schema: readJson(p) };
+    } catch (e) {
+      fail(`\n❌ ${String(e?.message || e)}\n`);
+      return { path: p, schema: null };
+    }
+  });
 
   // Ensure every shared schema has a stable $id and is registered under that $id.
-  for (const s of sharedSchemas) {
-    if (!s || typeof s !== "object") {
-      fail(`\n❌ Shared schema is not an object (check JSON): ${JSON.stringify(s)?.slice(0, 80) || "(unknown)"}\n`);
+  for (const { path: p, schema: s } of sharedSchemas) {
+    if (!s || typeof s !== "object" || Array.isArray(s)) {
+      fail(`\n❌ Shared schema must be a JSON object: ${p}\n`);
       continue;
     }
     if (!s.$id || typeof s.$id !== "string") {
-      fail(`\n❌ Shared schema missing $id (required for deterministic $ref): ${s?.title || "(no title)"}\n`);
+      fail(`\n❌ Shared schema missing $id (required for deterministic $ref): ${p}\n`);
       continue;
     }
-    ajv.addSchema(s);
+    try {
+      ajv.addSchema(s);
+    } catch (e) {
+      fail(`\n❌ Failed to add schema to Ajv: ${p}\n- $id: ${s.$id}\n- ${String(e?.message || e)}\n`);
+    }
   }
 
   // Verify registration worked (no silent drift).
-  for (const s of sharedSchemas) {
+  for (const { path: p, schema: s } of sharedSchemas) {
     if (s?.$id && !ajv.getSchema(s.$id)) {
-      fail(`\n❌ Shared schema not registered in Ajv for $id: ${s.$id}\n`);
+      fail(`\n❌ Shared schema not registered in Ajv for $id: ${s.$id}\n- file: ${p}\n`);
     }
   }
 }
 
 function compileSchema(schemaPath) {
-  const schemaObj = readJson(schemaPath);
+  let schemaObj;
+  try {
+    schemaObj = readJson(schemaPath);
+  } catch (e) {
+    fail(`\n❌ ${String(e?.message || e)}\n`);
+    return Object.assign(() => false, {
+      errors: [{ instancePath: "", message: "schema load failed" }]
+    });
+  }
+
+  if (!schemaObj || typeof schemaObj !== "object" || Array.isArray(schemaObj)) {
+    fail(`\n❌ Schema must be a JSON object: ${schemaPath}\n`);
+    return Object.assign(() => false, {
+      errors: [{ instancePath: "", message: "schema is not an object" }]
+    });
+  }
+
   return (
     (schemaObj.$id && ajv.getSchema(schemaObj.$id)) ||
     ajv.compile(schemaObj)
@@ -90,6 +127,7 @@ function printErrors(prefix, validateFn) {
 
 async function main() {
   registerSharedSchemas();
+  if (!ok) process.exit(1);
   for (const { file, schema } of examples) {
     const data = readJson(file);
     const validate = compileSchema(schema);
