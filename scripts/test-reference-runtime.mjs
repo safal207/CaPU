@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { ReferenceCaPU } from "../src/reference-runtime.mjs";
+import { InMemoryStorage, ReferenceCaPU } from "../src/reference-runtime.mjs";
 
-const capu = new ReferenceCaPU();
+const capu = new ReferenceCaPU({
+  storage: new InMemoryStorage({ failCauseIds: ["t-commit-fail"] })
+});
 
 const accept = capu.submit({
   envelope: {
@@ -19,6 +21,7 @@ const accept = capu.submit({
   }
 });
 assert.equal(accept.decision.decision, "ACCEPT");
+assert.equal(accept.commit.status, "OK");
 assert.equal(accept.execution.status, "OK");
 assert.equal(capu.storage.exists("t-accept"), true);
 
@@ -77,6 +80,7 @@ capu.submit({
 const matured = capu.advanceTime("2025-12-31T19:01:20Z");
 assert.equal(matured.length, 1);
 assert.equal(matured[0].decision.decision, "ACCEPT");
+assert.equal(matured[0].commit.status, "OK");
 assert.equal(capu.storage.exists("t-hold"), true);
 
 capu.submit({
@@ -114,24 +118,43 @@ const executeFail = capu.submit({
   }
 });
 assert.equal(executeFail.decision.decision, "ACCEPT");
+assert.equal(executeFail.commit.status, "OK");
 assert.equal(executeFail.execution.status, "FAIL");
 
+const commitFail = capu.submit({
+  envelope: {
+    cause_id: "t-commit-fail",
+    received_at: "2025-12-31T19:04:00Z",
+    source: "test",
+    correlation_id: "corr-commit-fail",
+    ttl_ms: 60000
+  },
+  vcml_record: {
+    cause_id: "t-commit-fail",
+    intent: "allocate_compute",
+    params: { units: 8 },
+    thread_id: "thread-5"
+  }
+});
+assert.equal(commitFail.decision.decision, "ACCEPT");
+assert.equal(commitFail.commit.status, "FAIL");
+assert.equal(capu.storage.exists("t-commit-fail"), false);
+assert.equal("execution" in commitFail, false);
+
 const eventTypes = capu.traceSink.events.map((event) => event.event_type);
-assert.deepEqual(
-  eventTypes.filter((eventType) => [
-    "gate.accept",
-    "gate.reject",
-    "gate.hold",
-    "incubator.release",
-    "incubator.expire",
-    "commit.ok",
-    "execute.ok",
-    "execute.fail"
-  ].includes(eventType)).length > 0,
-  true
-);
+assert.equal(eventTypes.includes("gate.accept"), true);
+assert.equal(eventTypes.includes("gate.reject"), true);
+assert.equal(eventTypes.includes("gate.hold"), true);
 assert.equal(eventTypes.includes("incubator.release"), true);
 assert.equal(eventTypes.includes("incubator.expire"), true);
+assert.equal(eventTypes.includes("commit.ok"), true);
+assert.equal(eventTypes.includes("commit.fail"), true);
+assert.equal(eventTypes.includes("execute.ok"), true);
 assert.equal(eventTypes.includes("execute.fail"), true);
+
+const commitFailIndex = eventTypes.lastIndexOf("commit.fail");
+assert.notEqual(commitFailIndex, -1);
+assert.equal(eventTypes.slice(commitFailIndex + 1).includes("execute.fail"), false);
+assert.equal(eventTypes.slice(commitFailIndex + 1).includes("execute.ok"), false);
 
 console.log("reference runtime checks passed");

@@ -55,3 +55,4 @@ or jump directly to each contract:
 3.  See [examples/](examples/) for JSONL flow examples.
 4.  Review [DEPENDENCIES.md](DEPENDENCIES.md) for canonical links.
 5.  Run `npm run demo:reference` to see the minimal in-memory reference runtime produce decisions, effects, and trace events.
+6.  Run `npm run test:reference` to verify the reference runtime paths, including commit failures.

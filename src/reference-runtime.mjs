@@ -25,14 +25,16 @@ export class InMemoryTraceSink {
 }
 
 export class InMemoryStorage {
-  constructor() {
+  constructor({ failCauseIds = [] } = {}) {
     this.records = new Map();
     this.commits = [];
+    this.failCauseIds = new Set(failCauseIds);
   }
 
   commit(causeRecord) {
     const causeId = causeRecord.cause_id;
     if (!causeId) throw new Error("cause_id is required for commit");
+    if (this.failCauseIds.has(causeId)) throw new Error(`simulated commit failure: ${causeId}`);
     if (this.records.has(causeId)) throw new Error(`cause already committed: ${causeId}`);
     const committed = clone(causeRecord);
     this.records.set(causeId, committed);
@@ -335,39 +337,64 @@ export class ReferenceCaPU {
       });
     }
 
-    this.storage.commit(vcml_record);
-    this.#emitTrace({
-      timestamp: toIso(new Date(acceptedAt).getTime() + 1),
-      causeId,
-      correlationId,
-      event_type: "commit.ok",
-      details: {
-        state_from: "ACCEPTED",
-        state_to: "COMMITTED",
-        latency_ms: 1
-      }
-    });
+    try {
+      const commitId = this.storage.commit(vcml_record);
+      this.#emitTrace({
+        timestamp: toIso(new Date(acceptedAt).getTime() + 1),
+        causeId,
+        correlationId,
+        event_type: "commit.ok",
+        details: {
+          state_from: "ACCEPTED",
+          state_to: "COMMITTED",
+          latency_ms: 1
+        }
+      });
 
-    const effect_plan = this.#buildEffectPlan(vcml_record);
-    const execution = this.executor.execute(effect_plan);
-    const executeTimestamp = toIso(new Date(acceptedAt).getTime() + 2);
-    this.#emitTrace({
-      timestamp: executeTimestamp,
-      causeId,
-      correlationId,
-      event_type: execution.status === "OK" ? "execute.ok" : "execute.fail",
-      details: {
-        reason_code: execution.reason_code,
-        state_from: "COMMITTED",
-        state_to: "EXECUTED",
-        latency_ms: 1
-      }
-    });
+      const effect_plan = this.#buildEffectPlan(vcml_record);
+      const execution = this.executor.execute(effect_plan);
+      const executeTimestamp = toIso(new Date(acceptedAt).getTime() + 2);
+      this.#emitTrace({
+        timestamp: executeTimestamp,
+        causeId,
+        correlationId,
+        event_type: execution.status === "OK" ? "execute.ok" : "execute.fail",
+        details: {
+          reason_code: execution.reason_code,
+          state_from: "COMMITTED",
+          state_to: "EXECUTED",
+          latency_ms: 1
+        }
+      });
 
-    return {
-      effect_plan,
-      execution
-    };
+      return {
+        commit: { status: "OK", cause_id: commitId },
+        effect_plan,
+        execution
+      };
+    } catch (error) {
+      this.#emitTrace({
+        timestamp: toIso(new Date(acceptedAt).getTime() + 1),
+        causeId,
+        correlationId,
+        event_type: "commit.fail",
+        details: {
+          decision: "REJECT",
+          reason_code: "ABORT_INTERNAL_ERROR",
+          state_from: "ACCEPTED",
+          state_to: "REJECTED",
+          latency_ms: 1
+        }
+      });
+
+      return {
+        commit: {
+          status: "FAIL",
+          reason_code: "ABORT_INTERNAL_ERROR",
+          explain: String(error?.message || error)
+        }
+      };
+    }
   }
 
   #emitTrace({ timestamp, causeId, correlationId, event_type, details }) {

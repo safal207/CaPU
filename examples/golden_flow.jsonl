@@ -30,3 +30,8 @@
 {"trace_event":{"timestamp":"2025-12-31T18:03:01Z","cause_id":"c-005","correlation_id":"corr-005","component":"CaPU","event_type":"gate.accept","details":{"decision":"ACCEPT","reason_code":"PERMIT_OK","state_from":"VALIDATING","state_to":"ACCEPTED","latency_ms":4}}}
 {"trace_event":{"timestamp":"2025-12-31T18:03:02Z","cause_id":"c-005","correlation_id":"corr-005","component":"CaPU","event_type":"commit.ok","details":{"state_from":"ACCEPTED","state_to":"COMMITTED","latency_ms":5}}}
 {"trace_event":{"timestamp":"2025-12-31T18:03:03Z","cause_id":"c-005","correlation_id":"corr-005","component":"CaPU","event_type":"execute.fail","details":{"reason_code":"ABORT_INTERNAL_ERROR","state_from":"COMMITTED","state_to":"EXECUTED","latency_ms":11}}}
+
+{"submit":{"envelope":{"cause_id":"c-006","received_at":"2025-12-31T18:04:00Z","source":"example","correlation_id":"corr-006","ttl_ms":60000},"vcml_record":{"cause_id":"c-006","intent":"allocate_compute","params":{"units":8},"thread_id":"t-46"}}}
+{"decision":{"decision":"ACCEPT","reason_code":"PERMIT_OK","explain":"resources available"}}
+{"trace_event":{"timestamp":"2025-12-31T18:04:01Z","cause_id":"c-006","correlation_id":"corr-006","component":"CaPU","event_type":"gate.accept","details":{"decision":"ACCEPT","reason_code":"PERMIT_OK","state_from":"VALIDATING","state_to":"ACCEPTED","latency_ms":4}}}
+{"trace_event":{"timestamp":"2025-12-31T18:04:02Z","cause_id":"c-006","correlation_id":"corr-006","component":"CaPU","event_type":"commit.fail","details":{"decision":"REJECT","reason_code":"ABORT_INTERNAL_ERROR","state_from":"ACCEPTED","state_to":"REJECTED","latency_ms":5}}}

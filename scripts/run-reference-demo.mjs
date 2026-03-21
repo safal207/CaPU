@@ -1,6 +1,8 @@
-import { ReferenceCaPU } from "../src/reference-runtime.mjs";
+import { InMemoryStorage, ReferenceCaPU } from "../src/reference-runtime.mjs";
 
-const capu = new ReferenceCaPU();
+const capu = new ReferenceCaPU({
+  storage: new InMemoryStorage({ failCauseIds: ["c-006"] })
+});
 
 const scenarios = [
   {
@@ -77,6 +79,21 @@ const scenarios = [
       intent: "dispatch_webhook",
       params: { url: "https://example.invalid/hook" },
       thread_id: "t-45"
+    }
+  },
+  {
+    envelope: {
+      cause_id: "c-006",
+      received_at: "2025-12-31T18:04:00Z",
+      source: "demo",
+      correlation_id: "corr-006",
+      ttl_ms: 60000
+    },
+    vcml_record: {
+      cause_id: "c-006",
+      intent: "allocate_compute",
+      params: { units: 8 },
+      thread_id: "t-46"
     }
   }
 ];
