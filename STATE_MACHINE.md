@@ -50,6 +50,22 @@ This document defines the lifecycle of a cause within the CaPU.
 | **EXECUTED** | `execute_ok` | **(End)** | Trace success |
 | **EXECUTED** | `execute_fail` | **(End)** | Trace failure (cause remains COMMITTED) |
 
+## Trace Mapping
+
+The trace stream SHOULD use a stable stage-oriented taxonomy aligned with these transitions.
+
+| Transition / Outcome | Canonical `event_type` | Decision / Code Expectations |
+| :--- | :--- | :--- |
+| VALIDATING → ACCEPTED | `gate.accept` | `decision=ACCEPT`, canonical permit code |
+| VALIDATING → HELD | `gate.hold` | `decision=HOLD`, defer/pending-context code |
+| VALIDATING → REJECTED | `gate.reject` | `decision=REJECT`, canonical reject code |
+| HELD → ACCEPTED | `incubator.release` | `decision=ACCEPT`, permit code |
+| HELD → EXPIRED | `incubator.expire` | `decision=EXPIRE`, timeout/TTL code |
+| ACCEPTED → COMMITTED | `commit.ok` | commit metadata may omit decision |
+| ACCEPTED → REJECTED (storage error) | `commit.fail` | implementation should include a stable failure code |
+| COMMITTED → end success | `execute.ok` | should include executed/no-effect style code when useful |
+| COMMITTED → end failure | `execute.fail` | execution failure recorded after durable commit |
+
 ## Invariants
 
 1.  **Execute MUST happen only after Commit.**

@@ -6,6 +6,24 @@ Adapters should map these events into **T-Trace JSONL**.
 See [DEPENDENCIES.md](../DEPENDENCIES.md) for T-Trace ownership and
 [DECISION_CODES.md](../DECISION_CODES.md) for decision/reason enums.
 
+## Canonical Event Taxonomy
+
+The canonical `event_type` namespace is stage-oriented:
+
+- `gate.accept`
+- `gate.hold`
+- `gate.reject`
+- `incubator.release`
+- `incubator.expire`
+- `commit.ok`
+- `commit.fail`
+- `execute.ok`
+- `execute.fail`
+
+Implementations SHOULD use these exact names in emitted trace events.
+If an implementation needs extra detail, it SHOULD add it inside `details`
+rather than inventing alternative top-level event names.
+
 ## Output Contract
 
 ```
@@ -14,7 +32,7 @@ trace_event:
   cause_id: string
   correlation_id: string (optional)
   component: "CaPU"
-  event_type: string (e.g., gate.accept, gate.hold, commit.ok, execute.fail)
+  event_type: string (from canonical taxonomy above)
   details:
     decision: string (optional)
     reason_code: string (optional)
@@ -23,8 +41,22 @@ trace_event:
     latency_ms: number (optional)
 ```
 
+## Recommended Mapping
+
+| Situation | event_type | details.decision | details.reason_code |
+| :--- | :--- | :--- | :--- |
+| Gate permits immediate progress | `gate.accept` | `ACCEPT` | canonical permit/reject code |
+| Gate defers pending context | `gate.hold` | `HOLD` | e.g. `DEFER_PENDING_CONTEXT` |
+| Gate rejects cause | `gate.reject` | `REJECT` | canonical reject code |
+| Incubator releases held cause | `incubator.release` | `ACCEPT` | canonical permit code |
+| Held cause TTL elapsed | `incubator.expire` | `EXPIRE` | e.g. `TTL_EXPIRED` |
+| Commit succeeded | `commit.ok` | optional | optional |
+| Commit failed | `commit.fail` | `REJECT` or implementation-defined | e.g. `ABORT_INTERNAL_ERROR` |
+| Execution succeeded | `execute.ok` | optional | e.g. `COMMIT_EXECUTED` |
+| Execution failed after commit | `execute.fail` | optional | implementation-defined |
+
 ## Notes
 
 - The device emits structured events only; adapters map to T-Trace taxonomy.
 - `details` is a small context map, not a full event schema.
-- `event_type` should be namespaced (e.g., `gate.*`, `incubator.*`, `commit.*`, `execute.*`).
+- Prefer stage-oriented event names over outcome-specific aliases.
