@@ -20,7 +20,7 @@ The canonical `event_type` namespace is stage-oriented:
 - `execute.ok`
 - `execute.fail`
 
-Implementations SHOULD use these exact names in emitted trace events.
+TraceOut payloads MUST use these exact names in `trace_event.event_type`.
 If an implementation needs extra detail, it SHOULD add it inside `details`
 rather than inventing alternative top-level event names.
 
@@ -32,7 +32,7 @@ trace_event:
   cause_id: string
   correlation_id: string (optional)
   component: "CaPU"
-  event_type: string (from canonical taxonomy above)
+  event_type: string (one of the canonical taxonomy values above)
   details:
     decision: string (optional)
     reason_code: string (optional)
@@ -57,6 +57,6 @@ trace_event:
 
 ## Notes
 
-- The device emits structured events only; adapters map to T-Trace taxonomy.
+- The device emits structured events using the canonical taxonomy above.
 - `details` is a small context map, not a full event schema.
 - Prefer stage-oriented event names over outcome-specific aliases.

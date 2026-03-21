@@ -25,7 +25,8 @@ const schemaByTopKey = {
 const ajv = new Ajv2020({
   strict: true,
   allErrors: true,
-  // Avoid ajv-formats ESM meta-schema crash in CI
+  // Keep date-time `format` annotations non-asserting here so validation stays
+  // focused on schema shape without requiring ajv-formats in CI.
   validateFormats: false
 });
 

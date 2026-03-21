@@ -164,6 +164,7 @@ async function main() {
       }
 
       const followUpTimestamp = nextEvaluationTimestamp(scenario.records);
+      assert.ok(followUpTimestamp, `${causeId}: missing follow-up evaluation timestamp`);
       const followUpResults = capu.advanceTime(followUpTimestamp);
       const followUp = followUpResults.find((entry) => entry.cause_id === causeId);
       assert.ok(followUp, `${causeId}: missing held follow-up result`);
