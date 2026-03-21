@@ -48,9 +48,10 @@ or jump directly to each contract:
 *   **Canonical ownership:** See [DEPENDENCIES.md](DEPENDENCIES.md) (do not re-implement vCML/LPT/T-Trace).
 
 ## Quickstart
-> **Note:** This is a **spec-first** repository. There is no runtime implementation yet.
+> **Note:** This remains a **spec-first** repository, but now includes a minimal in-memory reference runtime for demos and validation experiments.
 
 1.  Read [SPEC.md](SPEC.md) for the core architecture.
 2.  Check [STATE_MACHINE.md](STATE_MACHINE.md) for the lifecycle logic.
 3.  See [examples/](examples/) for JSONL flow examples.
 4.  Review [DEPENDENCIES.md](DEPENDENCIES.md) for canonical links.
+5.  Run `npm run demo:reference` to see the minimal in-memory reference runtime produce decisions, effects, and trace events.

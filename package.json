@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate:examples": "node scripts/validate-examples.mjs"
+    "validate:examples": "node scripts/validate-examples.mjs",
+    "demo:reference": "node scripts/run-reference-demo.mjs",
+    "test:reference": "node scripts/test-reference-runtime.mjs"
   },
   "devDependencies": {
     "ajv": "^8.17.1"
