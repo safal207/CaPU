@@ -144,7 +144,7 @@ for (const result of results) {
 }
 
 console.log("# Matured / Expired");
-for (const result of [...holdRelease, ...quorumRelease, ...expirations]) {
+for (const result of [...holdRelease, ...expirations, ...quorumRelease]) {
   console.log(JSON.stringify(result));
 }
 

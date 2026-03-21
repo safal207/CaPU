@@ -37,9 +37,9 @@ This document defines the lifecycle of a cause within the CaPU.
 | :--- | :--- | :--- | :--- |
 | **(Start)** | `submit` | **RECEIVED** | |
 | **RECEIVED** | (internal) | **VALIDATING** | Start validation logic |
-| **VALIDATING** | `invalid` | **REJECTED** | Reason: BAD_SIGNATURE, etc. |
-| **VALIDATING** | `policy_deny` | **REJECTED** | Reason: SCOPE_DENIED, etc. |
-| **VALIDATING** | `preconditions_unmet`| **HELD** | Move to Incubator |
+| **VALIDATING** | `invalid` | **REJECTED** | Canonical code: `REJECT_INVALID_CAUSE` |
+| **VALIDATING** | `policy_deny` | **REJECTED** | Canonical code: `REJECT_POLICY` |
+| **VALIDATING** | `preconditions_unmet`| **HELD** | Canonical code: `DEFER_PENDING_CONTEXT` |
 | **VALIDATING** | `valid` | **ACCEPTED** | Ready to commit |
 | **HELD** | `preconditions_met` | **ACCEPTED** | Incubator releases cause |
 | **HELD** | `timeout` | **EXPIRED** | TTL reached |
