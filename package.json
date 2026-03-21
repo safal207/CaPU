@@ -5,7 +5,8 @@
   "scripts": {
     "validate:examples": "node scripts/validate-examples.mjs",
     "demo:reference": "node scripts/run-reference-demo.mjs",
-    "test:reference": "node scripts/test-reference-runtime.mjs"
+    "test:reference": "node scripts/test-reference-runtime.mjs",
+    "verify:golden": "node scripts/verify-golden.mjs"
   },
   "devDependencies": {
     "ajv": "^8.17.1"

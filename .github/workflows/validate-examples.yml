@@ -32,3 +32,8 @@ jobs:
         run: |
           set -euxo pipefail
           npm run test:reference
+
+      - name: Verify golden fixture against runtime
+        run: |
+          set -euxo pipefail
+          npm run verify:golden
