@@ -21,8 +21,8 @@ The canonical `event_type` namespace is stage-oriented:
 - `execute.fail`
 
 TraceOut payloads MUST use these exact names in `trace_event.event_type`.
-If an implementation needs extra detail, it SHOULD add it inside `details`
-rather than inventing alternative top-level event names.
+`details` is a fixed, schema-validated map for the fields listed below; implementations
+SHOULD NOT add ad-hoc keys there or invent alternative top-level event names.
 
 ## Output Contract
 
@@ -58,5 +58,5 @@ trace_event:
 ## Notes
 
 - The device emits structured events using the canonical taxonomy above.
-- `details` is a small context map, not a full event schema.
+- `details` is a small fixed context map, not an extensible event schema.
 - Prefer stage-oriented event names over outcome-specific aliases.
