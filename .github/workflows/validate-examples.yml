@@ -27,3 +27,8 @@ jobs:
         run: |
           set -euxo pipefail
           npm run validate:examples
+
+      - name: Run reference runtime tests
+        run: |
+          set -euxo pipefail
+          npm run test:reference

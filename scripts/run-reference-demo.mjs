@@ -132,11 +132,11 @@ capu.submit({
 });
 
 const holdRelease = capu.advanceTime("2025-12-31T18:01:20Z");
+const expirations = capu.advanceTime("2025-12-31T18:02:15Z");
 capu.updateHeldCause("c-007", (held) => {
   held.vcml_record.params.quorum_met = true;
 });
 const quorumRelease = capu.advanceTime("2025-12-31T18:05:10Z");
-const expirations = capu.advanceTime("2025-12-31T18:02:15Z");
 
 console.log("# Decisions");
 for (const result of results) {
