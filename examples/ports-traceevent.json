@@ -4,12 +4,12 @@
     "cause_id": "c-001",
     "correlation_id": "corr-001",
     "component": "CaPU",
-    "event_type": "decision_committed",
+    "event_type": "commit.ok",
     "details": {
       "decision": "ACCEPT",
       "reason_code": "PERMIT_OK",
-      "state_from": "INCUBATE",
-      "state_to": "EXECUTED",
+      "state_from": "ACCEPTED",
+      "state_to": "COMMITTED",
       "latency_ms": 12
     }
   }

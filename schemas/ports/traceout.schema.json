@@ -4,27 +4,96 @@
   "title": "TraceOut Port Example",
   "type": "object",
   "additionalProperties": false,
-  "required": ["trace_event"],
+  "required": [
+    "trace_event"
+  ],
   "properties": {
     "trace_event": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["timestamp", "cause_id", "component", "event_type", "details"],
+      "required": [
+        "timestamp",
+        "cause_id",
+        "component",
+        "event_type",
+        "details"
+      ],
       "properties": {
-        "timestamp": { "type": "string", "format": "date-time" },
-        "cause_id": { "type": "string", "minLength": 1 },
-        "correlation_id": { "type": "string" },
-        "component": { "type": "string", "const": "CaPU" },
-        "event_type": { "type": "string", "minLength": 1 },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cause_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation_id": {
+          "type": "string"
+        },
+        "component": {
+          "type": "string",
+          "const": "CaPU"
+        },
+        "event_type": {
+          "type": "string",
+          "enum": [
+            "gate.accept",
+            "gate.hold",
+            "gate.reject",
+            "incubator.release",
+            "incubator.expire",
+            "commit.ok",
+            "commit.fail",
+            "execute.ok",
+            "execute.fail"
+          ]
+        },
         "details": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "decision": { "type": "string" },
-            "reason_code": { "type": "string" },
-            "state_from": { "type": "string" },
-            "state_to": { "type": "string" },
-            "latency_ms": { "type": "number", "minimum": 0 }
+            "decision": {
+              "type": "string",
+              "enum": [
+                "ACCEPT",
+                "HOLD",
+                "REJECT",
+                "EXPIRE"
+              ]
+            },
+            "reason_code": {
+              "type": "string"
+            },
+            "state_from": {
+              "type": "string",
+              "enum": [
+                "RECEIVED",
+                "VALIDATING",
+                "HELD",
+                "ACCEPTED",
+                "COMMITTED",
+                "EXECUTED",
+                "REJECTED",
+                "EXPIRED"
+              ]
+            },
+            "state_to": {
+              "type": "string",
+              "enum": [
+                "RECEIVED",
+                "VALIDATING",
+                "HELD",
+                "ACCEPTED",
+                "COMMITTED",
+                "EXECUTED",
+                "REJECTED",
+                "EXPIRED"
+              ]
+            },
+            "latency_ms": {
+              "type": "number",
+              "minimum": 0
+            }
           }
         }
       }
