@@ -48,11 +48,13 @@ This document defines the lifecycle of a cause within the CaPU.
 | **ACCEPTED** | `commit_fail` | **REJECTED** | Storage error (retry logic dependent on impl) |
 | **COMMITTED** | (internal) | **EXECUTED** | Trigger Executor (invoke side effects) |
 | **EXECUTED** | `execute_ok` | **(End)** | Trace success |
-| **EXECUTED** | `execute_fail` | **(End)** | Trace failure (cause remains COMMITTED) |
+| **EXECUTED** | `execute_fail` | **(End)** | Trace failure after attempted execution; committed cause remains durable |
 
 ## Trace Mapping
 
 The trace stream SHOULD use a stable stage-oriented taxonomy aligned with these transitions.
+
+Implementation note: if a held cause becomes mature exactly at or after its TTL boundary, the reference runtime gives **release** precedence over **expire** at evaluation time.
 
 | Transition / Outcome | Canonical `event_type` | Decision / Code Expectations |
 | :--- | :--- | :--- |

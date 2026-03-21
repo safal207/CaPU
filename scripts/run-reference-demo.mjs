@@ -95,6 +95,21 @@ const scenarios = [
       params: { units: 8 },
       thread_id: "t-46"
     }
+  },
+  {
+    envelope: {
+      cause_id: "c-007",
+      received_at: "2025-12-31T18:05:00Z",
+      source: "demo",
+      correlation_id: "corr-007",
+      ttl_ms: 30000
+    },
+    vcml_record: {
+      cause_id: "c-007",
+      intent: "await_quorum",
+      params: { quorum: 3 },
+      thread_id: "t-47"
+    }
   }
 ];
 
@@ -117,6 +132,10 @@ capu.submit({
 });
 
 const holdRelease = capu.advanceTime("2025-12-31T18:01:20Z");
+capu.updateHeldCause("c-007", (held) => {
+  held.vcml_record.params.quorum_met = true;
+});
+const quorumRelease = capu.advanceTime("2025-12-31T18:05:10Z");
 const expirations = capu.advanceTime("2025-12-31T18:02:15Z");
 
 console.log("# Decisions");
@@ -125,7 +144,7 @@ for (const result of results) {
 }
 
 console.log("# Matured / Expired");
-for (const result of [...holdRelease, ...expirations]) {
+for (const result of [...holdRelease, ...quorumRelease, ...expirations]) {
   console.log(JSON.stringify(result));
 }
 

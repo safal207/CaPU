@@ -15,7 +15,7 @@ Records a lifecycle event.
 *   **Input:** `trace_event` object containing:
     *   `timestamp`: ISO 8601
     *   `cause_id`: The causal record identifier (vCML id).
-    *   `trace_id`: Optional correlation id (session/span), may differ from cause_id.
+    *   `correlation_id`: Optional correlation id / trace id (session/span), may differ from `cause_id`.
     *   `component`: "CaPU"
     *   `event_type`: One canonical lifecycle event name.
     *   `details`: Object with `decision`, `reason_code`, etc.

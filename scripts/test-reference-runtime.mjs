@@ -102,6 +102,28 @@ const expired = capu.advanceTime("2025-12-31T19:02:15Z");
 assert.equal(expired.length, 1);
 assert.equal(expired[0].decision.decision, "EXPIRE");
 
+const quorumHold = capu.submit({
+  envelope: {
+    cause_id: "t-quorum-release",
+    received_at: "2025-12-31T19:02:20Z",
+    source: "test",
+    correlation_id: "corr-quorum-release",
+    ttl_ms: 30000
+  },
+  vcml_record: {
+    cause_id: "t-quorum-release",
+    intent: "await_quorum",
+    params: { quorum: 3 },
+    thread_id: "thread-3b"
+  }
+});
+assert.equal(quorumHold.decision.decision, "HOLD");
+assert.equal(capu.updateHeldCause("t-quorum-release", (held) => { held.vcml_record.params.quorum_met = true; }), true);
+const quorumRelease = capu.advanceTime("2025-12-31T19:02:25Z");
+assert.equal(quorumRelease.length, 1);
+assert.equal(quorumRelease[0].decision.decision, "ACCEPT");
+assert.equal(quorumRelease[0].commit.status, "OK");
+
 const executeFail = capu.submit({
   envelope: {
     cause_id: "t-fail",

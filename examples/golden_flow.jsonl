@@ -9,11 +9,11 @@
 {"decision":{"decision":"REJECT","reason_code":"REJECT_CAPACITY_LIMIT","explain":"capacity exceeded"}}
 {"trace_event":{"timestamp":"2025-12-31T18:00:11Z","cause_id":"c-002","correlation_id":"corr-002","component":"CaPU","event_type":"gate.reject","details":{"decision":"REJECT","reason_code":"REJECT_CAPACITY_LIMIT","state_from":"VALIDATING","state_to":"REJECTED","latency_ms":7}}}
 
-{"submit":{"envelope":{"cause_id":"c-003","received_at":"2025-12-31T18:00:20Z","source":"example","correlation_id":"corr-003","ttl_ms":60000},"vcml_record":{"cause_id":"c-003","intent":"allocate_compute","params":{"units":2},"thread_id":"t-43","parent_cause_id":"c-000"}}}
+{"submit":{"envelope":{"cause_id":"c-003","received_at":"2025-12-31T18:00:20Z","source":"example","correlation_id":"corr-003","ttl_ms":60000},"vcml_record":{"cause_id":"c-003","intent":"allocate_compute","params":{"units":2},"thread_id":"t-43","parent_cause_id":"c-parent"}}}
 {"decision":{"decision":"HOLD","reason_code":"DEFER_PENDING_CONTEXT","explain":"waiting for parent cause","next_check_at":"2025-12-31T18:01:20Z"}}
 {"trace_event":{"timestamp":"2025-12-31T18:00:21Z","cause_id":"c-003","correlation_id":"corr-003","component":"CaPU","event_type":"gate.hold","details":{"decision":"HOLD","reason_code":"DEFER_PENDING_CONTEXT","state_from":"VALIDATING","state_to":"HELD","latency_ms":3}}}
 {"decision":{"decision":"ACCEPT","reason_code":"PERMIT_OK","explain":"parent cause arrived"}}
-{"effect_plan":{"effect_type":"allocate","target":"compute_pool","parameters":{"units":2},"idempotency_key":"idem-c-003","safety":{"dry_run_allowed":true,"max_retries":2}}}
+{"effect_plan":{"effect_type":"allocate","target":"compute_pool","parameters":{"units":2},"idempotency_key":"idem-c-003","safety":{"dry_run_allowed":true,"max_retries":3}}}
 {"trace_event":{"timestamp":"2025-12-31T18:01:20Z","cause_id":"c-003","correlation_id":"corr-003","component":"CaPU","event_type":"incubator.release","details":{"decision":"ACCEPT","reason_code":"PERMIT_OK","state_from":"HELD","state_to":"ACCEPTED","latency_ms":60000}}}
 {"trace_event":{"timestamp":"2025-12-31T18:01:21Z","cause_id":"c-003","correlation_id":"corr-003","component":"CaPU","event_type":"commit.ok","details":{"state_from":"ACCEPTED","state_to":"COMMITTED","latency_ms":6}}}
 {"trace_event":{"timestamp":"2025-12-31T18:01:22Z","cause_id":"c-003","correlation_id":"corr-003","component":"CaPU","event_type":"execute.ok","details":{"reason_code":"COMMIT_EXECUTED","state_from":"COMMITTED","state_to":"EXECUTED","latency_ms":10}}}

@@ -73,6 +73,20 @@ export class ReferenceCaPU {
     };
   }
 
+  updateHeldCause(causeId, updater) {
+    const held = this.heldCauses.get(causeId);
+    if (!held) return false;
+
+    if (typeof updater === "function") {
+      updater(held);
+    } else if (updater && typeof updater === "object") {
+      if (updater.envelope) Object.assign(held.envelope, updater.envelope);
+      if (updater.vcml_record) Object.assign(held.vcml_record, updater.vcml_record);
+    }
+
+    return true;
+  }
+
   advanceTime(nowIso) {
     const matured = [];
     const expired = [];
@@ -90,7 +104,7 @@ export class ReferenceCaPU {
       const decision = {
         decision: "ACCEPT",
         reason_code: "PERMIT_OK",
-        explain: "preconditions satisfied"
+        explain: this.#releaseExplain(held.vcml_record)
       };
       this.#emitTrace({
         timestamp: nowIso,
@@ -192,11 +206,12 @@ export class ReferenceCaPU {
     return {
       decision: "ACCEPT",
       reason_code: "PERMIT_OK",
-      explain: "cause permitted"
+      explain: this.#acceptExplain(vcml_record)
     };
   }
 
   #evaluateHeld(held, nowIso) {
+    // At the TTL boundary, newly satisfied preconditions win over expiration.
     if (new Date(nowIso).getTime() >= new Date(held.expire_at).getTime()) {
       if (held.vcml_record.parent_cause_id && this.storage.exists(held.vcml_record.parent_cause_id)) {
         return "release";
@@ -217,6 +232,22 @@ export class ReferenceCaPU {
     return "hold";
   }
 
+  #acceptExplain(vcml_record) {
+    if (vcml_record.intent === "dispatch_webhook") return "delivery permitted";
+    if (vcml_record.intent === "allocate_compute") return "resources available";
+    return "cause permitted";
+  }
+
+  #releaseExplain(vcml_record) {
+    if (vcml_record.parent_cause_id) return "parent cause arrived";
+    if (vcml_record.intent === "await_quorum") return "quorum reached";
+    return "preconditions satisfied";
+  }
+
+  #maxRetriesForAllocate(_vcml_record) {
+    return 3;
+  }
+
   #buildEffectPlan(vcml_record) {
     if (vcml_record.intent === "allocate_compute") {
       return {
@@ -224,7 +255,7 @@ export class ReferenceCaPU {
         target: "compute_pool",
         parameters: { units: vcml_record.params?.units ?? 1 },
         idempotency_key: `idem-${vcml_record.cause_id}`,
-        safety: { dry_run_allowed: true, max_retries: 3 }
+        safety: { dry_run_allowed: true, max_retries: this.#maxRetriesForAllocate(vcml_record) }
       };
     }
 
