@@ -53,16 +53,42 @@
           "additionalProperties": false,
           "properties": {
             "decision": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "ACCEPT",
+                "HOLD",
+                "REJECT",
+                "EXPIRE"
+              ]
             },
             "reason_code": {
               "type": "string"
             },
             "state_from": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "RECEIVED",
+                "VALIDATING",
+                "HELD",
+                "ACCEPTED",
+                "COMMITTED",
+                "EXECUTED",
+                "REJECTED",
+                "EXPIRED"
+              ]
             },
             "state_to": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "RECEIVED",
+                "VALIDATING",
+                "HELD",
+                "ACCEPTED",
+                "COMMITTED",
+                "EXECUTED",
+                "REJECTED",
+                "EXPIRED"
+              ]
             },
             "latency_ms": {
               "type": "number",
