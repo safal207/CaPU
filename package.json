@@ -3,10 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "npm run validate:examples && npm run test:reference && npm run verify:golden",
     "validate:examples": "node scripts/validate-examples.mjs",
     "demo:reference": "node scripts/run-reference-demo.mjs",
     "test:reference": "node scripts/test-reference-runtime.mjs",
-    "verify:golden": "node scripts/verify-golden.mjs"
+    "verify:golden": "node scripts/verify-golden.mjs",
+    "report:validation": "node scripts/generate-validation-results.mjs"
   },
   "devDependencies": {
     "ajv": "^8.17.1"

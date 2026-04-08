@@ -66,7 +66,7 @@ function registerSharedSchemas() {
     try {
       return { path: p, schema: readJson(p) };
     } catch (e) {
-      fail(`\n❌ ${String(e?.message || e)}\n`);
+      fail(`\nERROR: ${String(e?.message || e)}\n`);
       return { path: p, schema: null };
     }
   });
@@ -74,24 +74,24 @@ function registerSharedSchemas() {
   // Ensure every shared schema has a stable $id and is registered under that $id.
   for (const { path: p, schema: s } of sharedSchemas) {
     if (!s || typeof s !== "object" || Array.isArray(s)) {
-      fail(`\n❌ Shared schema must be a JSON object: ${p}\n`);
+      fail(`\nERROR: Shared schema must be a JSON object: ${p}\n`);
       continue;
     }
     if (!s.$id || typeof s.$id !== "string") {
-      fail(`\n❌ Shared schema missing $id (required for deterministic $ref): ${p}\n`);
+      fail(`\nERROR: Shared schema missing $id (required for deterministic $ref): ${p}\n`);
       continue;
     }
     try {
       ajv.addSchema(s);
     } catch (e) {
-      fail(`\n❌ Failed to add schema to Ajv: ${p}\n- $id: ${s.$id}\n- ${String(e?.message || e)}\n`);
+      fail(`\nERROR: Failed to add schema to Ajv: ${p}\n- $id: ${s.$id}\n- ${String(e?.message || e)}\n`);
     }
   }
 
   // Verify registration worked (no silent drift).
   for (const { path: p, schema: s } of sharedSchemas) {
     if (s?.$id && !ajv.getSchema(s.$id)) {
-      fail(`\n❌ Shared schema not registered in Ajv for $id: ${s.$id}\n- file: ${p}\n`);
+      fail(`\nERROR: Shared schema not registered in Ajv for $id: ${s.$id}\n- file: ${p}\n`);
     }
   }
 }
@@ -101,14 +101,14 @@ function compileSchema(schemaPath) {
   try {
     schemaObj = readJson(schemaPath);
   } catch (e) {
-    fail(`\n❌ ${String(e?.message || e)}\n`);
+    fail(`\nERROR: ${String(e?.message || e)}\n`);
     return Object.assign(() => false, {
       errors: [{ instancePath: "", message: "schema load failed" }]
     });
   }
 
   if (!schemaObj || typeof schemaObj !== "object" || Array.isArray(schemaObj)) {
-    fail(`\n❌ Schema must be a JSON object: ${schemaPath}\n`);
+    fail(`\nERROR: Schema must be a JSON object: ${schemaPath}\n`);
     return Object.assign(() => false, {
       errors: [{ instancePath: "", message: "schema is not an object" }]
     });
@@ -136,10 +136,10 @@ async function main() {
 
     if (!valid) {
       ok = false;
-      console.error(`\n❌ Validation failed: ${file}\nSchema: ${schema}\n`);
+      console.error(`\nERROR: Validation failed: ${file}\nSchema: ${schema}\n`);
       printErrors("", validate);
     } else {
-      console.log(`✅ ${file}`);
+      console.log(`OK ${file}`);
     }
   }
 
@@ -149,7 +149,7 @@ async function main() {
   if (!fs.existsSync(goldenPath)) {
     ok = false;
     goldenOk = false;
-    console.error(`\n❌ Missing golden flow file: ${goldenFlowFile}\n`);
+    console.error(`\nERROR: Missing golden flow file: ${goldenFlowFile}\n`);
   } else {
     const validators = {};
     for (const [key, schemaPath] of Object.entries(schemaByTopKey)) {
@@ -173,7 +173,7 @@ async function main() {
       } catch (e) {
         ok = false;
         goldenOk = false;
-        console.error(`\n❌ ${goldenFlowFile}:${lineNo} invalid JSON\n- ${String(e.message || e)}\n`);
+        console.error(`\nERROR: ${goldenFlowFile}:${lineNo} invalid JSON\n- ${String(e.message || e)}\n`);
         continue;
       }
 
@@ -181,7 +181,7 @@ async function main() {
       if (keys.length !== 1) {
         ok = false;
         goldenOk = false;
-        console.error(`\n❌ ${goldenFlowFile}:${lineNo} must contain exactly one top-level key\n- got: ${keys.join(", ") || "(none)"}\n`);
+        console.error(`\nERROR: ${goldenFlowFile}:${lineNo} must contain exactly one top-level key\n- got: ${keys.join(", ") || "(none)"}\n`);
         continue;
       }
 
@@ -190,7 +190,7 @@ async function main() {
       if (!validate) {
         ok = false;
         goldenOk = false;
-        console.error(`\n❌ ${goldenFlowFile}:${lineNo} unknown top-level key\n- got: ${topKey}\n- allowed: ${Object.keys(schemaByTopKey).join(", ")}\n`);
+        console.error(`\nERROR: ${goldenFlowFile}:${lineNo} unknown top-level key\n- got: ${topKey}\n- allowed: ${Object.keys(schemaByTopKey).join(", ")}\n`);
         continue;
       }
 
@@ -198,19 +198,19 @@ async function main() {
       if (!valid) {
         ok = false;
         goldenOk = false;
-        console.error(`\n❌ Validation failed: ${goldenFlowFile}:${lineNo}\nSchema: ${schemaByTopKey[topKey]}\n`);
+        console.error(`\nERROR: Validation failed: ${goldenFlowFile}:${lineNo}\nSchema: ${schemaByTopKey[topKey]}\n`);
         printErrors("", validate);
       }
     }
 
-    if (goldenOk) console.log(`✅ ${goldenFlowFile}`);
+    if (goldenOk) console.log(`OK ${goldenFlowFile}`);
   }
 
   if (!ok) process.exit(1);
-  console.log("\nAll example files are valid ✅");
+  console.log("\nAll example files are valid");
 }
 
 main().catch((e) => {
-  console.error("\n❌ Validator crashed\n- " + String(e?.stack || e));
+  console.error("\nERROR: Validator crashed\n- " + String(e?.stack || e));
   process.exit(1);
 });
