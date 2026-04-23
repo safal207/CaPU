@@ -9,7 +9,7 @@ This diagram illustrates the flow of data and the separation of concerns between
                 |
                 v
        +-----------------+
-       |       LTP       |  <-- Transport Layer (Secure Delivery)
+       |       LTP       |  <-- Boundary Layer (Delivery + Replay/Oversight)
        | (Liminal Thread Protocol) |      (Optional, CaPU is transport-agnostic)
        +--------+--------+
                 |
@@ -20,7 +20,7 @@ This diagram illustrates the flow of data and the separation of concerns between
        |                  (Causal Processing Unit)                   |
        |                                                             |
        |   +--------+      +-----------+      +--------+             |
-       |   |  GATE  +----->| INCUBATOR +----->| COMMIT |             |
+       |   |  GATE  +----->| INCUBATE  +----->| COMMIT |             |
        |   +---+----+      +-----------+      +----+---+             |
        |       |                                   |                 |
        |       | (Decision)                        v                 |

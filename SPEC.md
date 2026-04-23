@@ -14,8 +14,8 @@ The CaPU pipeline consists of four distinct stages:
 *   **Permission Decision:** Determines if the action may advance toward execution.
 *   **Outcome:** `PERMIT` or `REJECT`.
 
-### 2. Incubator
-**Function:** Holding area for permitted but premature causes.
+### 2. Incubate
+**Function:** Hold/defer stage for permitted but premature causes.
 *   **Purpose:** Handles causes that are permitted but still have unmet preconditions (e.g., waiting for a parent cause, time-lock, or quorum).
 *   **Mechanism:** Event-driven or scheduled re-evaluation of maturity/preconditions.
 *   **Outcome:** `HOLD`/`DEFER` while unmet; `MATURE` when preconditions are satisfied; `EXPIRE` if TTL is reached.
