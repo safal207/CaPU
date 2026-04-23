@@ -11,7 +11,7 @@ This document establishes the hard boundaries of the CaPU project. CaPU is a **p
 ## 2. LTP
 * **Role:** Canonical boundary layer for ingress/egress transport compatibility, replay control, admissibility checks, and operational oversight.
 * **Responsibility:** Provides delivery compatibility plus replay/inspection surfaces around the execution boundary.
-* **CaPU Relation:** CaPU remains transport-agnostic and can accept causes delivered through LTP or equivalent adapters, while relying on LTP-aligned replay/admissibility context for boundary safety.
+* **CaPU Relation:** CaPU remains transport-agnostic and can accept causes delivered through LTP or equivalent adapters, and interoperates cleanly with LTP-provided replay/admissibility/oversight context when those surfaces are present.
 * **What CaPU does NOT do:** implement socket/session transport internals, transport crypto, or LTP governance workflows.
 * **Link:** [https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-/](https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-/)
 
@@ -24,9 +24,9 @@ This document establishes the hard boundaries of the CaPU project. CaPU is a **p
 ## 4. DRP / DMP
 * **Role:** Governance policy and durable decision memory layers.
 * **Responsibility:** Maintain policy governance and long-lived decision memory outside the execution boundary.
-* **CaPU Relation:** CaPU depends on governance inputs and durable policy context but is **not** itself the governance or memory system.
+* **CaPU Relation:** CaPU can consume governance inputs and integrate with durable policy/memory context, but is **not** itself the governance or memory system.
 * **DRP Link:** [https://github.com/safal207/DRP](https://github.com/safal207/DRP)
-* **DMP Link:** [https://github.com/safal207/DMP](https://github.com/safal207/DMP)
+* **DMP Link:** [https://github.com/safal207/DMP-decision-memory-protocol](https://github.com/safal207/DMP-decision-memory-protocol)
 
 ## 5. CaPU (This Repository)
 * **Role:** Execution-control runtime for side effects.

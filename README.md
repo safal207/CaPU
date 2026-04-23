@@ -107,7 +107,7 @@ For broader framing, see [docs/safety/agentic_execution_threat_model.md](docs/sa
 
 ## Quickstart
 
-Note: this remains a spec-first repository, but it now includes a minimal in-memory reference runtime for demos and validation experiments.
+Note: this is a spec-led repository that now includes a minimal in-memory reference runtime for demos and validation experiments.
 
 1. Run `npm install`.
 2. Read [SPEC.md](SPEC.md) for the core architecture.
