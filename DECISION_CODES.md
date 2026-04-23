@@ -47,7 +47,7 @@ This document is the single source of truth for those values.
 | **ACCEPT** | The cause is valid and allowed to proceed to commit. |
 | **HOLD** | The cause is valid but not yet ready (e.g., missing parent). |
 | **REJECT** | The cause is invalid or denied by policy. Terminal. |
-| **EXPIRE** | The cause timed out in the Incubator. Terminal. |
+| **EXPIRE** | The cause timed out in the Incubate stage. Terminal. |
 
 ## Operational / Legacy Diagnostic Codes
 

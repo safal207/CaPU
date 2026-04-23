@@ -8,7 +8,7 @@ This document defines the lifecycle of a cause within the CaPU.
 | :--- | :--- |
 | **RECEIVED** | Initial state when a cause enters the Gate. |
 | **VALIDATING** | The cause is undergoing structural validation (and optional record-level attestation checks if present). |
-| **HELD** | Valid cause waiting for preconditions (Incubator). |
+| **HELD** | Valid cause waiting for preconditions (Incubate stage). |
 | **ACCEPTED** | Valid cause ready for commitment. |
 | **COMMITTED** | Cause successfully persisted in causal memory. Point of no return. |
 | **EXECUTED** | Execution stage (side effects attempted). Outcome is recorded via `execute_ok` / `execute_fail`. |
@@ -41,7 +41,7 @@ This document defines the lifecycle of a cause within the CaPU.
 | **VALIDATING** | `policy_deny` | **REJECTED** | Canonical code: `REJECT_POLICY` |
 | **VALIDATING** | `preconditions_unmet`| **HELD** | Canonical code: `DEFER_PENDING_CONTEXT` |
 | **VALIDATING** | `valid` | **ACCEPTED** | Ready to commit |
-| **HELD** | `preconditions_met` | **ACCEPTED** | Incubator releases cause |
+| **HELD** | `preconditions_met` | **ACCEPTED** | Incubate stage releases cause |
 | **HELD** | `timeout` | **EXPIRED** | TTL reached |
 | **ACCEPTED** | (internal) | **ACCEPTED** | Attempt storage commit |
 | **ACCEPTED** | `commit_ok` | **COMMITTED** | Point of no return |
