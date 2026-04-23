@@ -19,6 +19,6 @@ Canonical dependency: see [DEPENDENCIES.md](../DEPENDENCIES.md) for vCML ownersh
 
 ## Notes
 
-- The envelope is compatible with any transport (LPT, file, in-memory, etc.).
+- The envelope is compatible with any transport (LTP, file, in-memory, etc.).
 - The vCML record remains canonical; no alternative cause schema is introduced.
 - Decision codes referenced elsewhere remain defined in [DECISION_CODES.md](../DECISION_CODES.md).

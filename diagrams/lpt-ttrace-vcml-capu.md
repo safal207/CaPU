@@ -1,4 +1,4 @@
-# System Diagram: CaPU / vCML / LPT / T-Trace
+# System Diagram: CaPU / vCML / LTP / T-Trace
 
 This diagram illustrates the flow of data and the separation of concerns between the canonical components.
 
@@ -9,8 +9,8 @@ This diagram illustrates the flow of data and the separation of concerns between
                 |
                 v
        +-----------------+
-       |       LPT       |  <-- Transport Layer (Secure Delivery)
-       | (Liminal Proto) |      (Optional, CaPU is transport-agnostic)
+       |       LTP       |  <-- Transport Layer (Secure Delivery)
+       | (Liminal Thread Protocol) |      (Optional, CaPU is transport-agnostic)
        +--------+--------+
                 |
                 |  (vCML Record)
@@ -43,6 +43,6 @@ This diagram illustrates the flow of data and the separation of concerns between
 ## Legend
 
 *   **vCML:** The data format flowing through the arrows.
-*   **LPT:** The pipe that brings data to the door.
-*   **CaPU:** The engine deciding if/when to open the door and what to do.
+*   **LTP:** The pipe that brings data to the door.
+*   **CaPU:** The execution runtime deciding whether actions may progress to side effects.
 *   **T-Trace:** The camera recording what happened.

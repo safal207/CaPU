@@ -3,7 +3,7 @@
 The **CauseIn** port accepts a vCML cause wrapped in the device envelope.
 It defines how the device receives causes without prescribing transport.
 
-See [DEPENDENCIES.md](../DEPENDENCIES.md) for canonical ownership of vCML/LPT.
+See [DEPENDENCIES.md](../DEPENDENCIES.md) for canonical ownership of vCML/LTP.
 
 ## Input Contract
 
@@ -29,6 +29,6 @@ ack:
 
 ## Notes
 
-- CaPU is transport-agnostic; LPT is only one possible source.
+- CaPU is transport-agnostic; LTP is only one possible source.
 - No alternative cause format is introduced here.
 - Decision and reason enumerations are defined in [DECISION_CODES.md](../DECISION_CODES.md).

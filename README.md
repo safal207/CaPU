@@ -1,61 +1,63 @@
 # CaPU (Causal Processing Unit)
 
-CaPU is a permission-first runtime for Gate -> Incubate -> Commit -> Execute pipelines.
+CaPU is a permission-first execution runtime for high-risk actions.
 
-It is built for systems where an action should not execute merely because it was requested. An action should execute only after it has passed validation, satisfied maturity conditions, been durably committed, and preserved a traceable causal explanation.
+It ensures that side effects occur only after validation, maturity checks, durable commit, and reproducible causal justification. A requested action is not enough; execution must be causally permitted before effects are allowed to occur.
+
+CaPU is most relevant when actions can produce costly, irreversible, or security-sensitive effects.
 
 ```mermaid
 graph LR
-    Input(vCML Record) --> Gate{Gate}
-    Gate -- Valid --> Incubate[Incubate]
-    Gate -- Invalid --> Reject[Reject]
-    Incubate -- Mature --> Commit[Commit]
-    Commit --> Execute[Execute]
+    Input(vCML Record) --> Gate{Gate: Validation + Permission}
+    Gate -- Reject --> Reject[Reject]
+    Gate -- Permit --> Incubate[Incubate: Hold Until Mature]
+    Incubate -- Not Mature --> Hold[Hold/Defer]
+    Incubate -- Mature --> Commit[Commit: Durable Authorization]
+    Commit -- Committed --> Execute[Execute]
     Execute --> Effect(Side Effects)
 ```
 
 ASCII fallback:
 
 ```text
-[vCML Record] -> [GATE] -> (Valid?) -> [INCUBATE] -> (Mature?) -> [COMMIT] -> [EXECUTE] -> [Effects]
-                         |
-                         `-> [REJECT]
+[vCML Record] -> [GATE] -> (Permitted?) -> [INCUBATE] -> (Mature?) -> [COMMIT] -> [EXECUTE] -> [Side Effects]
+                      |                      |
+                      +-> [REJECT]          +-> [HOLD / DEFER]
 ```
+
+## Why CaPU Exists
+
+Many systems can validate or describe actions, but still allow execution to happen too early. CaPU exists to prevent side effects from occurring before permission, maturity, and durable commit conditions have been satisfied.
 
 ## What CaPU Is
 
-- A specification for permissioned causal execution.
-- A state machine for deciding whether a cause should be rejected, held, committed, executed, or expired.
-- A reference runtime for deterministic validation experiments.
-- A device-boundary model with stable ports for causes, permissions, effects, and trace events.
+- A permission-first execution runtime for controlling whether actions may progress toward side effects.
+- An execution state machine for the hold / reject / commit / execute lifecycle.
+- The execution-control layer that enforces commit-before-effect guarantees.
+- A deterministic runtime that produces reproducible decision codes and traceable transitions.
 
-## Why This Matters
+## Runtime Pipeline (Central Guarantee)
 
-In agentic and tool-using systems, unsafe behavior is often not just bad output. It can also mean:
+CaPU's core pipeline is **Gate -> Incubate -> Commit -> Execute**:
 
-- executing before required context is available
-- skipping a maturity condition
-- emitting side effects without durable commit
-- losing the reason why an effect was permitted
-- making runtime decisions that cannot be reconstructed later
+- **Gate:** Validate the record and make the permission decision.
+- **Incubate:** Hold/defer until maturity and preconditions are satisfied.
+- **Commit:** Durably authorize the decision before any side effects can occur.
+- **Execute:** Allow side effects only after prior stages have succeeded.
 
-CaPU addresses that execution-runtime layer.
+This pipeline makes **commit-before-effect** the default runtime behavior, not a best-effort convention.
 
-It is useful when you need:
+## Commit-Before-Effect Identity
 
-- execution only after a permit decision
-- holding behavior for unmet preconditions instead of premature execution
-- commit-before-effect guarantees
-- reproducible decision codes and trace events for post-hoc review
+CaPU is designed for systems where side effects must not happen before durable commit. If commit fails or preconditions are unresolved, execution does not proceed.
 
-## CaPU as a Device
+## Device Metaphor (Secondary)
 
-CaPU can be understood as a causal device rather than only a software module.
-It accepts causes, not commands, and produces effects only when causally permitted.
+CaPU can be understood as a device boundary with stable ports, but this is secondary to its practical role as an execution runtime.
 
 ## Device Ports
 
-Ports define the device boundary. See [ports/README.md](ports/README.md) for the full index, or jump directly to each contract:
+Ports define the execution boundary. See [ports/README.md](ports/README.md) for the full index, or jump directly to each contract:
 
 - [CauseIn](ports/cause_in.md)
 - [PermissionOut](ports/permission_out.md)
@@ -65,18 +67,20 @@ Ports define the device boundary. See [ports/README.md](ports/README.md) for the
 ## What CaPU Is Not
 
 - Not a transport layer.
-- Not a data format.
-- Not a logger.
-- Not a full safety stack.
+- Not just a data format.
+- Not just a logger.
+- Not the full safety stack.
 
-CaPU does not replace policy design, model evaluation, sandboxing, or external security controls. It is the permission and maturity runtime for execution.
+CaPU does not replace policy design, model evaluation, sandboxing, or external security controls. It is the execution-control runtime that decides whether side effects may occur.
 
 ## Relation to Ecosystem
 
-- vCML: input record semantics.
-- LPT: transport to the CaPU boundary.
-- T-Trace: observability surface for runtime decisions and transitions.
-- Canonical ownership: see [DEPENDENCIES.md](DEPENDENCIES.md).
+- **CML / vCML:** Causal and authorization record semantics used as runtime input.
+- **LTP:** Transport, oversight, replay, and admissibility inspection around the execution boundary.
+- **T-Trace:** Observability surface for runtime decisions and transitions.
+- **DRP / DMP:** Governance policy and durable decision memory outside the CaPU runtime.
+- **CaPU:** Execution runtime that decides whether requested actions may progress to side effects.
+- Canonical ownership and boundaries: see [DEPENDENCIES.md](DEPENDENCIES.md).
 
 ## Validation Surface
 
@@ -97,7 +101,7 @@ CaPU is most useful for failures in permissioned execution pipelines, for exampl
 - producing side effects without durable commit
 - failing to defer when parent context is missing
 - losing explainability around accept, hold, reject, expire, or execute outcomes
-- allowing action flow without a stable device boundary and trace contract
+- allowing action flow without a stable execution boundary and trace contract
 
 For broader framing, see [docs/safety/agentic_execution_threat_model.md](docs/safety/agentic_execution_threat_model.md).
 
