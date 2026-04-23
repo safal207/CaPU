@@ -48,7 +48,7 @@ trace_event:
 | Gate permits immediate progress | `gate.accept` | `ACCEPT` | canonical permit/reject code |
 | Gate defers pending context | `gate.hold` | `HOLD` | e.g. `DEFER_PENDING_CONTEXT` |
 | Gate rejects cause | `gate.reject` | `REJECT` | canonical reject code |
-| Incubator releases held cause | `incubator.release` | `ACCEPT` | canonical permit code |
+| Incubate stage releases held cause | `incubator.release` | `ACCEPT` | canonical permit code |
 | Held cause TTL elapsed | `incubator.expire` | `EXPIRE` | e.g. `TTL_EXPIRED` |
 | Commit succeeded | `commit.ok` | optional | optional |
 | Commit failed | `commit.fail` | `REJECT` or implementation-defined | e.g. `ABORT_INTERNAL_ERROR` |
