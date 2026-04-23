@@ -11,25 +11,25 @@ The CaPU pipeline consists of four distinct stages:
 *   **Validation:** Verifies the structural integrity of the vCML record.
 *   **Optional Attestation:** If the vCML record includes record-level attestation/proofs, Gate may validate them as part of policy.
     *   **Note:** This is distinct from LTP transport/session crypto.
-*   **Policy Decision:** Determines if the action is currently allowed based on policies, rate limits, or static rules.
-*   **Outcome:** Can result in `ACCEPT`, `REJECT`, or `HOLD`.
+*   **Permission Decision:** Determines if the action may advance toward execution.
+*   **Outcome:** `PERMIT` or `REJECT`.
 
 ### 2. Incubator
-**Function:** Holding area for valid but premature causes.
-*   **Purpose:** Handles causes that have passed initial validation but have unmet preconditions (e.g., waiting for a parent cause, time-lock, or quorum).
-*   **Mechanism:** Periodically or event-driven re-evaluation of preconditions.
-*   **Outcome:** Transitions to `ACCEPT` when preconditions are met, or `EXPIRE` if TTL is reached.
+**Function:** Holding area for permitted but premature causes.
+*   **Purpose:** Handles causes that are permitted but still have unmet preconditions (e.g., waiting for a parent cause, time-lock, or quorum).
+*   **Mechanism:** Event-driven or scheduled re-evaluation of maturity/preconditions.
+*   **Outcome:** `HOLD`/`DEFER` while unmet; `MATURE` when preconditions are satisfied; `EXPIRE` if TTL is reached.
 
 ### 3. Commit
-**Function:** The point of no return.
-*   **Action:** Persists the accepted cause into the append-only causal memory.
-*   **Guarantee:** Once committed, a cause is part of the immutable history.
+**Function:** Durable authorization before effects.
+*   **Action:** Persists the mature cause into append-only causal memory.
+*   **Guarantee:** Side effects are forbidden before successful durable commit.
 *   **Outcome:** `COMMIT_OK` or `COMMIT_FAIL` (storage error).
 
 ### 4. Executor
 **Function:** Bridge to the external world.
 *   **Trigger:** strictly triggered *after* a successful commit.
-*   **Action:** Interprets the cause and performs the actual side effect (e.g., database write, API call, compute task).
+*   **Action:** Interprets the committed cause and performs the side effect (e.g., database write, API call, compute task).
 *   **Outcome:** `EXECUTE_OK` or `EXECUTE_FAIL`.
 
 ---
@@ -39,9 +39,9 @@ The CaPU pipeline consists of four distinct stages:
 The following invariants MUST be maintained by any implementation of CaPU:
 
 1.  **Execution Safety:** `EXECUTE` MUST happen only **after** `COMMIT`. No side effects are allowed for uncommitted causes.
-2.  **Rejection Finality:** `REJECT` never leads to `EXECUTE`. A rejected cause is terminal.
-3.  **Maturity Check:** `HOLD` transitions to `ACCEPT` **only** when all defined preconditions are satisfied.
-4.  **Explainability:** All CaPU decisions (Accept, Reject, Hold) MUST be explainable via standard [Decision Codes](DECISION_CODES.md).
+2.  **Rejection Finality:** `REJECT` never leads to `EXECUTE`.
+3.  **Maturity Check:** `HOLD`/`DEFER` transitions to commit eligibility **only** when all defined preconditions are satisfied.
+4.  **Explainability:** All CaPU runtime decisions (`PERMIT`, `HOLD`, `REJECT`, `EXPIRE`) MUST be explainable via standard [Decision Codes](DECISION_CODES.md).
 
 ---
 

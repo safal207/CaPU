@@ -12,7 +12,7 @@ Canonical dependency: see [DEPENDENCIES.md](../DEPENDENCIES.md) for vCML ownersh
 | --- | --- | --- | --- |
 | `cause_id` | string | yes | Identifier for the underlying vCML cause. |
 | `received_at` | string (RFC3339) | yes | Device ingress timestamp. |
-| `source` | string | yes | Origin (e.g., `lpt`, `file`, `local`). |
+| `source` | string | yes | Origin (e.g., `ltp`, `file`, `local`). |
 | `correlation_id` | string | no | Optional `trace_id` for linking events. |
 | `ttl_ms` | number | no | Optional time-to-live for the cause. |
 | `metadata` | object | no | Freeform metadata map. |

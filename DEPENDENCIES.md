@@ -8,11 +8,11 @@ This document establishes the hard boundaries of the CaPU project. CaPU is a **p
 * **CaPU Relation:** CaPU consumes these records as input. CaPU does **NOT** define an alternative cause format.
 * **Link:** [https://github.com/safal207/Causal-Memory-Layer/tree/main/vcml](https://github.com/safal207/Causal-Memory-Layer/tree/main/vcml)
 
-## 2. LTP (Liminal Thread Protocol)
-* **Role:** Canonical transport, session, and crypto layer.
-* **Responsibility:** Handles secure delivery, ordering, replay protection, and admissibility/oversight flows outside CaPU's runtime core.
-* **CaPU Relation:** CaPU is transport-agnostic and can accept input delivered by LTP. CaPU does **NOT** implement sockets, session management, or transport cryptography.
-* **Note on signatures:** Record-level attestation checks (if present in vCML records) may be validated by CaPU policy, but those checks are distinct from LTP transport/session crypto.
+## 2. LTP
+* **Role:** Canonical boundary layer for ingress/egress transport compatibility, replay control, admissibility checks, and operational oversight.
+* **Responsibility:** Provides delivery compatibility plus replay/inspection surfaces around the execution boundary.
+* **CaPU Relation:** CaPU remains transport-agnostic and can accept causes delivered through LTP or equivalent adapters, while relying on LTP-aligned replay/admissibility context for boundary safety.
+* **What CaPU does NOT do:** implement socket/session transport internals, transport crypto, or LTP governance workflows.
 * **Link:** [https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-/](https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-/)
 
 ## 3. T-Trace
@@ -25,6 +25,8 @@ This document establishes the hard boundaries of the CaPU project. CaPU is a **p
 * **Role:** Governance policy and durable decision memory layers.
 * **Responsibility:** Maintain policy governance and long-lived decision memory outside the execution boundary.
 * **CaPU Relation:** CaPU depends on governance inputs and durable policy context but is **not** itself the governance or memory system.
+* **DRP Link:** [https://github.com/safal207/DRP](https://github.com/safal207/DRP)
+* **DMP Link:** [https://github.com/safal207/DMP](https://github.com/safal207/DMP)
 
 ## 5. CaPU (This Repository)
 * **Role:** Execution-control runtime for side effects.
