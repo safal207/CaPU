@@ -25,6 +25,14 @@ ASCII fallback:
                       +-> [REJECT]          +-> [HOLD / DEFER]
 ```
 
+## Review links
+
+- Grant evidence: [docs/GRANT_EVIDENCE.md](docs/GRANT_EVIDENCE.md)
+- Validation snapshot: [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
+- Runtime state machine: [STATE_MACHINE.md](STATE_MACHINE.md)
+- Dependency boundaries: [DEPENDENCIES.md](DEPENDENCIES.md)
+- Threat model: [docs/safety/agentic_execution_threat_model.md](docs/safety/agentic_execution_threat_model.md)
+
 ## Why CaPU Exists
 
 Many systems can validate or describe actions, but still allow execution to happen too early. CaPU exists to prevent side effects from occurring before permission, maturity, and durable commit conditions have been satisfied.
