@@ -27,6 +27,7 @@ ASCII fallback:
 
 ## Review links
 
+- Device vision: [docs/DEVICE_VISION.md](docs/DEVICE_VISION.md)
 - Grant evidence: [docs/GRANT_EVIDENCE.md](docs/GRANT_EVIDENCE.md)
 - Validation snapshot: [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
 - Runtime state machine: [STATE_MACHINE.md](STATE_MACHINE.md)
