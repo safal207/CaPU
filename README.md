@@ -129,3 +129,24 @@ Note: this is a spec-led repository that now includes a minimal in-memory refere
 8. Run `npm run verify:golden` to compare the reference runtime output against the golden fixture.
 9. Run `npm test` to execute the full local validation pipeline.
 10. Run `npm run report:validation` to regenerate [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md).
+
+## Reference Runtime Notes
+
+The in-memory reference runtime is intentionally minimal; it exists for demos
+and contract validation, not as a production execution engine. A few semantics
+worth knowing if you depend on it:
+
+- **Trace events are stored by reference.** `InMemoryTraceSink.emit` does not
+  deep-clone the event it receives. CaPU itself always constructs a fresh
+  event literal per emission, but external callers that reuse a mutable
+  `details` object across emits must clone it themselves.
+- **Held causes cache `expire_ms` / `received_ms` as numbers** at HOLD time so
+  `advanceTime` can evaluate every held entry without re-parsing ISO strings.
+- **Gate rejects duplicates and bad input early.** Re-submitting an already
+  committed `cause_id` yields `REJECT_STATE_CONFLICT`; `allocate_compute` with
+  a non-numeric or negative `units` yields `REJECT_INVALID_CAUSE` before the
+  capacity check runs.
+- **Rough numbers, Node 22, in-process, single thread:** ~37 ms for 10k
+  `submit` calls and ~44 ms for a 10k hold + `advanceTime` cycle on a typical
+  developer machine. These are reference-runtime numbers, not a CaPU
+  throughput SLA.
