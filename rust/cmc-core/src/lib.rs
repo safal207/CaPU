@@ -281,6 +281,46 @@ mod tests {
         [byte; 32]
     }
 
+    fn render_basic_flow_golden() -> String {
+        let mut cmc = CausalMemoryController::new();
+        cmc.add_cause(1, None, true);
+        cmc.add_cause(2, Some(1), false);
+
+        let write_known = cmc.write(0x2000, hash(9), 42, Some(1));
+        let write_missing = cmc.write(0x3000, hash(10), 42, None);
+        let effect_before_commit = cmc.effect(500, Some(2));
+        assert!(cmc.commit_cause(2));
+        let effect_after_commit = cmc.effect(500, Some(2));
+        let chain = cmc.reconstruct_chain(2);
+        let audit = cmc.audit();
+
+        format!(
+            concat!(
+                "CMC-GOLDEN basic-flow v0\n",
+                "write_known_cause={:?} accepted={}\n",
+                "write_missing_cause={:?} accepted={}\n",
+                "effect_before_commit={:?} accepted={}\n",
+                "effect_after_commit={:?} accepted={}\n",
+                "chain_2={:?}\n",
+                "audit.entries={}\n",
+                "audit.effects={}\n",
+                "audit.findings={}\n"
+            ),
+            write_known.code,
+            write_known.accepted(),
+            write_missing.code,
+            write_missing.accepted(),
+            effect_before_commit.code,
+            effect_before_commit.accepted(),
+            effect_after_commit.code,
+            effect_after_commit.accepted(),
+            chain,
+            audit.entries,
+            audit.effects,
+            audit.findings.len()
+        )
+    }
+
     #[test]
     fn valid_write_is_accepted() {
         let mut cmc = CausalMemoryController::new();
@@ -351,5 +391,13 @@ mod tests {
 
         assert_eq!(cmc.reconstruct_chain(2), vec![2, 1]);
         assert!(cmc.audit().findings.is_empty());
+    }
+
+    #[test]
+    fn basic_flow_matches_golden_fixture() {
+        let expected = include_str!("../fixtures/basic_flow.golden.txt");
+        let actual = render_basic_flow_golden();
+
+        assert_eq!(actual, expected);
     }
 }
