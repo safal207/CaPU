@@ -38,6 +38,24 @@ impl Decision {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TraceEventKind {
+    Write,
+    Read,
+    Effect,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraceEvent {
+    pub seq: u64,
+    pub kind: TraceEventKind,
+    pub decision: DecisionCode,
+    pub address: Option<Address>,
+    pub effect_id: Option<EffectId>,
+    pub cause_id: Option<CauseId>,
+    pub message: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CauseRecord {
     pub id: CauseId,
@@ -81,7 +99,9 @@ pub struct CausalMemoryController {
     causes: HashMap<CauseId, CauseRecord>,
     memory: HashMap<Address, CausalMemoryEntry>,
     effects: Vec<EffectRecord>,
+    trace: Vec<TraceEvent>,
     clock: u64,
+    trace_seq: u64,
 }
 
 impl CausalMemoryController {
@@ -90,7 +110,14 @@ impl CausalMemoryController {
     }
 
     pub fn add_cause(&mut self, id: CauseId, parent: Option<CauseId>, committed: bool) {
-        self.causes.insert(id, CauseRecord { id, parent, committed });
+        self.causes.insert(
+            id,
+            CauseRecord {
+                id,
+                parent,
+                committed,
+            },
+        );
     }
 
     pub fn commit_cause(&mut self, id: CauseId) -> bool {
@@ -103,6 +130,29 @@ impl CausalMemoryController {
         }
     }
 
+    pub fn trace_events(&self) -> &[TraceEvent] {
+        &self.trace
+    }
+
+    fn emit_trace(
+        &mut self,
+        kind: TraceEventKind,
+        decision: &Decision,
+        address: Option<Address>,
+        effect_id: Option<EffectId>,
+    ) {
+        self.trace_seq += 1;
+        self.trace.push(TraceEvent {
+            seq: self.trace_seq,
+            kind,
+            decision: decision.code,
+            address,
+            effect_id,
+            cause_id: decision.cause_id,
+            message: decision.message,
+        });
+    }
+
     pub fn write(
         &mut self,
         address: Address,
@@ -111,21 +161,26 @@ impl CausalMemoryController {
         cause_id: Option<CauseId>,
     ) -> Decision {
         let Some(cause_id) = cause_id else {
-            return Decision {
+            let decision = Decision {
                 code: DecisionCode::RejectMissingCause,
                 cause_id: None,
                 message: "memory write requires an explicit cause",
             };
+            self.emit_trace(TraceEventKind::Write, &decision, Some(address), None);
+            return decision;
         };
 
         let Some(cause) = self.causes.get(&cause_id) else {
-            return Decision {
+            let decision = Decision {
                 code: DecisionCode::RejectUnknownCause,
                 cause_id: Some(cause_id),
                 message: "memory write references an unknown cause",
             };
+            self.emit_trace(TraceEventKind::Write, &decision, Some(address), None);
+            return decision;
         };
 
+        let parent_cause = cause.parent;
         self.clock += 1;
         self.memory.insert(
             address,
@@ -134,87 +189,108 @@ impl CausalMemoryController {
                 value_hash,
                 writer,
                 cause_id,
-                parent_cause: cause.parent,
+                parent_cause,
                 timestamp: self.clock,
             },
         );
 
-        Decision {
+        let decision = Decision {
             code: DecisionCode::AcceptWrite,
             cause_id: Some(cause_id),
             message: "causal memory write accepted",
-        }
+        };
+        self.emit_trace(TraceEventKind::Write, &decision, Some(address), None);
+        decision
     }
 
     pub fn read(
-        &self,
+        &mut self,
         address: Address,
         _requester: ActorId,
         cause_id: Option<CauseId>,
     ) -> Decision {
         let Some(cause_id) = cause_id else {
-            return Decision {
+            let decision = Decision {
                 code: DecisionCode::RejectMissingCause,
                 cause_id: None,
                 message: "memory read requires an explicit cause",
             };
+            self.emit_trace(TraceEventKind::Read, &decision, Some(address), None);
+            return decision;
         };
 
         if !self.causes.contains_key(&cause_id) {
-            return Decision {
+            let decision = Decision {
                 code: DecisionCode::RejectUnknownCause,
                 cause_id: Some(cause_id),
                 message: "memory read references an unknown cause",
             };
+            self.emit_trace(TraceEventKind::Read, &decision, Some(address), None);
+            return decision;
         }
 
         if !self.memory.contains_key(&address) {
-            return Decision {
+            let decision = Decision {
                 code: DecisionCode::RejectUnknownCause,
                 cause_id: Some(cause_id),
                 message: "memory read references an unknown address",
             };
+            self.emit_trace(TraceEventKind::Read, &decision, Some(address), None);
+            return decision;
         }
 
-        Decision {
+        let decision = Decision {
             code: DecisionCode::AcceptRead,
             cause_id: Some(cause_id),
             message: "causal memory read accepted",
-        }
+        };
+        self.emit_trace(TraceEventKind::Read, &decision, Some(address), None);
+        decision
     }
 
     pub fn effect(&mut self, effect_id: EffectId, parent_cause: Option<CauseId>) -> Decision {
         let Some(parent_cause) = parent_cause else {
-            return Decision {
+            let decision = Decision {
                 code: DecisionCode::RejectMissingCause,
                 cause_id: None,
                 message: "effect requires a committed parent cause",
             };
+            self.emit_trace(TraceEventKind::Effect, &decision, None, Some(effect_id));
+            return decision;
         };
 
         let Some(cause) = self.causes.get(&parent_cause) else {
-            return Decision {
+            let decision = Decision {
                 code: DecisionCode::RejectUnknownCause,
                 cause_id: Some(parent_cause),
                 message: "effect references an unknown parent cause",
             };
+            self.emit_trace(TraceEventKind::Effect, &decision, None, Some(effect_id));
+            return decision;
         };
 
         if !cause.committed {
-            return Decision {
+            let decision = Decision {
                 code: DecisionCode::RejectEffectBeforeCommit,
                 cause_id: Some(parent_cause),
                 message: "effect cannot execute before causal commit",
             };
+            self.emit_trace(TraceEventKind::Effect, &decision, None, Some(effect_id));
+            return decision;
         }
 
-        self.effects.push(EffectRecord { effect_id, parent_cause });
+        self.effects.push(EffectRecord {
+            effect_id,
+            parent_cause,
+        });
 
-        Decision {
+        let decision = Decision {
             code: DecisionCode::AcceptEffect,
             cause_id: Some(parent_cause),
             message: "effect accepted after committed causal authorization",
-        }
+        };
+        self.emit_trace(TraceEventKind::Effect, &decision, None, Some(effect_id));
+        decision
     }
 
     pub fn reconstruct_chain(&self, cause_id: CauseId) -> Vec<CauseId> {
@@ -293,6 +369,7 @@ mod tests {
         let effect_after_commit = cmc.effect(500, Some(2));
         let chain = cmc.reconstruct_chain(2);
         let audit = cmc.audit();
+        let trace_events = cmc.trace_events().len();
 
         format!(
             concat!(
@@ -304,7 +381,8 @@ mod tests {
                 "chain_2={:?}\n",
                 "audit.entries={}\n",
                 "audit.effects={}\n",
-                "audit.findings={}\n"
+                "audit.findings={}\n",
+                "trace.events={}\n"
             ),
             write_known.code,
             write_known.accepted(),
@@ -317,7 +395,8 @@ mod tests {
             chain,
             audit.entries,
             audit.effects,
-            audit.findings.len()
+            audit.findings.len(),
+            trace_events
         )
     }
 
@@ -330,6 +409,9 @@ mod tests {
 
         assert_eq!(decision.code, DecisionCode::AcceptWrite);
         assert!(decision.accepted());
+        assert_eq!(cmc.trace_events().len(), 1);
+        assert_eq!(cmc.trace_events()[0].kind, TraceEventKind::Write);
+        assert_eq!(cmc.trace_events()[0].decision, DecisionCode::AcceptWrite);
         assert!(cmc.audit().findings.is_empty());
     }
 
@@ -341,6 +423,8 @@ mod tests {
 
         assert_eq!(decision.code, DecisionCode::RejectMissingCause);
         assert!(!decision.accepted());
+        assert_eq!(cmc.trace_events().len(), 1);
+        assert_eq!(cmc.trace_events()[0].decision, DecisionCode::RejectMissingCause);
         assert_eq!(cmc.audit().entries, 0);
     }
 
@@ -364,6 +448,12 @@ mod tests {
 
         assert_eq!(decision.code, DecisionCode::RejectEffectBeforeCommit);
         assert!(!decision.accepted());
+        assert_eq!(cmc.trace_events().len(), 1);
+        assert_eq!(cmc.trace_events()[0].kind, TraceEventKind::Effect);
+        assert_eq!(
+            cmc.trace_events()[0].decision,
+            DecisionCode::RejectEffectBeforeCommit
+        );
         assert_eq!(cmc.audit().effects, 0);
     }
 
@@ -377,7 +467,23 @@ mod tests {
 
         assert_eq!(decision.code, DecisionCode::AcceptEffect);
         assert!(decision.accepted());
+        assert_eq!(cmc.trace_events().len(), 1);
+        assert_eq!(cmc.trace_events()[0].decision, DecisionCode::AcceptEffect);
         assert!(cmc.audit().findings.is_empty());
+    }
+
+    #[test]
+    fn read_emits_trace_event() {
+        let mut cmc = CausalMemoryController::new();
+        cmc.add_cause(1, None, true);
+        assert!(cmc.write(0x2000, hash(9), 42, Some(1)).accepted());
+
+        let decision = cmc.read(0x2000, 43, Some(1));
+
+        assert_eq!(decision.code, DecisionCode::AcceptRead);
+        assert_eq!(cmc.trace_events().len(), 2);
+        assert_eq!(cmc.trace_events()[1].kind, TraceEventKind::Read);
+        assert_eq!(cmc.trace_events()[1].decision, DecisionCode::AcceptRead);
     }
 
     #[test]
