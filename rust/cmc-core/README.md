@@ -31,6 +31,24 @@ From the repository root:
 npm run verify:cmc-golden
 ```
 
+## Run developer benchmark
+
+From the repository root:
+
+```bash
+npm run bench:cmc
+```
+
+Or from this directory:
+
+```bash
+cargo run --release --bin cmc_bench --locked
+```
+
+The benchmark runs 10,000 causal writes, 10,000 committed effects, and one audit pass, then prints rough developer-machine timing numbers.
+
+These numbers are not a throughput SLA. They are an early reproducible baseline for tracking simulator overhead as CMC-0 evolves.
+
 ## Golden fixture
 
 CMC-0 includes a golden fixture:
