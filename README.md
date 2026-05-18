@@ -93,6 +93,7 @@ Current CMC artifacts:
 - Investor one-pager: [docs/hardware/CMC_INVESTOR_ONE_PAGER.md](docs/hardware/CMC_INVESTOR_ONE_PAGER.md)
 - Rust simulator: [rust/cmc-core](rust/cmc-core)
 - Golden fixture: [rust/cmc-core/fixtures/basic_flow.golden.txt](rust/cmc-core/fixtures/basic_flow.golden.txt)
+- Developer benchmark: `npm run bench:cmc`
 
 Current CMC-0 simulator checks:
 
@@ -144,6 +145,7 @@ This repository includes a deterministic validation path:
 - tracked validation snapshot in [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
 - CMC-0 Rust simulator tests for causal memory/effect invariants
 - CMC golden snapshot verification via `npm run verify:cmc-golden`
+- CMC developer benchmark via `npm run bench:cmc`
 
 This gives the project a visible proof-of-behavior layer instead of relying only on prose.
 
@@ -185,6 +187,12 @@ CMC golden snapshot:
 
 ```bash
 npm run verify:cmc-golden
+```
+
+CMC developer benchmark:
+
+```bash
+npm run bench:cmc
 ```
 
 ## Reference Runtime Notes
