@@ -9,6 +9,7 @@
     "test:reference": "node scripts/test-reference-runtime.mjs",
     "verify:golden": "node scripts/verify-golden.mjs",
     "verify:cmc-golden": "node scripts/verify-cmc-golden.mjs",
+    "bench:cmc": "node scripts/bench-cmc.mjs",
     "report:validation": "node scripts/generate-validation-results.mjs"
   },
   "devDependencies": {
