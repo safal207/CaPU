@@ -32,6 +32,7 @@ ASCII fallback:
 - Device vision: [docs/DEVICE_VISION.md](docs/DEVICE_VISION.md)
 - Hardware roadmap: [docs/HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
 - Causal Memory Controller thesis: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
+- CMC investor one-pager: [docs/hardware/CMC_INVESTOR_ONE_PAGER.md](docs/hardware/CMC_INVESTOR_ONE_PAGER.md)
 - CMC Rust simulator: [rust/cmc-core/README.md](rust/cmc-core/README.md)
 - Grant evidence: [docs/GRANT_EVIDENCE.md](docs/GRANT_EVIDENCE.md)
 - Validation snapshot: [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
@@ -89,6 +90,7 @@ context -> permission -> action -> memory write -> later effect
 Current CMC artifacts:
 
 - Thesis document: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
+- Investor one-pager: [docs/hardware/CMC_INVESTOR_ONE_PAGER.md](docs/hardware/CMC_INVESTOR_ONE_PAGER.md)
 - Rust simulator: [rust/cmc-core](rust/cmc-core)
 
 Current CMC-0 simulator checks:
