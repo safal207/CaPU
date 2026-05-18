@@ -7,3 +7,4 @@ chain_2=[2, 1]
 audit.entries=1
 audit.effects=1
 audit.findings=0
+trace.events=4
