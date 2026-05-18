@@ -92,6 +92,7 @@ Current CMC artifacts:
 - Thesis document: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
 - Investor one-pager: [docs/hardware/CMC_INVESTOR_ONE_PAGER.md](docs/hardware/CMC_INVESTOR_ONE_PAGER.md)
 - Rust simulator: [rust/cmc-core](rust/cmc-core)
+- Golden fixture: [rust/cmc-core/fixtures/basic_flow.golden.txt](rust/cmc-core/fixtures/basic_flow.golden.txt)
 
 Current CMC-0 simulator checks:
 
@@ -101,6 +102,7 @@ Current CMC-0 simulator checks:
 - effect before causal commit is rejected
 - committed effect is accepted
 - memory-derived effect chain can be reconstructed
+- basic flow matches a golden fixture snapshot
 
 CMC is not a physical chip or production memory controller. It is an evidence path from causal semantics to simulator, embedded profile, FPGA proof-of-behavior, and possible hardware architecture.
 
@@ -141,6 +143,7 @@ This repository includes a deterministic validation path:
 - golden fixture verification
 - tracked validation snapshot in [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
 - CMC-0 Rust simulator tests for causal memory/effect invariants
+- CMC golden snapshot verification via `npm run verify:cmc-golden`
 
 This gives the project a visible proof-of-behavior layer instead of relying only on prose.
 
@@ -176,6 +179,12 @@ CMC simulator:
 ```bash
 cd rust/cmc-core
 cargo test
+```
+
+CMC golden snapshot:
+
+```bash
+npm run verify:cmc-golden
 ```
 
 ## Reference Runtime Notes
