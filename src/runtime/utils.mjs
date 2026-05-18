@@ -3,9 +3,11 @@ export function toIso(value) {
 }
 
 export function addMs(iso, deltaMs) {
-  return new Date(new Date(iso).getTime() + deltaMs).toISOString();
+  const base = typeof iso === "number" ? iso : new Date(iso).getTime();
+  return new Date(base + deltaMs).toISOString();
 }
 
 export function clone(value) {
+  if (value === null || value === undefined) return value;
   return JSON.parse(JSON.stringify(value));
 }

@@ -1,12 +1,12 @@
-import { clone } from "./utils.mjs";
-
 export class InMemoryTraceSink {
   constructor() {
     this.events = [];
   }
 
   emit(traceEvent) {
-    this.events.push(clone(traceEvent));
+    // CaPU emits a freshly constructed event on every call; storing the
+    // reference directly avoids a per-event deep clone on the hot path.
+    this.events.push(traceEvent);
   }
 
   toJsonl() {

@@ -36,11 +36,16 @@ export class ReferenceCaPU {
     }
 
     if (decision.decision === "HOLD") {
+      const baseMs = new Date(baseTimestamp).getTime();
+      const ttlMs = envelope?.ttl_ms ?? 60000;
+      const expireMs = baseMs + ttlMs;
       this.heldCauses.set(causeId, {
         envelope: clone(envelope),
         vcml_record: clone(vcml_record),
         next_check_at: decision.next_check_at,
-        expire_at: addMs(baseTimestamp, envelope?.ttl_ms ?? 60000)
+        expire_at: new Date(expireMs).toISOString(),
+        expire_ms: expireMs,
+        received_ms: envelope?.received_at ? new Date(envelope.received_at).getTime() : baseMs
       });
 
       this.#emitTrace({
@@ -88,11 +93,12 @@ export class ReferenceCaPU {
   }
 
   advanceTime(nowIso) {
+    const nowMs = new Date(nowIso).getTime();
     const matured = [];
     const expired = [];
 
     for (const [causeId, held] of this.heldCauses.entries()) {
-      const evaluation = this.#evaluateHeld(held, nowIso);
+      const evaluation = this.#evaluateHeld(held, nowMs);
       if (evaluation === "release") matured.push([causeId, held]);
       if (evaluation === "expire") expired.push([causeId, held]);
     }
@@ -116,7 +122,7 @@ export class ReferenceCaPU {
           reason_code: decision.reason_code,
           state_from: "HELD",
           state_to: "ACCEPTED",
-          latency_ms: new Date(nowIso).getTime() - new Date(held.envelope.received_at).getTime()
+          latency_ms: nowMs - held.received_ms
         }
       });
       results.push({
@@ -149,7 +155,7 @@ export class ReferenceCaPU {
           reason_code: decision.reason_code,
           state_from: "HELD",
           state_to: "EXPIRED",
-          latency_ms: new Date(nowIso).getTime() - new Date(held.envelope.received_at).getTime()
+          latency_ms: nowMs - held.received_ms
         }
       });
       results.push({ cause_id: causeId, decision });
@@ -231,25 +237,18 @@ export class ReferenceCaPU {
     };
   }
 
-  #evaluateHeld(held, nowIso) {
+  #evaluateHeld(held, nowMs) {
+    const vcml = held.vcml_record;
+    const parentReady = vcml.parent_cause_id && this.storage.exists(vcml.parent_cause_id);
+    const quorumReady = vcml.intent === "await_quorum" && vcml.params?.quorum_met === true;
+
     // At the TTL boundary, newly satisfied preconditions win over expiration.
-    if (new Date(nowIso).getTime() >= new Date(held.expire_at).getTime()) {
-      if (held.vcml_record.parent_cause_id && this.storage.exists(held.vcml_record.parent_cause_id)) {
-        return "release";
-      }
-      if (held.vcml_record.intent === "await_quorum" && held.vcml_record.params?.quorum_met === true) {
-        return "release";
-      }
+    if (nowMs >= held.expire_ms) {
+      if (parentReady || quorumReady) return "release";
       return "expire";
     }
 
-    if (held.vcml_record.parent_cause_id && this.storage.exists(held.vcml_record.parent_cause_id)) {
-      return "release";
-    }
-    if (held.vcml_record.intent === "await_quorum" && held.vcml_record.params?.quorum_met === true) {
-      return "release";
-    }
-
+    if (parentReady || quorumReady) return "release";
     return "hold";
   }
 
@@ -319,10 +318,12 @@ export class ReferenceCaPU {
       });
     }
 
+    const acceptedMs = new Date(acceptedAt).getTime();
+
     try {
       const commitId = this.storage.commit(vcml_record);
       this.#emitTrace({
-        timestamp: toIso(new Date(acceptedAt).getTime() + 1),
+        timestamp: toIso(acceptedMs + 1),
         causeId,
         correlationId,
         event_type: "commit.ok",
@@ -335,9 +336,8 @@ export class ReferenceCaPU {
 
       const effect_plan = this.#buildEffectPlan(vcml_record);
       const execution = this.executor.execute(effect_plan);
-      const executeTimestamp = toIso(new Date(acceptedAt).getTime() + 2);
       this.#emitTrace({
-        timestamp: executeTimestamp,
+        timestamp: toIso(acceptedMs + 2),
         causeId,
         correlationId,
         event_type: execution.status === "OK" ? "execute.ok" : "execute.fail",
@@ -356,7 +356,7 @@ export class ReferenceCaPU {
       };
     } catch (error) {
       this.#emitTrace({
-        timestamp: toIso(new Date(acceptedAt).getTime() + 1),
+        timestamp: toIso(acceptedMs + 1),
         causeId,
         correlationId,
         event_type: "commit.fail",
