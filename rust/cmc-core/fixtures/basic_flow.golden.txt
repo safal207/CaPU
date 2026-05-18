@@ -1,0 +1,9 @@
+CMC-GOLDEN basic-flow v0
+write_known_cause=AcceptWrite accepted=true
+write_missing_cause=RejectMissingCause accepted=false
+effect_before_commit=RejectEffectBeforeCommit accepted=false
+effect_after_commit=AcceptEffect accepted=true
+chain_2=[2, 1]
+audit.entries=1
+audit.effects=1
+audit.findings=0
