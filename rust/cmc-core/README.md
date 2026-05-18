@@ -47,6 +47,12 @@ cargo run --release --bin cmc_bench --locked
 
 The benchmark runs 10,000 causal writes, 10,000 committed effects, and one audit pass, then prints rough developer-machine timing numbers.
 
+Benchmark report anchor:
+
+```text
+BENCHMARK_RESULTS.md
+```
+
 These numbers are not a throughput SLA. They are an early reproducible baseline for tracking simulator overhead as CMC-0 evolves.
 
 ## Golden fixture
@@ -81,6 +87,14 @@ The test suite currently checks:
 - committed effect is accepted
 - memory-derived effect chain can be reconstructed
 - basic flow matches the golden fixture
+
+## Evidence artifacts
+
+- Simulator source: `src/lib.rs`
+- Golden fixture: `fixtures/basic_flow.golden.txt`
+- Golden verifier: `npm run verify:cmc-golden`
+- Developer benchmark: `npm run bench:cmc`
+- Benchmark report anchor: `BENCHMARK_RESULTS.md`
 
 ## Non-claims
 
