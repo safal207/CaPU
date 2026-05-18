@@ -25,6 +25,33 @@ From this directory:
 cargo test
 ```
 
+From the repository root:
+
+```bash
+npm run verify:cmc-golden
+```
+
+## Golden fixture
+
+CMC-0 includes a golden fixture:
+
+```text
+fixtures/basic_flow.golden.txt
+```
+
+The fixture pins the expected output for a basic causal memory flow:
+
+```text
+known-cause write -> accepted
+missing-cause write -> rejected
+effect before commit -> rejected
+effect after commit -> accepted
+chain reconstruction -> [2, 1]
+audit -> no findings
+```
+
+The test `basic_flow_matches_golden_fixture` verifies that simulator behavior remains stable against this snapshot.
+
 ## Current proof cases
 
 The test suite currently checks:
@@ -35,6 +62,7 @@ The test suite currently checks:
 - effect before causal commit is rejected
 - committed effect is accepted
 - memory-derived effect chain can be reconstructed
+- basic flow matches the golden fixture
 
 ## Non-claims
 
