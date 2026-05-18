@@ -1,0 +1,45 @@
+name: CMC Rust Simulator
+
+on:
+  push:
+    paths:
+      - "rust/cmc-core/**"
+      - ".github/workflows/cmc-rust.yml"
+  pull_request:
+    paths:
+      - "rust/cmc-core/**"
+      - ".github/workflows/cmc-rust.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: rust/cmc-core
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/cmc-core/target
+          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/src/**/*.rs') }}
+          restore-keys: |
+            ${{ runner.os }}-cmc-rust-
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run tests
+        run: cargo test --all --locked
