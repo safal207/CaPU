@@ -1,0 +1,12 @@
+[package]
+name = "cmc-core"
+version = "0.1.0"
+edition = "2021"
+description = "Causal Memory Controller reference simulator"
+license = "MIT"
+
+[lib]
+name = "cmc_core"
+path = "src/lib.rs"
+
+[dependencies]
