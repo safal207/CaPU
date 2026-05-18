@@ -92,9 +92,20 @@ Current CMC artifacts:
 - Thesis document: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
 - Investor one-pager: [docs/hardware/CMC_INVESTOR_ONE_PAGER.md](docs/hardware/CMC_INVESTOR_ONE_PAGER.md)
 - Rust simulator: [rust/cmc-core](rust/cmc-core)
+- Trace event stream: `trace_events()` in [rust/cmc-core/src/lib.rs](rust/cmc-core/src/lib.rs)
 - Golden fixture: [rust/cmc-core/fixtures/basic_flow.golden.txt](rust/cmc-core/fixtures/basic_flow.golden.txt)
 - Benchmark results: [rust/cmc-core/BENCHMARK_RESULTS.md](rust/cmc-core/BENCHMARK_RESULTS.md)
 - Developer benchmark: `npm run bench:cmc`
+
+CMC-0 now emits deterministic trace events for memory/effect decisions:
+
+```text
+write accepted/rejected -> TraceEventKind::Write
+read accepted/rejected  -> TraceEventKind::Read
+effect accepted/rejected -> TraceEventKind::Effect
+```
+
+This is the software bridge toward future hardware `TraceOut` and T-Trace/LTP replay surfaces.
 
 Current CMC-0 simulator checks:
 
@@ -103,8 +114,9 @@ Current CMC-0 simulator checks:
 - write with unknown cause is rejected
 - effect before causal commit is rejected
 - committed effect is accepted
+- read emits a trace event
 - memory-derived effect chain can be reconstructed
-- basic flow matches a golden fixture snapshot
+- basic flow matches a golden fixture snapshot including trace event count
 
 CMC is not a physical chip or production memory controller. It is an evidence path from causal semantics to simulator, embedded profile, FPGA proof-of-behavior, and possible hardware architecture.
 
@@ -145,6 +157,7 @@ This repository includes a deterministic validation path:
 - golden fixture verification
 - tracked validation snapshot in [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
 - CMC-0 Rust simulator tests for causal memory/effect invariants
+- CMC trace event emission for accepted/rejected write/read/effect decisions
 - CMC golden snapshot verification via `npm run verify:cmc-golden`
 - CMC developer benchmark via `npm run bench:cmc`
 - CMC benchmark report anchor in [rust/cmc-core/BENCHMARK_RESULTS.md](rust/cmc-core/BENCHMARK_RESULTS.md)
