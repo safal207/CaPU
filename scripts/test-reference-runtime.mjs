@@ -163,6 +163,59 @@ assert.equal(commitFail.commit.status, "FAIL");
 assert.equal(capu.storage.exists("t-commit-fail"), false);
 assert.equal("execution" in commitFail, false);
 
+const duplicate = capu.submit({
+  envelope: {
+    cause_id: "t-accept",
+    received_at: "2025-12-31T19:05:00Z",
+    source: "test",
+    correlation_id: "corr-duplicate",
+    ttl_ms: 60000
+  },
+  vcml_record: {
+    cause_id: "t-accept",
+    intent: "allocate_compute",
+    params: { units: 4 },
+    thread_id: "thread-1"
+  }
+});
+assert.equal(duplicate.decision.decision, "REJECT");
+assert.equal(duplicate.decision.reason_code, "REJECT_STATE_CONFLICT");
+
+const invalidUnits = capu.submit({
+  envelope: {
+    cause_id: "t-bad-units",
+    received_at: "2025-12-31T19:06:00Z",
+    source: "test",
+    correlation_id: "corr-bad-units",
+    ttl_ms: 60000
+  },
+  vcml_record: {
+    cause_id: "t-bad-units",
+    intent: "allocate_compute",
+    params: { units: "not-a-number" },
+    thread_id: "thread-6"
+  }
+});
+assert.equal(invalidUnits.decision.decision, "REJECT");
+assert.equal(invalidUnits.decision.reason_code, "REJECT_INVALID_CAUSE");
+
+const noReceivedAt = capu.submit({
+  envelope: {
+    cause_id: "t-no-time",
+    source: "test",
+    correlation_id: "corr-no-time",
+    ttl_ms: 5000
+  },
+  vcml_record: {
+    cause_id: "t-no-time",
+    intent: "await_quorum",
+    params: { quorum: 2 },
+    thread_id: "thread-7"
+  }
+});
+assert.equal(noReceivedAt.decision.decision, "HOLD");
+assert.equal(Number.isNaN(new Date(noReceivedAt.decision.next_check_at).getTime()), false);
+
 const eventTypes = capu.traceSink.events.map((event) => event.event_type);
 assert.equal(eventTypes.includes("gate.accept"), true);
 assert.equal(eventTypes.includes("gate.reject"), true);
