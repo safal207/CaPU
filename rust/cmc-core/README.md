@@ -9,6 +9,7 @@ write(address, value_hash, cause)
 read(address, requester, cause)
 effect(effect_id, parent_cause)
 audit()
+trace_events()
 ```
 
 ## Why this exists
@@ -55,6 +56,30 @@ BENCHMARK_RESULTS.md
 
 These numbers are not a throughput SLA. They are an early reproducible baseline for tracking simulator overhead as CMC-0 evolves.
 
+## Trace events
+
+CMC-0 now emits a deterministic trace event for every memory/effect decision:
+
+```text
+write accepted/rejected -> TraceEventKind::Write
+read accepted/rejected  -> TraceEventKind::Read
+effect accepted/rejected -> TraceEventKind::Effect
+```
+
+Each trace event records:
+
+```text
+seq
+kind
+decision
+address
+effect_id
+cause_id
+message
+```
+
+This is the first software-level bridge toward a future hardware `TraceOut` port and toward compatibility with T-Trace/LTP-style replay surfaces.
+
 ## Golden fixture
 
 CMC-0 includes a golden fixture:
@@ -72,6 +97,7 @@ effect before commit -> rejected
 effect after commit -> accepted
 chain reconstruction -> [2, 1]
 audit -> no findings
+trace events -> 4
 ```
 
 The test `basic_flow_matches_golden_fixture` verifies that simulator behavior remains stable against this snapshot.
@@ -85,12 +111,14 @@ The test suite currently checks:
 - write with unknown cause is rejected
 - effect before causal commit is rejected
 - committed effect is accepted
+- read emits a trace event
 - memory-derived effect chain can be reconstructed
 - basic flow matches the golden fixture
 
 ## Evidence artifacts
 
 - Simulator source: `src/lib.rs`
+- Trace event stream: `trace_events()`
 - Golden fixture: `fixtures/basic_flow.golden.txt`
 - Golden verifier: `npm run verify:cmc-golden`
 - Developer benchmark: `npm run bench:cmc`
