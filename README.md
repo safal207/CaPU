@@ -1,5 +1,7 @@
 # CaPU (Causal Processing Unit)
 
+[![CMC Rust Simulator](https://github.com/safal207/CaPU/actions/workflows/cmc-rust.yml/badge.svg)](https://github.com/safal207/CaPU/actions/workflows/cmc-rust.yml)
+
 CaPU is a permission-first execution runtime for high-risk actions.
 
 It ensures that side effects occur only after validation, maturity checks, durable commit, and reproducible causal justification. A requested action is not enough; execution must be causally permitted before effects are allowed to occur.
