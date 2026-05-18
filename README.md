@@ -29,6 +29,8 @@ ASCII fallback:
 
 - Device vision: [docs/DEVICE_VISION.md](docs/DEVICE_VISION.md)
 - Hardware roadmap: [docs/HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
+- Causal Memory Controller thesis: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
+- CMC Rust simulator: [rust/cmc-core/README.md](rust/cmc-core/README.md)
 - Grant evidence: [docs/GRANT_EVIDENCE.md](docs/GRANT_EVIDENCE.md)
 - Validation snapshot: [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
 - Runtime state machine: [STATE_MACHINE.md](STATE_MACHINE.md)
@@ -65,6 +67,39 @@ CaPU is designed for systems where side effects must not happen before durable c
 
 CaPU can be understood as a device boundary with stable ports, but this is secondary to its practical role as an execution runtime.
 
+## Causal Memory Controller (CMC)
+
+CaPU now includes an early research branch for **Causal Memory Controller (CMC)**.
+
+The thesis is simple:
+
+```text
+Ordinary memory stores what changed.
+Causal Memory stores why the change was allowed.
+```
+
+CMC explores whether causal metadata can be preserved near memory and controller boundaries so agentic systems keep continuity across:
+
+```text
+context -> permission -> action -> memory write -> later effect
+```
+
+Current CMC artifacts:
+
+- Thesis document: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
+- Rust simulator: [rust/cmc-core](rust/cmc-core)
+
+Current CMC-0 simulator checks:
+
+- valid write with known cause is accepted
+- write with missing cause is rejected
+- write with unknown cause is rejected
+- effect before causal commit is rejected
+- committed effect is accepted
+- memory-derived effect chain can be reconstructed
+
+CMC is not a physical chip or production memory controller. It is an evidence path from causal semantics to simulator, embedded profile, FPGA proof-of-behavior, and possible hardware architecture.
+
 ## Device Ports
 
 Ports define the execution boundary. See [ports/README.md](ports/README.md) for the full index, or jump directly to each contract:
@@ -86,6 +121,7 @@ CaPU does not replace policy design, model evaluation, sandboxing, or external s
 ## Relation to Ecosystem
 
 - **CML / vCML:** Causal and authorization record semantics used as runtime input.
+- **CMC:** Hardware-adjacent causal metadata plane for memory/effect continuity.
 - **LTP:** Transport, oversight, replay, and admissibility inspection around the execution boundary.
 - **T-Trace:** Observability surface for runtime decisions and transitions.
 - **DRP / DMP:** Governance policy and durable decision memory outside the CaPU runtime.
@@ -100,6 +136,7 @@ This repository includes a deterministic validation path:
 - reference runtime behavior checks
 - golden fixture verification
 - tracked validation snapshot in [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
+- CMC-0 Rust simulator tests for causal memory/effect invariants
 
 This gives the project a visible proof-of-behavior layer instead of relying only on prose.
 
@@ -129,6 +166,13 @@ Note: this is a spec-led repository that now includes a minimal in-memory refere
 8. Run `npm run verify:golden` to compare the reference runtime output against the golden fixture.
 9. Run `npm test` to execute the full local validation pipeline.
 10. Run `npm run report:validation` to regenerate [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md).
+
+CMC simulator:
+
+```bash
+cd rust/cmc-core
+cargo test
+```
 
 ## Reference Runtime Notes
 
