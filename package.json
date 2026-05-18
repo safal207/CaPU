@@ -8,6 +8,7 @@
     "demo:reference": "node scripts/run-reference-demo.mjs",
     "test:reference": "node scripts/test-reference-runtime.mjs",
     "verify:golden": "node scripts/verify-golden.mjs",
+    "verify:cmc-golden": "node scripts/verify-cmc-golden.mjs",
     "report:validation": "node scripts/generate-validation-results.mjs"
   },
   "devDependencies": {
