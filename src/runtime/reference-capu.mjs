@@ -12,10 +12,10 @@ export class ReferenceCaPU {
   }
 
   submit({ envelope, vcml_record }) {
-    const decision = this.#gate({ envelope, vcml_record });
     const causeId = envelope?.cause_id || vcml_record?.cause_id || "unknown";
     const correlationId = envelope?.correlation_id;
     const baseTimestamp = envelope?.received_at || new Date().toISOString();
+    const decision = this.#gate({ envelope, vcml_record, baseTimestamp });
 
     if (decision.decision === "REJECT") {
       this.#emitTrace({
@@ -166,7 +166,7 @@ export class ReferenceCaPU {
     };
   }
 
-  #gate({ envelope, vcml_record }) {
+  #gate({ envelope, vcml_record, baseTimestamp }) {
     const causeId = vcml_record?.cause_id;
     if (!causeId || !envelope?.cause_id || envelope.cause_id !== causeId) {
       return {
@@ -176,21 +176,42 @@ export class ReferenceCaPU {
       };
     }
 
-    const intent = vcml_record.intent;
-    if (intent === "allocate_compute" && Number(vcml_record.params?.units || 0) > 100) {
+    if (this.storage.exists(causeId)) {
       return {
         decision: "REJECT",
-        reason_code: "REJECT_CAPACITY_LIMIT",
-        explain: "capacity exceeded"
+        reason_code: "REJECT_STATE_CONFLICT",
+        explain: "cause already committed"
       };
     }
+
+    const intent = vcml_record.intent;
+    if (intent === "allocate_compute" && vcml_record.params?.units !== undefined) {
+      const units = Number(vcml_record.params.units);
+      if (!Number.isFinite(units) || units < 0) {
+        return {
+          decision: "REJECT",
+          reason_code: "REJECT_INVALID_CAUSE",
+          explain: "units must be a non-negative number"
+        };
+      }
+      if (units > 100) {
+        return {
+          decision: "REJECT",
+          reason_code: "REJECT_CAPACITY_LIMIT",
+          explain: "capacity exceeded"
+        };
+      }
+    }
+
+    const holdTtlMs = envelope?.ttl_ms ?? 60000;
+    const holdBase = envelope?.received_at || baseTimestamp;
 
     if (vcml_record.parent_cause_id && !this.storage.exists(vcml_record.parent_cause_id)) {
       return {
         decision: "HOLD",
         reason_code: "DEFER_PENDING_CONTEXT",
         explain: "waiting for parent cause",
-        next_check_at: addMs(envelope.received_at, envelope.ttl_ms ?? 60000)
+        next_check_at: addMs(holdBase, holdTtlMs)
       };
     }
 
@@ -199,7 +220,7 @@ export class ReferenceCaPU {
         decision: "HOLD",
         reason_code: "DEFER_PENDING_CONTEXT",
         explain: "quorum not reached",
-        next_check_at: addMs(envelope.received_at, envelope.ttl_ms ?? 60000)
+        next_check_at: addMs(holdBase, holdTtlMs)
       };
     }
 
