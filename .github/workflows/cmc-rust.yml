@@ -13,7 +13,7 @@ on:
 
 jobs:
   test:
-    name: cargo test
+    name: cargo test + demo
     runs-on: ubuntu-latest
 
     defaults:
@@ -34,7 +34,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             rust/cmc-core/target
-          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/src/**/*.rs') }}
+          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs') }}
           restore-keys: |
             ${{ runner.os }}-cmc-rust-
 
@@ -43,3 +43,6 @@ jobs:
 
       - name: Run tests
         run: cargo test --all --locked
+
+      - name: Run executable CMC demo
+        run: cargo run --bin cmc_demo --locked
