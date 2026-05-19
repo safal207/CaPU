@@ -2,7 +2,7 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after thesis, architecture, invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, integrity demos, one-command reviewer demo, and CI-gate work.
+This document summarizes the current CMC baseline after thesis, architecture, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, integrity demos, one-command reviewer demo, and CI-gate work.
 
 ---
 
@@ -21,7 +21,7 @@ The current repository does not claim a finished product. It claims an executabl
 ```text
 thesis
  -> architecture
- -> invariants
+ -> 8 replay invariants
  -> simulator
  -> deterministic trace events
  -> JSONL replay fixtures
@@ -86,12 +86,16 @@ scenario_id	invariant_id	path	decision	events	fingerprint	category	severity	expe
 
 Current checked scenarios:
 
-| Scenario | Invariant | Fixture | Decision | Category | Severity | Verdict |
-| --- | --- | --- | --- | --- | --- | --- |
-| `write_missing_cause` | `I1` | `fixtures/replay/missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
-| `write_unknown_cause` | `I2` | `fixtures/replay/unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
-| `effect_before_commit` | `I3` | `fixtures/replay/forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | `effect_commit_boundary` | `critical` | `blocked_illegitimate_transition` |
-| `valid_committed_effect` | `I4` | `fixtures/replay/valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | `effect_commit_boundary` | `info` | `accepted_legitimate_transition` |
+| Scenario | Invariant | Fixture | Decision | Events | Fingerprint | Category | Severity | Verdict |
+| --- | --- | --- | --- | ---: | --- | --- | --- | --- |
+| `write_missing_cause` | `I1` | `fixtures/replay/missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `88fd99689760140e` | `write_authorization` | high | `blocked_illegitimate_transition` |
+| `write_unknown_cause` | `I2` | `fixtures/replay/unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `d8c4983b8a5a0ab0` | `write_authorization` | high | `blocked_illegitimate_transition` |
+| `effect_before_commit` | `I3` | `fixtures/replay/forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | 1 | `28bf87f68e4ec6cb` | `effect_commit_boundary` | critical | `blocked_illegitimate_transition` |
+| `valid_committed_effect` | `I4` | `fixtures/replay/valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | 1 | `e3e96ba017e2c235` | `effect_commit_boundary` | info | `accepted_legitimate_transition` |
+| `read_missing_cause` | `I5` | `fixtures/replay/read_missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `9f49c650fcd31fff` | `read_authorization` | high | `blocked_illegitimate_transition` |
+| `read_unknown_cause_or_address` | `I6` | `fixtures/replay/read_unknown_cause_or_address.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `91768923fb87d345` | `read_authorization` | high | `blocked_illegitimate_transition` |
+| `effect_missing_parent` | `I7` | `fixtures/replay/effect_missing_parent.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `da78371555a0b983` | `effect_commit_boundary` | critical | `blocked_illegitimate_transition` |
+| `valid_read_after_write` | `I8` | `fixtures/replay/valid_read_after_write.jsonl` | `ACCEPT_READ` | 2 | `d6b83bfe3651c60d` | `read_authorization` | info | `accepted_legitimate_transition` |
 
 These fingerprints are developer-stability fingerprints using the current FNV-1a64 demo implementation. They are not production cryptographic evidence.
 
@@ -113,6 +117,22 @@ Saved audit examples:
 ```text
 examples/audit_reports/cmc_audit_report_valid.jsonl
 examples/audit_reports/cmc_audit_report_drift.jsonl
+```
+
+The valid example now covers 8 audit cases:
+
+```text
+cases=8
+passed=8
+failed=0
+```
+
+The drift example demonstrates one failed case in an 8-case corpus:
+
+```text
+cases=8
+passed=7
+failed=1
 ```
 
 Field-level executable example verifier:
@@ -190,15 +210,21 @@ Doc-only changes outside those paths do not necessarily trigger this workflow.
 
 The baseline is strong because it turns a conceptual claim into executable artifacts:
 
-- rejected illegal memory/effect transitions
+- rejected illegal memory writes without cause
+- rejected writes with unknown cause
+- rejected effects before causal commit
 - accepted legitimate committed effect transition
-- invariant-to-scenario replay mapping for I1-I4
+- rejected reads without explicit cause
+- rejected reads with unknown cause or unavailable address
+- rejected effects without parent cause
+- accepted read after legitimate write under known cause
+- invariant-to-scenario replay mapping for I1-I8
 - deterministic trace events
 - machine-readable replay manifest
 - manifest-linked replay fixture structure checks
 - manifest-linked fixture fingerprint drift checks
 - manifest-linked audit report output
-- saved valid/drift audit report examples
+- saved valid/drift audit report examples for 8 cases
 - field-level executable verification of audit report examples
 - tampering detection demo
 - divergence detection demo
@@ -227,15 +253,15 @@ The current repository should be read as an executable research scaffold for leg
 The next phase should focus on:
 
 1. replacing developer hash demo with a stronger cryptographic hash-chain implementation,
-2. expanding replay fixture coverage toward at least 8 legitimacy violation classes,
-3. hardening audit report validation beyond lightweight flat JSON parsing if external dependencies become acceptable,
-4. adding richer manifest validation rules,
-5. measuring overhead and stability across repeated runs.
+2. adding richer manifest validation rules,
+3. measuring overhead and stability across repeated runs,
+4. optionally replacing lightweight flat JSON parsing with dependency-backed JSON parsing if dependency policy changes,
+5. expanding beyond current memory/read/effect cases into broader workloads.
 
 ---
 
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as a one-command, manifest-linked, JSONL-reporting, field-level example-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked, JSONL-reporting, field-level example-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
