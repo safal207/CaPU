@@ -25,7 +25,7 @@ Causal computing verifies transition legitimacy.
 Current executable evidence chain:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> example verifier -> reviewer command -> CI
 ```
 
 ---
@@ -44,6 +44,7 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> revi
 | Replay fixtures preserve semantic structure | `fixtures/replay/MANIFEST.tsv` + `replay_fixture_verify.rs` | `cargo run --bin replay_fixture_verify --locked` | Yes |
 | Replay fixture drift can be detected | `fixtures/replay/MANIFEST.tsv` + `replay_fingerprint_verify.rs` | `cargo run --bin replay_fingerprint_verify --locked` | Yes |
 | Manifest-linked audit evidence can be emitted | `cmc_audit_report.rs` + `fixtures/replay/MANIFEST.tsv` | `cargo run --bin cmc_audit_report --locked` | Yes |
+| Saved audit examples preserve expected semantics | `examples/audit_reports/*.jsonl` + `audit_report_example_verify.rs` | `cargo run --bin audit_report_example_verify --locked` | Yes |
 | Trace hash chain can validate expected trace | `verify_trace.rs` | `cargo run --bin verify_trace --locked` | Yes |
 | Tampered trace can be detected | `verify_trace_tampered.rs` | `cargo run --bin verify_trace_tampered --locked` | Yes |
 | Diverged replay can be detected | `trace_divergence.rs` | `cargo run --bin trace_divergence --locked` | Yes |
@@ -82,7 +83,7 @@ Current checked scenarios:
 This makes the evidence chain explicit:
 
 ```text
-thesis -> invariant -> scenario -> fixture -> fingerprint -> verifier -> audit report -> CI
+thesis -> invariant -> scenario -> fixture -> fingerprint -> verifier -> audit report -> saved examples -> example verifier -> CI
 ```
 
 ---
@@ -106,6 +107,20 @@ expected decision is present
 scenario/invariant/category/severity/verdict metadata is carried into output
 ```
 
+Saved examples are available at:
+
+```text
+examples/audit_reports/cmc_audit_report_valid.jsonl
+examples/audit_reports/cmc_audit_report_drift.jsonl
+```
+
+They are checked by:
+
+```bash
+cd rust/cmc-core
+cargo run --bin audit_report_example_verify --locked
+```
+
 This is still an early developer report format, not a certification-grade audit artifact.
 
 ---
@@ -124,14 +139,18 @@ Recommended review order:
 7. rust/cmc-core/fixtures/replay/MANIFEST.md
 8. rust/cmc-core/fixtures/replay/MANIFEST.tsv
 9. rust/cmc-core/src/bin/cmc_audit_report.rs
-10. CMC_EVIDENCE_MAP.md
-11. CMC_REVIEWER_QUICKSTART.md
-12. CMC_BASELINE_STATUS.md
-13. CMC_PHASE_2_ROADMAP.md
-14. rust/cmc-core/README.md
-15. rust/cmc-core/src/lib.rs
-16. scripts/run-cmc-reviewer-demo.mjs
-17. .github/workflows/cmc-rust.yml
+10. rust/cmc-core/src/bin/audit_report_example_verify.rs
+11. examples/audit_reports/cmc_audit_report_valid.jsonl
+12. examples/audit_reports/cmc_audit_report_drift.jsonl
+13. CMC_AUDITOR_REPORT.md
+14. CMC_EVIDENCE_MAP.md
+15. CMC_REVIEWER_QUICKSTART.md
+16. CMC_BASELINE_STATUS.md
+17. CMC_PHASE_2_ROADMAP.md
+18. rust/cmc-core/README.md
+19. rust/cmc-core/src/lib.rs
+20. scripts/run-cmc-reviewer-demo.mjs
+21. .github/workflows/cmc-rust.yml
 ```
 
 This path moves from thesis to architecture to invariants to executable validation and auditor-facing output.
@@ -157,6 +176,7 @@ cargo run --bin verify_trace_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
+cargo run --bin audit_report_example_verify --locked
 cargo run --bin trace_divergence --locked
 ```
 
@@ -192,6 +212,7 @@ cargo run --bin verify_trace_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
+cargo run --bin audit_report_example_verify --locked
 cargo run --bin trace_divergence --locked
 ```
 
@@ -209,6 +230,8 @@ Today, the repository demonstrates that a minimal CMC simulator can:
 - verify replay fixture structure through a machine-readable manifest
 - verify replay fixture fingerprints through the same manifest
 - emit manifest-linked audit evidence as JSONL
+- preserve saved valid and drift audit examples
+- verify those saved audit examples executablely
 - emit replayable trace events
 - export trace events as JSONL
 - preserve a golden fixture snapshot
@@ -241,7 +264,7 @@ The strongest claim is not that CMC is finished.
 The strongest claim is:
 
 ```text
-transition legitimacy can be made observable, replayable, testable, one-command verifiable, manifest-linked, reportable, and CI-enforced.
+transition legitimacy can be made observable, replayable, testable, reportable, example-verified, one-command verifiable, manifest-linked, and CI-enforced.
 ```
 
 That is the core research direction.
@@ -251,5 +274,5 @@ That is the core research direction.
 ## One-line summary
 
 ```text
-CMC turns causal legitimacy from prose into manifest-linked executable evidence and JSONL audit output.
+CMC turns causal legitimacy from prose into manifest-linked executable evidence, JSONL audit output, and executable-verified audit examples.
 ```
