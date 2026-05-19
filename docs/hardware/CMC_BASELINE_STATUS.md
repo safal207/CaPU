@@ -2,14 +2,14 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after the initial thesis, architecture, replay, integrity, fixture, and CI-gate work.
+This document summarizes the current CMC baseline after the initial thesis, architecture, replay, integrity, fixture, one-command reviewer demo, and CI-gate work.
 
 ---
 
 ## Baseline claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, and regression-tested
+transition legitimacy can be represented, replayed, checked, one-command verified, and regression-tested
 ```
 
 The current repository does not claim a finished product. It claims an executable research scaffold for legitimacy-preserving computation.
@@ -29,6 +29,7 @@ thesis
  -> hash-chain integrity demo
  -> tampering detection demo
  -> divergence detection demo
+ -> one-command reviewer demo
  -> CI workflow gate
  -> evidence map
  -> reviewer quickstart
@@ -45,6 +46,37 @@ thesis
 - [CMC_HASH_CHAIN.md](CMC_HASH_CHAIN.md)
 - [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
 - [CMC_REVIEWER_QUICKSTART.md](CMC_REVIEWER_QUICKSTART.md)
+- [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
+- [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
+
+---
+
+## One-command reviewer check
+
+From repository root:
+
+```bash
+npm run review:cmc
+```
+
+Expected final result:
+
+```text
+result=reviewer_baseline_passed
+```
+
+This command runs:
+
+```text
+cargo fmt --check
+cargo test --all --locked
+cargo run --bin cmc_demo --locked
+cargo run --bin verify_trace --locked
+cargo run --bin verify_trace_tampered --locked
+cargo run --bin replay_fixture_verify --locked
+cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin trace_divergence --locked
+```
 
 ---
 
@@ -66,6 +98,7 @@ cargo run --bin trace_divergence --locked
 From repository root:
 
 ```bash
+npm run review:cmc
 npm run demo:cmc
 npm run verify:cmc-golden
 npm run bench:cmc
@@ -79,6 +112,8 @@ The CMC GitHub Actions workflow is configured to run on changes to:
 
 ```text
 rust/cmc-core/**
+scripts/run-cmc-reviewer-demo.mjs
+package.json
 .github/workflows/cmc-rust.yml
 ```
 
@@ -92,6 +127,7 @@ The workflow currently covers:
 - replay fixture structure verifier
 - replay fixture fingerprint verifier
 - replay divergence detector
+- one-command reviewer demo via `npm run review:cmc`
 
 Doc-only changes outside those paths do not necessarily trigger this workflow.
 
@@ -120,6 +156,7 @@ The baseline is strong because it turns a conceptual claim into executable artif
 - fixture fingerprint drift checks
 - tampering detection demo
 - divergence detection demo
+- one-command reviewer verification
 - CI enforcement path
 
 ---
@@ -152,5 +189,5 @@ The next phase should focus on:
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as an executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as a one-command, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
