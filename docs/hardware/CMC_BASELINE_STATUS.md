@@ -2,14 +2,14 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after thesis, architecture, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, integrity demos, one-command reviewer demo, and CI-gate work.
+This document summarizes the current CMC baseline after thesis, architecture, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, legacy integrity demos, SHA-256 trace-integrity reference checks, one-command reviewer demo, and CI-gate work.
 
 ---
 
 ## Baseline claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, one-command verified, manifest-linked, and regression-tested
 ```
 
 The current repository does not claim a finished product. It claims an executable research scaffold for legitimacy-preserving computation.
@@ -31,19 +31,22 @@ thesis
  -> JSONL audit report output
  -> saved valid/drift audit examples
  -> field-level audit report example verifier
- -> hash-chain integrity demo
- -> tampering detection demo
+ -> legacy hash-chain integrity demo
+ -> legacy tampering detection demo
+ -> SHA-256 trace sealing demo
+ -> SHA-256 tampering detection demo
  -> divergence detection demo
  -> one-command reviewer demo
  -> CI workflow gate
  -> evidence map
+ -> trace integrity doc
  -> reviewer quickstart
 ```
 
 Short form:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> trace integrity -> reviewer command -> CI
 ```
 
 ---
@@ -55,6 +58,7 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> save
 - [CAUSAL_MEMORY_CONTROLLER.md](CAUSAL_MEMORY_CONTROLLER.md)
 - [CMC_REPLAY.md](CMC_REPLAY.md)
 - [CMC_HASH_CHAIN.md](CMC_HASH_CHAIN.md)
+- [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
 - [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
 - [CMC_AUDITOR_REPORT.md](CMC_AUDITOR_REPORT.md)
 - [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
@@ -97,7 +101,38 @@ Current checked scenarios:
 | `effect_missing_parent` | `I7` | `fixtures/replay/effect_missing_parent.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `da78371555a0b983` | `effect_commit_boundary` | critical | `blocked_illegitimate_transition` |
 | `valid_read_after_write` | `I8` | `fixtures/replay/valid_read_after_write.jsonl` | `ACCEPT_READ` | 2 | `d6b83bfe3651c60d` | `read_authorization` | info | `accepted_legitimate_transition` |
 
-These fingerprints are developer-stability fingerprints using the current FNV-1a64 demo implementation. They are not production cryptographic evidence.
+These manifest fingerprints are developer-stability fingerprints for replay fixture drift detection. They are not production cryptographic evidence.
+
+---
+
+## Trace integrity
+
+Trace integrity is documented in:
+
+```text
+docs/hardware/CMC_TRACE_INTEGRITY.md
+```
+
+Current trace-integrity checks:
+
+```bash
+cd rust/cmc-core
+cargo run --bin verify_trace --locked
+cargo run --bin verify_trace_tampered --locked
+cargo run --bin verify_trace_sha256 --locked
+cargo run --bin verify_trace_sha256_tampered --locked
+```
+
+Current split:
+
+| Layer | Current status |
+| --- | --- |
+| Legacy hash-chain demo | FNV-1a64 developer integrity path |
+| Legacy tamper demo | detects modified trace decisions in the legacy path |
+| SHA-256 reference path | std-only trace sealing and verification via `trace_crypto.rs` |
+| SHA-256 tamper demo | detects modified trace decisions in the SHA-256 path |
+
+This is stronger than the original developer hash-chain demo, but it is still not a production security certification.
 
 ---
 
@@ -168,6 +203,8 @@ cargo test --all --locked
 cargo run --bin cmc_demo --locked
 cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
+cargo run --bin verify_trace_sha256 --locked
+cargo run --bin verify_trace_sha256_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
@@ -193,8 +230,10 @@ The workflow currently covers:
 - formatting check
 - Rust tests
 - executable CMC demo
-- valid trace hash-chain verifier
-- tampering detection demo
+- legacy trace hash-chain verifier
+- legacy tampering detection demo
+- SHA-256 trace sealing verifier
+- SHA-256 tampering detection demo
 - manifest-linked replay fixture structure verifier
 - manifest-linked replay fixture fingerprint verifier
 - manifest-linked audit report JSONL output
@@ -226,7 +265,9 @@ The baseline is strong because it turns a conceptual claim into executable artif
 - manifest-linked audit report output
 - saved valid/drift audit report examples for 8 cases
 - field-level executable verification of audit report examples
-- tampering detection demo
+- legacy tampering detection demo
+- SHA-256 trace sealing and verification reference path
+- SHA-256 tampering detection demo
 - divergence detection demo
 - one-command reviewer verification
 - CI enforcement path
@@ -238,8 +279,9 @@ The baseline is strong because it turns a conceptual claim into executable artif
 The baseline does not yet provide:
 
 - production cryptographic sealing
-- formal verification
 - hardware implementation
+- hardware root of trust
+- formal verification
 - real workload performance evaluation
 - full multi-agent benchmark coverage
 - certification-grade assurance
@@ -252,16 +294,18 @@ The current repository should be read as an executable research scaffold for leg
 
 The next phase should focus on:
 
-1. replacing developer hash demo with a stronger cryptographic hash-chain implementation,
-2. adding richer manifest validation rules,
-3. measuring overhead and stability across repeated runs,
-4. optionally replacing lightweight flat JSON parsing with dependency-backed JSON parsing if dependency policy changes,
-5. expanding beyond current memory/read/effect cases into broader workloads.
+1. defining canonical trace-event encoding more explicitly,
+2. adding golden SHA-256 sealed trace fixtures,
+3. connecting manifest entries to SHA-256 sealed trace evidence,
+4. adding richer manifest validation rules,
+5. measuring overhead and stability across repeated runs,
+6. optionally replacing lightweight flat JSON parsing with dependency-backed JSON parsing if dependency policy changes,
+7. expanding beyond current memory/read/effect cases into broader workloads.
 
 ---
 
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked, JSONL-reporting, field-level example-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked, JSONL-reporting, field-level example-verified, SHA-256 trace-integrity checked, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
