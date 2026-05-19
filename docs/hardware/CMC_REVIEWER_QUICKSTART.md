@@ -7,7 +7,7 @@ This document gives reviewers a short path from thesis to executable evidence.
 Goal:
 
 ```text
-verify that causal legitimacy is represented, replayed, and checked by executable artifacts
+verify that causal legitimacy is represented, replayed, checked, reported, and regression-tested by executable artifacts
 ```
 
 ---
@@ -18,8 +18,9 @@ Start here:
 
 1. [WHY_CAUSAL_COMPUTATION.md](WHY_CAUSAL_COMPUTATION.md)
 2. [CAUSAL_EXECUTION_ARCHITECTURE.md](CAUSAL_EXECUTION_ARCHITECTURE.md)
-3. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
-4. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
+3. [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
+4. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
+5. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
 
 Core claim:
 
@@ -48,6 +49,7 @@ cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin cmc_audit_report --locked
 cargo run --bin trace_divergence --locked
 ```
 
@@ -60,7 +62,7 @@ result=reviewer_baseline_passed
 Evidence claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, and regression-tested
 ```
 
 ---
@@ -79,6 +81,7 @@ valid trace -> accepted
 tampered decision -> detected
 fixture structure -> valid
 fixture fingerprints -> stable
+manifest-linked audit report -> emitted as JSONL
 expected trace vs diverged trace -> mismatch detected
 ```
 
@@ -154,6 +157,23 @@ Expected meaning:
 fixture structure -> valid
 expected decisions -> present
 fixture fingerprints -> stable
+scenario/invariant/category/severity/verdict metadata -> parsed
+```
+
+### Audit report JSONL
+
+```bash
+cargo run --bin cmc_audit_report --locked
+```
+
+Expected meaning:
+
+```text
+manifest-linked replay evidence -> emitted as JSONL
+scenario_id -> included
+invariant_id -> included
+category/severity/expected_verdict -> included
+fingerprint drift -> would fail the report
 ```
 
 ### Divergence detection
@@ -191,9 +211,11 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - causal write rejection
 - unknown cause rejection
 - commit-before-effect enforcement
+- accepted committed effect path
 - deterministic trace emission
 - replay fixture checking
 - fixture fingerprint stability
+- manifest-linked audit report output
 - tampering detection
 - divergence detection
 - one-command reviewer verification
@@ -222,7 +244,7 @@ The key thing to evaluate is not whether CMC is finished.
 The key thing to evaluate is whether the project has made this claim testable:
 
 ```text
-transition legitimacy can be represented, replayed, checked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, and regression-tested
 ```
 
 That is the current proof point.
