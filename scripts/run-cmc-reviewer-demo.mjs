@@ -60,6 +60,13 @@ const steps = [
     proves: 'Modified trace decisions are detected by the SHA-256 reference path.',
   },
   {
+    name: 'sha256 sealed fixture verification',
+    command: 'cargo',
+    args: ['run', '--bin', 'verify_trace_sha256_fixture', '--locked'],
+    cwd: cmcDir,
+    proves: 'Saved SHA-256 sealed trace fixtures are executable-verified, including tamper detection.',
+  },
+  {
     name: 'replay fixture structure',
     command: 'cargo',
     args: ['run', '--bin', 'replay_fixture_verify', '--locked'],
@@ -133,5 +140,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
