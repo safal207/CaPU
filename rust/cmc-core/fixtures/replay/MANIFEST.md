@@ -2,13 +2,31 @@
 
 Status: canonical fixture manifest for the current CMC replay corpus.
 
-This manifest records the expected decision, event count, and developer-stability fingerprint for each checked replay fixture.
+This document explains the fixture manifest. The machine-readable source of truth is:
 
-The manifest is documentation for now. The executable source of truth is currently:
+```text
+fixtures/replay/MANIFEST.tsv
+```
+
+The TSV manifest records the expected decision, event count, and developer-stability fingerprint for each checked replay fixture.
+
+Both replay verifier binaries read this manifest:
 
 ```text
 rust/cmc-core/src/bin/replay_fixture_verify.rs
 rust/cmc-core/src/bin/replay_fingerprint_verify.rs
+```
+
+---
+
+## Machine-readable manifest format
+
+```tsv
+path	decision	events	fingerprint
+fixtures/replay/missing_cause.jsonl	REJECT_MISSING_CAUSE	1	88fd99689760140e
+fixtures/replay/unknown_cause.jsonl	REJECT_UNKNOWN_CAUSE	1	d8c4983b8a5a0ab0
+fixtures/replay/forbidden_effect_before_commit_fixture.jsonl	REJECT_EFFECT_BEFORE_COMMIT	1	28bf87f68e4ec6cb
+fixtures/replay/valid_committed_effect.jsonl	ACCEPT_EFFECT	1	e3e96ba017e2c235
 ```
 
 ---
@@ -66,4 +84,10 @@ They are not production cryptographic evidence.
 
 ## Next manifest step
 
-The next implementation step is to make this manifest machine-readable or parseable so the verifier does not hardcode fixture expectations in Rust.
+The next implementation step is to expand the manifest with scenario IDs and invariant IDs, for example:
+
+```text
+scenario_id	invariant_id	path	decision	events	fingerprint
+```
+
+That would connect replay fixtures directly to `CMC_INVARIANTS.md`.
