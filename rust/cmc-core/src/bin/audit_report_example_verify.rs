@@ -12,6 +12,101 @@ enum JsonValue {
 
 type JsonObject = BTreeMap<String, JsonValue>;
 
+#[derive(Debug, Clone, Copy)]
+struct ExpectedCase {
+    scenario_id: &'static str,
+    invariant_id: &'static str,
+    category: &'static str,
+    severity: &'static str,
+    expected_verdict: &'static str,
+    decision: &'static str,
+    events: u64,
+    fingerprint: &'static str,
+}
+
+const VALID_CASES: &[ExpectedCase] = &[
+    ExpectedCase {
+        scenario_id: "write_missing_cause",
+        invariant_id: "I1",
+        category: "write_authorization",
+        severity: "high",
+        expected_verdict: "blocked_illegitimate_transition",
+        decision: "REJECT_MISSING_CAUSE",
+        events: 1,
+        fingerprint: "88fd99689760140e",
+    },
+    ExpectedCase {
+        scenario_id: "write_unknown_cause",
+        invariant_id: "I2",
+        category: "write_authorization",
+        severity: "high",
+        expected_verdict: "blocked_illegitimate_transition",
+        decision: "REJECT_UNKNOWN_CAUSE",
+        events: 1,
+        fingerprint: "d8c4983b8a5a0ab0",
+    },
+    ExpectedCase {
+        scenario_id: "effect_before_commit",
+        invariant_id: "I3",
+        category: "effect_commit_boundary",
+        severity: "critical",
+        expected_verdict: "blocked_illegitimate_transition",
+        decision: "REJECT_EFFECT_BEFORE_COMMIT",
+        events: 1,
+        fingerprint: "28bf87f68e4ec6cb",
+    },
+    ExpectedCase {
+        scenario_id: "valid_committed_effect",
+        invariant_id: "I4",
+        category: "effect_commit_boundary",
+        severity: "info",
+        expected_verdict: "accepted_legitimate_transition",
+        decision: "ACCEPT_EFFECT",
+        events: 1,
+        fingerprint: "e3e96ba017e2c235",
+    },
+    ExpectedCase {
+        scenario_id: "read_missing_cause",
+        invariant_id: "I5",
+        category: "read_authorization",
+        severity: "high",
+        expected_verdict: "blocked_illegitimate_transition",
+        decision: "REJECT_MISSING_CAUSE",
+        events: 1,
+        fingerprint: "9f49c650fcd31fff",
+    },
+    ExpectedCase {
+        scenario_id: "read_unknown_cause_or_address",
+        invariant_id: "I6",
+        category: "read_authorization",
+        severity: "high",
+        expected_verdict: "blocked_illegitimate_transition",
+        decision: "REJECT_UNKNOWN_CAUSE",
+        events: 1,
+        fingerprint: "91768923fb87d345",
+    },
+    ExpectedCase {
+        scenario_id: "effect_missing_parent",
+        invariant_id: "I7",
+        category: "effect_commit_boundary",
+        severity: "critical",
+        expected_verdict: "blocked_illegitimate_transition",
+        decision: "REJECT_MISSING_CAUSE",
+        events: 1,
+        fingerprint: "da78371555a0b983",
+    },
+    ExpectedCase {
+        scenario_id: "valid_read_after_write",
+        invariant_id: "I8",
+        category: "read_authorization",
+        severity: "info",
+        expected_verdict: "accepted_legitimate_transition",
+        decision: "ACCEPT_READ",
+        events: 2,
+        fingerprint: "d6b83bfe3651c60d",
+    },
+];
+
 fn read_report(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|err| format!("failed to read {path}: {err}"))
 }
@@ -208,47 +303,22 @@ fn verify_start(record: &JsonObject) -> Result<(), String> {
     require_str(record, "manifest", "fixtures/replay/MANIFEST.tsv")
 }
 
-fn verify_case_common(
-    record: &JsonObject,
-    scenario_id: &str,
-    invariant_id: &str,
-    category: &str,
-    severity: &str,
-    expected_verdict: &str,
-    decision: &str,
-) -> Result<(), String> {
+fn verify_case_common(record: &JsonObject, expected: ExpectedCase) -> Result<(), String> {
     require_str(record, "type", "cmc_audit_case")?;
-    require_str(record, "scenario_id", scenario_id)?;
-    require_str(record, "invariant_id", invariant_id)?;
-    require_str(record, "category", category)?;
-    require_str(record, "severity", severity)?;
-    require_str(record, "expected_verdict", expected_verdict)?;
-    require_str(record, "decision", decision)?;
-    require_number(record, "expected_events", 1)?;
-    require_number(record, "actual_events", 1)
+    require_str(record, "scenario_id", expected.scenario_id)?;
+    require_str(record, "invariant_id", expected.invariant_id)?;
+    require_str(record, "category", expected.category)?;
+    require_str(record, "severity", expected.severity)?;
+    require_str(record, "expected_verdict", expected.expected_verdict)?;
+    require_str(record, "decision", expected.decision)?;
+    require_number(record, "expected_events", expected.events)?;
+    require_number(record, "actual_events", expected.events)
 }
 
-fn verify_valid_case(
-    record: &JsonObject,
-    scenario_id: &str,
-    invariant_id: &str,
-    category: &str,
-    severity: &str,
-    expected_verdict: &str,
-    decision: &str,
-    fingerprint: &str,
-) -> Result<(), String> {
-    verify_case_common(
-        record,
-        scenario_id,
-        invariant_id,
-        category,
-        severity,
-        expected_verdict,
-        decision,
-    )?;
-    require_str(record, "expected_fingerprint", fingerprint)?;
-    require_str(record, "actual_fingerprint", fingerprint)?;
+fn verify_valid_case(record: &JsonObject, expected: ExpectedCase) -> Result<(), String> {
+    verify_case_common(record, expected)?;
+    require_str(record, "expected_fingerprint", expected.fingerprint)?;
+    require_str(record, "actual_fingerprint", expected.fingerprint)?;
     require_bool(record, "ok", true)?;
     require_str(record, "status", "audit_case_valid")
 }
@@ -256,23 +326,16 @@ fn verify_valid_case(
 fn verify_valid_summary(record: &JsonObject) -> Result<(), String> {
     require_str(record, "type", "cmc_audit_report_summary")?;
     require_bool(record, "ok", true)?;
-    require_number(record, "cases", 4)?;
-    require_number(record, "passed", 4)?;
+    require_number(record, "cases", VALID_CASES.len() as u64)?;
+    require_number(record, "passed", VALID_CASES.len() as u64)?;
     require_number(record, "failed", 0)?;
     require_str(record, "status", "audit_report_valid")
 }
 
 fn verify_drift_case(record: &JsonObject) -> Result<(), String> {
-    verify_case_common(
-        record,
-        "write_missing_cause",
-        "I1",
-        "write_authorization",
-        "high",
-        "blocked_illegitimate_transition",
-        "REJECT_MISSING_CAUSE",
-    )?;
-    require_str(record, "expected_fingerprint", "88fd99689760140e")?;
+    let expected = VALID_CASES[0];
+    verify_case_common(record, expected)?;
+    require_str(record, "expected_fingerprint", expected.fingerprint)?;
     require_str(record, "actual_fingerprint", "0000000000000000")?;
     require_bool(record, "ok", false)?;
     require_str(record, "status", "fixture_fingerprint_drift")
@@ -281,63 +344,27 @@ fn verify_drift_case(record: &JsonObject) -> Result<(), String> {
 fn verify_drift_summary(record: &JsonObject) -> Result<(), String> {
     require_str(record, "type", "cmc_audit_report_summary")?;
     require_bool(record, "ok", false)?;
-    require_number(record, "cases", 4)?;
-    require_number(record, "passed", 3)?;
+    require_number(record, "cases", VALID_CASES.len() as u64)?;
+    require_number(record, "passed", (VALID_CASES.len() - 1) as u64)?;
     require_number(record, "failed", 1)?;
     require_str(record, "status", "audit_report_failed")
 }
 
 fn verify_valid_report() -> Result<(), String> {
     let records = parse_jsonl_report(VALID_REPORT)?;
-    if records.len() != 6 {
+    let expected_records = VALID_CASES.len() + 2;
+    if records.len() != expected_records {
         return Err(format!(
-            "valid report record count drift: expected 6, actual {}",
+            "valid report record count drift: expected {expected_records}, actual {}",
             records.len()
         ));
     }
 
     verify_start(&records[0])?;
-    verify_valid_case(
-        &records[1],
-        "write_missing_cause",
-        "I1",
-        "write_authorization",
-        "high",
-        "blocked_illegitimate_transition",
-        "REJECT_MISSING_CAUSE",
-        "88fd99689760140e",
-    )?;
-    verify_valid_case(
-        &records[2],
-        "write_unknown_cause",
-        "I2",
-        "write_authorization",
-        "high",
-        "blocked_illegitimate_transition",
-        "REJECT_UNKNOWN_CAUSE",
-        "d8c4983b8a5a0ab0",
-    )?;
-    verify_valid_case(
-        &records[3],
-        "effect_before_commit",
-        "I3",
-        "effect_commit_boundary",
-        "critical",
-        "blocked_illegitimate_transition",
-        "REJECT_EFFECT_BEFORE_COMMIT",
-        "28bf87f68e4ec6cb",
-    )?;
-    verify_valid_case(
-        &records[4],
-        "valid_committed_effect",
-        "I4",
-        "effect_commit_boundary",
-        "info",
-        "accepted_legitimate_transition",
-        "ACCEPT_EFFECT",
-        "e3e96ba017e2c235",
-    )?;
-    verify_valid_summary(&records[5])
+    for (idx, expected) in VALID_CASES.iter().enumerate() {
+        verify_valid_case(&records[idx + 1], *expected)?;
+    }
+    verify_valid_summary(&records[VALID_CASES.len() + 1])
 }
 
 fn verify_drift_report() -> Result<(), String> {
@@ -355,20 +382,20 @@ fn verify_drift_report() -> Result<(), String> {
 }
 
 fn main() -> ExitCode {
-    println!("CMC-AUDIT-REPORT-EXAMPLE-VERIFY v1");
+    println!("CMC-AUDIT-REPORT-EXAMPLE-VERIFY v2");
 
     if let Err(err) = verify_valid_report() {
         eprintln!("result=failed report=valid error={err}");
         return ExitCode::FAILURE;
     }
-    println!("report=valid path={VALID_REPORT} status=ok parser=field_level");
+    println!("report=valid path={VALID_REPORT} cases=8 status=ok parser=field_level");
 
     if let Err(err) = verify_drift_report() {
         eprintln!("result=failed report=drift error={err}");
         return ExitCode::FAILURE;
     }
-    println!("report=drift path={DRIFT_REPORT} status=ok parser=field_level");
+    println!("report=drift path={DRIFT_REPORT} cases=8 status=ok parser=field_level");
 
-    println!("result=audit_report_examples_valid parser=field_level");
+    println!("result=audit_report_examples_valid parser=field_level cases=8");
     ExitCode::SUCCESS
 }
