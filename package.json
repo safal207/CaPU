@@ -7,6 +7,7 @@
     "validate:examples": "node scripts/validate-examples.mjs",
     "demo:reference": "node scripts/run-reference-demo.mjs",
     "demo:cmc": "node scripts/run-cmc-demo.mjs",
+    "review:cmc": "node scripts/run-cmc-reviewer-demo.mjs",
     "test:reference": "node scripts/test-reference-runtime.mjs",
     "verify:golden": "node scripts/verify-golden.mjs",
     "verify:cmc-golden": "node scripts/verify-cmc-golden.mjs",
