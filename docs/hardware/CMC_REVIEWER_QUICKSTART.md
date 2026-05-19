@@ -7,7 +7,7 @@ This document gives reviewers a short path from thesis to executable evidence.
 Goal:
 
 ```text
-verify that causal legitimacy is represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested by executable artifacts
+verify that causal legitimacy is represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested by executable artifacts
 ```
 
 ---
@@ -42,7 +42,7 @@ Future AI personas require causal legitimacy, not only conversational coherence.
 Baseline claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 ---
@@ -66,6 +66,7 @@ cargo run --bin verify_trace_tampered --locked
 cargo run --bin verify_trace_sha256 --locked
 cargo run --bin verify_trace_sha256_tampered --locked
 cargo run --bin verify_trace_sha256_fixture --locked
+cargo run --bin persona_boundary_verify --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
@@ -82,7 +83,7 @@ result=reviewer_baseline_passed
 Evidence claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, and regression-tested
 ```
 
 ---
@@ -107,6 +108,9 @@ SHA-256 generated sealed trace -> accepted
 SHA-256 generated tampered decision -> detected
 SHA-256 saved valid fixture -> accepted
 SHA-256 saved tampered fixture -> rejected at event 1
+persona inferred preference -> rejected without confirmation/cause
+persona confirmed preference -> accepted with confirmation/cause
+persona boundary manifest -> checked against JSONL fixtures
 fixture structure -> valid
 fixture fingerprints -> stable
 manifest-linked audit report -> emitted as JSONL
@@ -117,7 +121,7 @@ expected trace vs diverged trace -> mismatch detected
 Evidence claim:
 
 ```text
-CMC can model memory/read/effect decisions using explicit causal authorization and executable replay evidence.
+CMC can model memory/read/effect/persona-boundary decisions using explicit causal authorization and executable replay evidence.
 ```
 
 ---
@@ -162,6 +166,36 @@ interpretations remain hypotheses unless confirmed
 ```
 
 This is a conceptual safety bridge, not a claim of AI consciousness, personhood, or therapeutic capability.
+
+### Manifest-linked persona boundary corpus
+
+```bash
+cargo run --bin persona_boundary_verify --locked
+```
+
+Expected meaning:
+
+```text
+inferred preference without confirmation/cause -> rejected
+confirmed preference with confirmation/cause -> accepted
+persona manifest rows -> match JSONL fixtures
+```
+
+Current persona corpus:
+
+```text
+fixtures/persona/MANIFEST.tsv
+fixtures/persona/inferred_preference_rejected.jsonl
+fixtures/persona/confirmed_preference_accepted.jsonl
+```
+
+Expected output includes:
+
+```text
+CMC-PERSONA-BOUNDARY-MANIFEST v0
+cases=2
+result=persona_boundary_manifest_valid
+```
 
 ### Canonical trace encoding
 
@@ -391,6 +425,7 @@ legacy tamper detection
 SHA-256 generated trace verification
 SHA-256 generated tamper detection
 SHA-256 sealed fixture verification
+persona boundary fixture verification
 audit report emission
 saved audit example verification
 replay divergence detection
@@ -413,7 +448,9 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - causal read rejection with unknown cause or unavailable address
 - accepted read after legitimate write
 - deterministic trace emission
-- conceptual persona boundary for future companion/persona systems
+- manifest-linked persona boundary corpus for future companion/persona systems
+- rejected inferred persona memory without confirmation/cause
+- accepted confirmed persona memory with confirmation/cause
 - documented v0 canonical trace encoding
 - replay fixture checking
 - fixture fingerprint stability
@@ -427,7 +464,7 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - executable verification of saved SHA-256 sealed fixtures
 - divergence detection
 - one-command reviewer verification
-- CI-enforced replay/integrity/audit checks
+- CI-enforced replay/integrity/audit/persona-boundary checks
 
 ---
 
@@ -458,7 +495,7 @@ The key thing to evaluate is not whether CMC is finished.
 The key thing to evaluate is whether the project has made this claim testable:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested
 ```
 
 That is the current proof point.
@@ -468,5 +505,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, persona boundary, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, manifest-linked persona boundary, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
 ```
