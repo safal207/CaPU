@@ -5,7 +5,7 @@ Status: next-phase roadmap after reviewer-ready baseline.
 This roadmap starts after the current CMC baseline:
 
 ```text
-thesis -> architecture -> invariants -> simulator -> replay fixtures -> manifest-linked verifiers -> audit report output -> saved audit examples -> example verifier -> integrity demos -> one-command reviewer demo -> CI gate -> evidence map -> reviewer quickstart -> baseline status
+thesis -> architecture -> invariants -> simulator -> replay fixtures -> manifest-linked verifiers -> audit report output -> saved audit examples -> field-level example verifier -> integrity demos -> one-command reviewer demo -> CI gate -> evidence map -> reviewer quickstart -> baseline status
 ```
 
 Phase 2 goal:
@@ -23,7 +23,7 @@ Do not overclaim hardware or production security.
 The next phase should strengthen the claim that:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, example-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 ---
@@ -52,12 +52,13 @@ Done:
 - saved valid audit report example exists
 - saved drift/failure audit report example exists
 - `audit_report_example_verify` checks saved audit examples
+- `audit_report_example_verify` now uses field-level JSONL parsing and typed field checks
 - `npm run review:cmc` includes `cmc_audit_report`
 - `npm run review:cmc` includes `audit_report_example_verify`
 - `CMC_INVARIANTS.md` synced with I1-I4 replay fixtures
-- `CMC_AUDITOR_REPORT.md` synced with executable example verification
-- `CMC_EVIDENCE_MAP.md` synced with executable-verified audit examples
-- `CMC_BASELINE_STATUS.md` synced with executable-verified audit examples
+- `CMC_AUDITOR_REPORT.md` synced with field-level example verification
+- `CMC_EVIDENCE_MAP.md` synced with field-level verified audit examples
+- `CMC_BASELINE_STATUS.md` synced with field-level verified audit examples
 - `CMC_REVIEWER_QUICKSTART.md` synced with `cmc_audit_report`
 
 Current checked replay evidence:
@@ -73,16 +74,16 @@ Audit report examples:
 
 | Example | Meaning | Checked by |
 | --- | --- | --- |
-| `examples/audit_reports/cmc_audit_report_valid.jsonl` | clean valid audit report | `audit_report_example_verify` |
-| `examples/audit_reports/cmc_audit_report_drift.jsonl` | illustrative fingerprint drift/failure report | `audit_report_example_verify` |
+| `examples/audit_reports/cmc_audit_report_valid.jsonl` | clean valid audit report | field-level `audit_report_example_verify` |
+| `examples/audit_reports/cmc_audit_report_drift.jsonl` | illustrative fingerprint drift/failure report | field-level `audit_report_example_verify` |
 
 Next:
 
-- harden audit example validation beyond token-based checks
 - expand replay fixture coverage toward at least 8 legitimacy violation classes
 - strengthen hash-chain implementation beyond developer FNV-1a64 demo
 - add richer manifest validation rules
 - add repeated-run benchmark/stability reporting
+- optionally replace the lightweight flat JSON parser with a dedicated JSON dependency if external dependencies become acceptable
 
 ---
 
@@ -131,7 +132,7 @@ Current state:
 - manifest-driven fingerprint verifier
 - manifest-driven JSONL audit report
 - saved valid/drift audit examples
-- executable verifier for saved audit examples
+- field-level verifier for saved audit examples
 - one-command reviewer baseline runs fixture checks, audit report output, and audit example checks
 
 Target:
@@ -175,7 +176,7 @@ Current state:
 - `CMC_AUDITOR_REPORT.md` documents the JSONL schema
 - saved valid report example exists
 - saved drift/failure report example exists
-- `audit_report_example_verify` checks saved examples
+- `audit_report_example_verify` uses field-level JSONL parsing and typed field checks
 - reviewer quickstart includes `cargo run --bin cmc_audit_report --locked`
 - one-command reviewer baseline includes `cmc_audit_report`
 - one-command reviewer baseline includes `audit_report_example_verify`
@@ -199,26 +200,26 @@ Current example output shape:
 
 Remaining target:
 
-- replace token-based saved-example checks with stricter JSON field-level parsing
 - decide whether the report should stay JSONL or gain a summary JSON mode
 - optionally add generated report snapshot comparison
+- optionally replace lightweight flat JSON parsing with a dedicated JSON dependency if external dependencies become acceptable
 
 Candidate deliverables:
 
-- stricter JSONL parser/verifier for saved examples
 - optional `--json` / `--jsonl` mode split
 - optional report snapshot/golden check
+- optional serde-based JSON parser if dependency policy changes
 
 Definition of done:
 
 ```text
-A reviewer can run one command and receive a documented structured report explaining which invariant/scenario passed or failed, with saved examples verified by executable checks.
+A reviewer can run one command and receive a documented structured report explaining which invariant/scenario passed or failed, with saved examples verified by field-level executable checks.
 ```
 
 Current status:
 
 ```text
-Done for baseline: CLI, schema doc, valid example, drift example, and example verifier exist. Future hardening should improve parser strictness.
+Done for baseline: CLI, schema doc, valid example, drift example, and field-level example verifier exist.
 ```
 
 ---
@@ -270,6 +271,7 @@ Current state:
 - decision codes exist
 - audit report carries invariant/scenario metadata
 - saved examples preserve success and drift/failure semantics
+- saved examples are field-level verified
 
 Completed deliverables:
 
@@ -279,6 +281,7 @@ Completed deliverables:
 - invariant-to-scenario manifest linkage
 - invariant-to-audit-report linkage
 - invariant-to-saved-example linkage
+- field-level saved-example verification
 - Phase 2 gaps table
 
 Remaining target:
@@ -305,7 +308,7 @@ Current state:
 - one-command reviewer script exists: `scripts/run-cmc-reviewer-demo.mjs`
 - npm script exists: `npm run review:cmc`
 - CI runs the reviewer command
-- reviewer command now exercises manifest-linked replay checks, audit report output, and saved audit example verification
+- reviewer command now exercises manifest-linked replay checks, audit report output, and field-level saved audit example verification
 
 Completed deliverables:
 
@@ -319,7 +322,7 @@ Completed deliverables:
 - manifest-linked replay fixture checks
 - manifest-linked audit report output
 - saved valid/drift audit report examples
-- executable verification of saved audit examples
+- field-level executable verification of saved audit examples
 
 Expected output summary:
 
@@ -347,7 +350,7 @@ A reviewer can run one top-level command and see the whole baseline pass/fail su
 Current status:
 
 ```text
-Done for baseline; future work should improve JSON parsing strictness and expand fixture coverage.
+Done for baseline; future work should expand fixture coverage and strengthen integrity.
 ```
 
 ---
@@ -355,11 +358,11 @@ Done for baseline; future work should improve JSON parsing strictness and expand
 ## Suggested implementation order from here
 
 ```text
-1. stricter JSONL parser/verifier for saved audit examples
-2. expanded replay fixtures toward 8 classes
-3. crypto hash-chain module
-4. richer manifest validation rules
-5. overhead benchmark report
+1. expanded replay fixtures toward 8 classes
+2. crypto hash-chain module
+3. richer manifest validation rules
+4. overhead benchmark report
+5. optional JSON/JSONL mode split
 ```
 
 Reasoning:
@@ -369,10 +372,10 @@ Reasoning:
 - Audit metadata is in the manifest.
 - Audit report CLI exists and is in the reviewer baseline.
 - Schema docs and saved examples exist.
-- Saved examples are executable-verified.
-- Stricter JSON parsing will turn example verification from token checks into stronger schema validation.
+- Saved examples are field-level executable-verified.
 - Additional fixtures broaden evidence coverage.
 - Crypto hash-chain strengthens integrity.
+- Richer manifest validation reduces schema drift.
 - Benchmarks add engineering credibility without overclaiming.
 
 ---
@@ -401,7 +404,7 @@ Phase 2 succeeds when a reviewer can say:
 
 ```text
 This project does not merely describe causal legitimacy.
-It defines invariants, links them to replay scenarios, verifies fixtures through a manifest, emits audit reports, verifies saved audit examples, detects drift, detects tampering, and detects divergence.
+It defines invariants, links them to replay scenarios, verifies fixtures through a manifest, emits audit reports, field-level verifies saved audit examples, detects drift, detects tampering, and detects divergence.
 ```
 
 ---
@@ -409,5 +412,5 @@ It defines invariants, links them to replay scenarios, verifies fixtures through
 ## One-line roadmap summary
 
 ```text
-Phase 1 made causal legitimacy executable; Phase 2 makes it manifest-linked, reportable, example-verified, broader, stronger, easier to verify, and easier to audit.
+Phase 1 made causal legitimacy executable; Phase 2 makes it manifest-linked, reportable, field-level example-verified, broader, stronger, easier to verify, and easier to audit.
 ```
