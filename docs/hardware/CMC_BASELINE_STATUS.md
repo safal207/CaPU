@@ -2,14 +2,14 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after thesis, architecture, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, legacy integrity demos, SHA-256 trace-integrity reference checks, saved SHA-256 sealed trace fixtures, one-command reviewer demo, and CI-gate work.
+This document summarizes the current CMC baseline after thesis, architecture, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, canonical trace encoding v0, legacy integrity demos, SHA-256 trace-integrity reference checks, saved SHA-256 sealed trace fixtures, one-command reviewer demo, and CI-gate work.
 
 ---
 
 ## Baseline claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 The current repository does not claim a finished product. It claims an executable research scaffold for legitimacy-preserving computation.
@@ -24,6 +24,7 @@ thesis
  -> 8 replay invariants
  -> simulator
  -> deterministic trace events
+ -> canonical trace encoding v0
  -> JSONL replay fixtures
  -> machine-readable replay manifest
  -> manifest-linked fixture structure checks
@@ -48,7 +49,7 @@ thesis
 Short form:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> trace integrity -> sealed trace fixtures -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> canonical trace encoding -> trace integrity -> sealed trace fixtures -> reviewer command -> CI
 ```
 
 ---
@@ -60,6 +61,7 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> save
 - [CAUSAL_MEMORY_CONTROLLER.md](CAUSAL_MEMORY_CONTROLLER.md)
 - [CMC_REPLAY.md](CMC_REPLAY.md)
 - [CMC_HASH_CHAIN.md](CMC_HASH_CHAIN.md)
+- [CMC_CANONICAL_TRACE_ENCODING.md](CMC_CANONICAL_TRACE_ENCODING.md)
 - [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
 - [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
 - [CMC_AUDITOR_REPORT.md](CMC_AUDITOR_REPORT.md)
@@ -107,6 +109,30 @@ These manifest fingerprints are developer-stability fingerprints for replay fixt
 
 ---
 
+## Canonical trace encoding
+
+Canonical trace encoding is documented in:
+
+```text
+docs/hardware/CMC_CANONICAL_TRACE_ENCODING.md
+```
+
+Current v0 trace event field order:
+
+```text
+seq, kind, decision, address, effect_id, cause_id, message
+```
+
+Current v0 hash input rule:
+
+```text
+trace_hash_n = SHA256(previous_trace_hash || canonical_event_line_n)
+```
+
+This document makes the SHA-256 trace-integrity path reviewer-checkable at the byte-level evidence boundary.
+
+---
+
 ## Trace integrity
 
 Trace integrity is documented in:
@@ -137,6 +163,7 @@ Current split:
 
 | Layer | Current status |
 | --- | --- |
+| Canonical trace encoding | v0 event-line byte rules documented |
 | Legacy hash-chain demo | FNV-1a64 developer integrity path |
 | Legacy tamper demo | detects modified trace decisions in the legacy path |
 | SHA-256 generated trace path | std-only trace sealing and verification via `trace_crypto.rs` |
@@ -272,6 +299,7 @@ The baseline is strong because it turns a conceptual claim into executable artif
 - accepted read after legitimate write under known cause
 - invariant-to-scenario replay mapping for I1-I8
 - deterministic trace events
+- documented v0 canonical trace-event encoding
 - machine-readable replay manifest
 - manifest-linked replay fixture structure checks
 - manifest-linked fixture fingerprint drift checks
@@ -298,6 +326,7 @@ The baseline does not yet provide:
 - hardware implementation
 - hardware root of trust
 - formal verification
+- full JSON canonicalization standard compatibility
 - real workload performance evaluation
 - full multi-agent benchmark coverage
 - certification-grade assurance
@@ -310,7 +339,7 @@ The current repository should be read as an executable research scaffold for leg
 
 The next phase should focus on:
 
-1. defining canonical trace-event encoding more explicitly,
+1. adding exact canonical event-line tests,
 2. connecting manifest entries to SHA-256 sealed trace evidence,
 3. adding richer manifest validation rules,
 4. adding removed-event and reordered-event negative trace-integrity fixtures,
@@ -323,5 +352,5 @@ The next phase should focus on:
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked, JSONL-reporting, field-level example-verified, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked, JSONL-reporting, field-level example-verified, canonical-trace-encoded, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
