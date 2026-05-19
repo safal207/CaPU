@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, fs, process::ExitCode};
 
-const INFERRED_REJECTED: &str = "fixtures/persona/inferred_preference_rejected.jsonl";
-const CONFIRMED_ACCEPTED: &str = "fixtures/persona/confirmed_preference_accepted.jsonl";
+const MANIFEST: &str = "fixtures/persona/MANIFEST.tsv";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum JsonValue {
@@ -13,7 +12,19 @@ enum JsonValue {
 
 type JsonObject = BTreeMap<String, JsonValue>;
 
-fn read_fixture(path: &str) -> Result<String, String> {
+#[derive(Debug, Clone)]
+struct ManifestCase {
+    scenario_id: String,
+    invariant_id: String,
+    path: String,
+    boundary: String,
+    user_confirmation: bool,
+    decision: String,
+    cause_id: Option<u64>,
+    expected_verdict: String,
+}
+
+fn read_file(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|err| format!("failed to read {path}: {err}"))
 }
 
@@ -166,7 +177,7 @@ fn parse_flat_json_object(line: &str) -> Result<JsonObject, String> {
 }
 
 fn parse_single_record(path: &str) -> Result<JsonObject, String> {
-    let content = read_fixture(path)?;
+    let content = read_file(path)?;
     let records = content
         .lines()
         .map(str::trim)
@@ -178,6 +189,57 @@ fn parse_single_record(path: &str) -> Result<JsonObject, String> {
         [record] => Ok(record.clone()),
         _ => Err(format!("expected exactly one JSONL record in {path}, got {}", records.len())),
     }
+}
+
+fn parse_manifest_bool(raw: &str) -> Result<bool, String> {
+    match raw {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        other => Err(format!("invalid manifest boolean `{other}`")),
+    }
+}
+
+fn parse_manifest_cause_id(raw: &str) -> Result<Option<u64>, String> {
+    if raw == "null" {
+        Ok(None)
+    } else {
+        raw.parse::<u64>()
+            .map(Some)
+            .map_err(|err| format!("invalid manifest cause_id `{raw}`: {err}"))
+    }
+}
+
+fn parse_manifest() -> Result<Vec<ManifestCase>, String> {
+    let content = read_file(MANIFEST)?;
+    let mut lines = content.lines().filter(|line| !line.trim().is_empty());
+    let header = lines
+        .next()
+        .ok_or_else(|| format!("{MANIFEST} is empty"))?;
+    let expected_header = "scenario_id\tinvariant_id\tpath\tboundary\tuser_confirmation\tdecision\tcause_id\texpected_verdict";
+    if header != expected_header {
+        return Err(format!("unexpected manifest header `{header}`"));
+    }
+
+    let mut cases = Vec::new();
+    for (idx, line) in lines.enumerate() {
+        let fields: Vec<&str> = line.split('\t').collect();
+        if fields.len() != 8 {
+            return Err(format!("manifest line {} expected 8 fields, got {}", idx + 2, fields.len()));
+        }
+
+        cases.push(ManifestCase {
+            scenario_id: fields[0].to_string(),
+            invariant_id: fields[1].to_string(),
+            path: fields[2].to_string(),
+            boundary: fields[3].to_string(),
+            user_confirmation: parse_manifest_bool(fields[4])?,
+            decision: fields[5].to_string(),
+            cause_id: parse_manifest_cause_id(fields[6])?,
+            expected_verdict: fields[7].to_string(),
+        });
+    }
+
+    Ok(cases)
 }
 
 fn expect_string(record: &JsonObject, key: &str, expected: &str) -> Result<(), String> {
@@ -212,40 +274,61 @@ fn expect_null(record: &JsonObject, key: &str) -> Result<(), String> {
     }
 }
 
-fn verify_inferred_rejected() -> Result<(), String> {
-    let record = parse_single_record(INFERRED_REJECTED)?;
+fn verify_manifest_case(case: &ManifestCase) -> Result<(), String> {
+    let record = parse_single_record(&case.path)?;
     expect_string(&record, "type", "persona_boundary_case")?;
-    expect_string(&record, "scenario_id", "inferred_preference_rejected")?;
-    expect_string(&record, "invariant_id", "P1")?;
-    expect_string(&record, "boundary", "persona_memory_requires_cause")?;
-    expect_bool(&record, "user_confirmation", false)?;
-    expect_string(&record, "decision", "REJECT_INFERRED_MEMORY")?;
-    expect_string(&record, "expected_verdict", "blocked_unconfirmed_persona_memory")?;
-    expect_null(&record, "cause_id")?;
+    expect_string(&record, "scenario_id", &case.scenario_id)?;
+    expect_string(&record, "invariant_id", &case.invariant_id)?;
+    expect_string(&record, "boundary", &case.boundary)?;
+    expect_bool(&record, "user_confirmation", case.user_confirmation)?;
+    expect_string(&record, "decision", &case.decision)?;
+    expect_string(&record, "expected_verdict", &case.expected_verdict)?;
+
+    match case.cause_id {
+        Some(expected) => expect_number(&record, "cause_id", expected)?,
+        None => expect_null(&record, "cause_id")?,
+    }
+
     Ok(())
 }
 
-fn verify_confirmed_accepted() -> Result<(), String> {
-    let record = parse_single_record(CONFIRMED_ACCEPTED)?;
-    expect_string(&record, "type", "persona_boundary_case")?;
-    expect_string(&record, "scenario_id", "confirmed_preference_accepted")?;
-    expect_string(&record, "invariant_id", "P1")?;
-    expect_string(&record, "boundary", "persona_memory_requires_cause")?;
-    expect_bool(&record, "user_confirmation", true)?;
-    expect_string(&record, "decision", "ACCEPT_CONFIRMED_MEMORY")?;
-    expect_string(&record, "expected_verdict", "accepted_confirmed_persona_memory")?;
-    expect_number(&record, "cause_id", 42)?;
+fn verify_semantic_pair(cases: &[ManifestCase]) -> Result<(), String> {
+    let rejected = cases
+        .iter()
+        .find(|case| case.scenario_id == "inferred_preference_rejected")
+        .ok_or_else(|| "missing inferred_preference_rejected manifest row".to_string())?;
+    let accepted = cases
+        .iter()
+        .find(|case| case.scenario_id == "confirmed_preference_accepted")
+        .ok_or_else(|| "missing confirmed_preference_accepted manifest row".to_string())?;
+
+    if rejected.user_confirmation || rejected.cause_id.is_some() || rejected.decision != "REJECT_INFERRED_MEMORY" {
+        return Err("inferred preference must be rejected without confirmation and without cause".to_string());
+    }
+
+    if !accepted.user_confirmation || accepted.cause_id.is_none() || accepted.decision != "ACCEPT_CONFIRMED_MEMORY" {
+        return Err("confirmed preference must be accepted only with confirmation and cause".to_string());
+    }
+
     Ok(())
 }
 
 fn run() -> Result<(), String> {
-    verify_inferred_rejected()?;
-    verify_confirmed_accepted()?;
+    let cases = parse_manifest()?;
+    if cases.len() != 2 {
+        return Err(format!("expected 2 persona manifest cases, got {}", cases.len()));
+    }
 
-    println!("CMC-PERSONA-BOUNDARY-FIXTURE v0");
+    for case in &cases {
+        verify_manifest_case(case)?;
+    }
+    verify_semantic_pair(&cases)?;
+
+    println!("CMC-PERSONA-BOUNDARY-MANIFEST v0");
+    println!("cases={}", cases.len());
     println!("inferred_result=blocked_unconfirmed_persona_memory");
     println!("confirmed_result=accepted_confirmed_persona_memory cause_id=42");
-    println!("result=persona_boundary_fixtures_valid");
+    println!("result=persona_boundary_manifest_valid");
     Ok(())
 }
 
@@ -253,7 +336,7 @@ fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            eprintln!("result=persona_boundary_fixtures_invalid reason={err}");
+            eprintln!("result=persona_boundary_manifest_invalid reason={err}");
             ExitCode::FAILURE
         }
     }
