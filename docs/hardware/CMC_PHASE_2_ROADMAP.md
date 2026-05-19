@@ -5,7 +5,7 @@ Status: next-phase roadmap after reviewer-ready baseline.
 This roadmap starts after the current CMC baseline:
 
 ```text
-thesis -> architecture -> 8 replay invariants -> simulator -> replay fixtures -> manifest-linked verifiers -> audit report output -> saved audit examples -> field-level example verifier -> integrity demos -> one-command reviewer demo -> CI gate -> evidence map -> reviewer quickstart -> baseline status
+thesis -> architecture -> 8 replay invariants -> simulator -> replay fixtures -> manifest-linked verifiers -> audit report output -> saved audit examples -> field-level example verifier -> legacy integrity demos -> SHA-256 trace-integrity reference path -> one-command reviewer demo -> CI gate -> evidence map -> reviewer quickstart -> baseline status
 ```
 
 Phase 2 goal:
@@ -23,7 +23,7 @@ Do not overclaim hardware or production security.
 The next phase should strengthen the claim that:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, one-command verified, manifest-linked, and regression-tested
 ```
 
 ---
@@ -63,9 +63,14 @@ Done:
 - `npm run review:cmc` includes `audit_report_example_verify`
 - `CMC_INVARIANTS.md` synced with I1-I8 replay fixtures
 - `CMC_AUDITOR_REPORT.md` synced with field-level example verification
-- `CMC_EVIDENCE_MAP.md` synced with 8 replay scenarios and field-level verified audit examples
-- `CMC_BASELINE_STATUS.md` synced with 8 replay scenarios and field-level verified audit examples
+- `CMC_EVIDENCE_MAP.md` synced with 8 replay scenarios, field-level verified audit examples, and SHA-256 trace integrity
+- `CMC_BASELINE_STATUS.md` synced with 8 replay scenarios, field-level verified audit examples, and SHA-256 trace integrity
 - `CMC_REVIEWER_QUICKSTART.md` synced with `cmc_audit_report`
+- `CMC_TRACE_INTEGRITY.md` documents the trace-integrity evidence path
+- `trace_crypto.rs` provides a std-only SHA-256 reference implementation
+- `verify_trace_sha256` checks the positive SHA-256 trace sealing path
+- `verify_trace_sha256_tampered` checks the SHA-256 tamper-detection path
+- GitHub Actions now runs SHA-256 positive and tamper-detection checks as explicit CI steps
 
 Current checked replay evidence:
 
@@ -87,9 +92,20 @@ Audit report examples:
 | `examples/audit_reports/cmc_audit_report_valid.jsonl` | clean valid 8-case audit report | field-level `audit_report_example_verify` |
 | `examples/audit_reports/cmc_audit_report_drift.jsonl` | illustrative 8-case fingerprint drift/failure report | field-level `audit_report_example_verify` |
 
+Trace integrity checks:
+
+| Check | Meaning |
+| --- | --- |
+| `cargo run --bin verify_trace --locked` | legacy FNV developer hash-chain positive demo |
+| `cargo run --bin verify_trace_tampered --locked` | legacy FNV tamper-detection demo |
+| `cargo run --bin verify_trace_sha256 --locked` | std-only SHA-256 trace sealing positive demo |
+| `cargo run --bin verify_trace_sha256_tampered --locked` | std-only SHA-256 tamper-detection demo |
+
 Next:
 
-- strengthen hash-chain implementation beyond developer FNV-1a64 demo
+- define canonical trace-event encoding more explicitly
+- add golden SHA-256 sealed trace fixtures
+- connect manifest entries to SHA-256 sealed trace evidence
 - add richer manifest validation rules
 - add repeated-run benchmark/stability reporting
 - optionally replace the lightweight flat JSON parser with a dedicated JSON dependency if external dependencies become acceptable
@@ -97,37 +113,42 @@ Next:
 
 ---
 
-## Workstream 1: Cryptographic hash-chain upgrade
+## Workstream 1: Trace integrity and SHA-256 evidence deepening
 
 Current state:
 
-- developer FNV-1a64 hash-chain demo
-- trace tampering detection demo
-- manifest-linked fixture fingerprint stability checks
-- audit report currently uses developer FNV-1a64 fingerprint validation
-- one-command reviewer baseline runs current integrity and audit checks
-- 8 replay scenarios depend on developer-stability fingerprints
+- developer FNV-1a64 hash-chain demo exists
+- legacy trace tampering detection demo exists
+- std-only SHA-256 reference module exists: `trace_crypto.rs`
+- SHA-256 positive verifier exists: `verify_trace_sha256`
+- SHA-256 tamper verifier exists: `verify_trace_sha256_tampered`
+- `CMC_TRACE_INTEGRITY.md` documents the honest trace-integrity boundary
+- CI runs legacy positive/tamper checks and SHA-256 positive/tamper checks
+- manifest-linked fixture fingerprint stability checks still use developer-stability fingerprints
+- 8 replay scenarios currently depend on developer-stability fixture fingerprints, not SHA-256 sealed replay files
 
 Target:
 
-- replace developer hash demo with a stronger cryptographic hash function
-- make hash-chain format explicit
-- separate canonical trace encoding from hash implementation
-- add positive and negative verifier fixtures
+- make canonical trace-event encoding explicit
+- preserve golden SHA-256 sealed trace fixtures
+- connect manifest entries to SHA-256 trace evidence where useful
+- separate fixture drift fingerprints from trace-integrity hashes
+- keep legacy developer hash demo only as backward-compatible evidence, not as the primary integrity story
 
 Candidate deliverables:
 
-- `trace_hash.rs` module
-- `canonical_trace_event.rs` module
-- `verify_trace_crypto.rs` CLI
-- `fixtures/replay/hash_chain_valid.jsonl`
-- `fixtures/replay/hash_chain_tampered.jsonl`
-- updated `CMC_HASH_CHAIN.md`
+- `canonical_trace_event.rs` module or documented canonical encoding rules
+- `fixtures/trace_integrity/sha256_valid.jsonl`
+- `fixtures/trace_integrity/sha256_tampered.jsonl`
+- `verify_trace_sha256_fixture.rs` CLI
+- manifest extension or companion manifest for sealed trace evidence
+- updated `CMC_TRACE_INTEGRITY.md`
+- optional update to `CMC_HASH_CHAIN.md` clarifying legacy vs SHA-256 roles
 
 Definition of done:
 
 ```text
-A trace hash-chain can be generated, verified, and tampering can be detected using a documented cryptographic hash implementation.
+A reviewer can inspect stable SHA-256 sealed trace fixtures, run a verifier against them, and see both positive and tamper-detection paths exercised in CI.
 ```
 
 ---
@@ -144,7 +165,7 @@ Current state:
 - manifest-driven JSONL audit report
 - saved valid/drift audit examples
 - field-level verifier for saved audit examples
-- one-command reviewer baseline runs fixture checks, audit report output, and audit example checks
+- one-command reviewer baseline runs fixture checks, audit report output, audit example checks, and SHA-256 trace-integrity checks
 
 Current status:
 
@@ -220,12 +241,14 @@ Remaining target:
 - decide whether the report should stay JSONL or gain a summary JSON mode
 - optionally add generated report snapshot comparison
 - optionally replace lightweight flat JSON parsing with a dedicated JSON dependency if external dependencies become acceptable
+- optionally include trace-integrity references in future audit records once sealed trace fixtures exist
 
 Candidate deliverables:
 
 - optional `--json` / `--jsonl` mode split
 - optional report snapshot/golden check
 - optional serde-based JSON parser if dependency policy changes
+- optional trace-integrity reference fields
 
 Definition of done:
 
@@ -265,7 +288,8 @@ Metrics to collect:
 - reads/sec
 - effects/sec
 - trace events/sec
-- hash-chain overhead
+- legacy hash-chain overhead
+- SHA-256 trace sealing overhead
 - replay verification time
 - fixture verification time
 - audit report generation time
@@ -290,6 +314,7 @@ Current state:
 - audit report carries invariant/scenario metadata
 - saved examples preserve success and drift/failure semantics
 - saved examples are field-level verified
+- trace-integrity evidence now includes legacy and SHA-256 positive/tamper checks
 
 Completed deliverables:
 
@@ -300,6 +325,7 @@ Completed deliverables:
 - invariant-to-audit-report linkage
 - invariant-to-saved-example linkage
 - field-level saved-example verification
+- SHA-256 trace-integrity reference checks
 - Phase 2 gaps table
 
 Remaining target:
@@ -307,6 +333,7 @@ Remaining target:
 - add dedicated tests for exactly-one TraceEvent per decision
 - add decision-code table if decision semantics expand
 - add richer manifest validation rules for scenario/category/severity consistency
+- add canonical trace encoding rules for SHA-256 sealed events
 
 Definition of done:
 
@@ -323,10 +350,11 @@ Current state:
 - reviewer quickstart exists
 - evidence map exists
 - baseline status exists
+- trace integrity doc exists
 - one-command reviewer script exists: `scripts/run-cmc-reviewer-demo.mjs`
 - npm script exists: `npm run review:cmc`
 - CI runs the reviewer command
-- reviewer command now exercises manifest-linked replay checks, audit report output, and field-level saved audit example verification
+- reviewer command now exercises manifest-linked replay checks, audit report output, field-level saved audit example verification, and SHA-256 trace-integrity checks
 - valid audit example now covers 8 cases
 
 Completed deliverables:
@@ -342,6 +370,7 @@ Completed deliverables:
 - manifest-linked audit report output
 - saved valid/drift audit report examples
 - field-level executable verification of saved audit examples
+- SHA-256 trace-integrity positive and tamper checks
 
 Expected output summary:
 
@@ -352,6 +381,8 @@ simulator tests: ok
 blocked-transition demo: ok
 valid trace hash-chain demo: ok
 tampering detection demo: ok
+sha256 trace verification demo: ok
+sha256 tampering detection demo: ok
 replay fixture structure: ok
 replay fixture fingerprints: ok
 audit report jsonl: ok
@@ -369,7 +400,7 @@ A reviewer can run one top-level command and see the whole baseline pass/fail su
 Current status:
 
 ```text
-Done for baseline; future work should strengthen integrity, validation strictness, and benchmark evidence.
+Done for baseline; future work should strengthen canonical encoding, validation strictness, sealed fixtures, and benchmark evidence.
 ```
 
 ---
@@ -377,11 +408,13 @@ Done for baseline; future work should strengthen integrity, validation strictnes
 ## Suggested implementation order from here
 
 ```text
-1. crypto hash-chain module
-2. richer manifest validation rules
-3. overhead benchmark report
-4. optional JSON/JSONL mode split
-5. broader workload replay cases
+1. canonical trace-event encoding rules
+2. golden SHA-256 sealed trace fixtures
+3. manifest link or companion manifest for SHA-256 sealed trace evidence
+4. richer replay manifest validation rules
+5. overhead benchmark report including SHA-256 sealing overhead
+6. optional JSON/JSONL mode split
+7. broader workload replay cases
 ```
 
 Reasoning:
@@ -392,7 +425,8 @@ Reasoning:
 - Audit report CLI exists and is in the reviewer baseline.
 - Schema docs and saved examples exist.
 - Saved examples are field-level executable-verified.
-- Crypto hash-chain strengthens integrity.
+- SHA-256 trace sealing now exists as a reference path.
+- Canonical encoding and golden sealed fixtures make the SHA-256 path more reviewer-auditable.
 - Richer manifest validation reduces schema drift.
 - Benchmarks add engineering credibility without overclaiming.
 - Broader workload cases become more meaningful once integrity and validation are stronger.
@@ -408,6 +442,8 @@ Phase 2 should not claim:
 - certified security system
 - complete AI safety layer
 - replacement for sandboxing or policy design
+- hardware root of trust
+- production cryptographic protocol
 
 Phase 2 should remain honest:
 
@@ -423,7 +459,7 @@ Phase 2 succeeds when a reviewer can say:
 
 ```text
 This project does not merely describe causal legitimacy.
-It defines invariants, links them to 8 replay scenarios, verifies fixtures through a manifest, emits audit reports, field-level verifies saved audit examples, detects drift, detects tampering, and detects divergence.
+It defines invariants, links them to 8 replay scenarios, verifies fixtures through a manifest, emits audit reports, field-level verifies saved audit examples, seals traces with a SHA-256 reference path, detects drift, detects tampering, and detects divergence.
 ```
 
 ---
@@ -431,5 +467,5 @@ It defines invariants, links them to 8 replay scenarios, verifies fixtures throu
 ## One-line roadmap summary
 
 ```text
-Phase 1 made causal legitimacy executable; Phase 2 makes it 8-scenario, manifest-linked, reportable, field-level example-verified, broader, stronger, easier to verify, and easier to audit.
+Phase 1 made causal legitimacy executable; Phase 2 makes it 8-scenario, manifest-linked, reportable, field-level example-verified, SHA-256 trace-integrity checked, broader, stronger, easier to verify, and easier to audit.
 ```
