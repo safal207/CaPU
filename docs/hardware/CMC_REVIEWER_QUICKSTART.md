@@ -7,7 +7,7 @@ This document gives reviewers a short path from thesis to executable evidence.
 Goal:
 
 ```text
-verify that causal legitimacy is represented, replayed, checked, reported, and regression-tested by executable artifacts
+verify that causal legitimacy is represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, manifest-linked, and regression-tested by executable artifacts
 ```
 
 ---
@@ -19,14 +19,22 @@ Start here:
 1. [WHY_CAUSAL_COMPUTATION.md](WHY_CAUSAL_COMPUTATION.md)
 2. [CAUSAL_EXECUTION_ARCHITECTURE.md](CAUSAL_EXECUTION_ARCHITECTURE.md)
 3. [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
-4. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
-5. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
+4. [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
+5. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
+6. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
+7. [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
 
 Core claim:
 
 ```text
 Traditional computing verifies state transitions.
 Causal computing verifies transition legitimacy.
+```
+
+Baseline claim:
+
+```text
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, one-command verified, manifest-linked, and regression-tested
 ```
 
 ---
@@ -47,9 +55,12 @@ cargo test --all --locked
 cargo run --bin cmc_demo --locked
 cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
+cargo run --bin verify_trace_sha256 --locked
+cargo run --bin verify_trace_sha256_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
+cargo run --bin audit_report_example_verify --locked
 cargo run --bin trace_divergence --locked
 ```
 
@@ -62,7 +73,7 @@ result=reviewer_baseline_passed
 Evidence claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, and regression-tested
 ```
 
 ---
@@ -76,19 +87,25 @@ missing cause -> reject
 unknown cause -> reject
 effect before commit -> reject
 committed cause -> accept effect
+read without cause -> reject
+read with unknown cause/address -> reject
+read after legitimate write -> accept
 trace events -> emitted deterministically
-valid trace -> accepted
-tampered decision -> detected
+legacy valid trace -> accepted
+legacy tampered decision -> detected
+SHA-256 sealed trace -> accepted
+SHA-256 tampered decision -> detected
 fixture structure -> valid
 fixture fingerprints -> stable
 manifest-linked audit report -> emitted as JSONL
+saved audit examples -> field-level verified
 expected trace vs diverged trace -> mismatch detected
 ```
 
 Evidence claim:
 
 ```text
-CMC can model memory/effect decisions using explicit causal authorization and executable replay evidence.
+CMC can model memory/read/effect decisions using explicit causal authorization and executable replay evidence.
 ```
 
 ---
@@ -103,13 +120,14 @@ If you want to inspect each step manually, run the following from `rust/cmc-core
 cargo test --all --locked
 ```
 
-Checks basic causal memory/effect invariants:
+Checks basic causal memory/read/effect invariants:
 
 ```text
 missing cause -> reject
 unknown cause -> reject
 effect before commit -> reject
 committed cause -> accept effect
+read authorization -> checked
 trace events -> emitted deterministically
 ```
 
@@ -128,7 +146,7 @@ trace_events -> emitted
 result -> blocked illegitimate transition
 ```
 
-### Trace integrity and tampering detection
+### Legacy trace integrity and tampering detection
 
 ```bash
 cargo run --bin verify_trace --locked
@@ -138,11 +156,41 @@ cargo run --bin verify_trace_tampered --locked
 Expected meaning:
 
 ```text
-valid trace -> accepted
-tampered decision -> detected
+legacy valid trace -> accepted
+legacy tampered decision -> detected
 ```
 
-Note: this is currently a developer hash-chain demo, not production cryptography.
+Note: this is a developer FNV-1a64 hash-chain demo kept for continuity. It is not production cryptography.
+
+### SHA-256 trace integrity and tampering detection
+
+```bash
+cargo run --bin verify_trace_sha256 --locked
+cargo run --bin verify_trace_sha256_tampered --locked
+```
+
+Expected meaning:
+
+```text
+SHA-256 sealed trace -> accepted
+SHA-256 tampered decision -> detected
+```
+
+The SHA-256 reference path is documented in:
+
+```text
+docs/hardware/CMC_TRACE_INTEGRITY.md
+```
+
+Primary implementation files:
+
+```text
+rust/cmc-core/src/trace_crypto.rs
+rust/cmc-core/src/bin/verify_trace_sha256.rs
+rust/cmc-core/src/bin/verify_trace_sha256_tampered.rs
+```
+
+Note: this is stronger executable reference evidence than the legacy developer hash demo, but it is still not a production security certification.
 
 ### Replay fixtures and fingerprint stability
 
@@ -160,6 +208,19 @@ fixture fingerprints -> stable
 scenario/invariant/category/severity/verdict metadata -> parsed
 ```
 
+Current replay corpus:
+
+```text
+I1 write_missing_cause
+I2 write_unknown_cause
+I3 effect_before_commit
+I4 valid_committed_effect
+I5 read_missing_cause
+I6 read_unknown_cause_or_address
+I7 effect_missing_parent
+I8 valid_read_after_write
+```
+
 ### Audit report JSONL
 
 ```bash
@@ -175,6 +236,29 @@ invariant_id -> included
 category/severity/expected_verdict -> included
 fingerprint drift -> would fail the report
 ```
+
+Saved examples:
+
+```text
+examples/audit_reports/cmc_audit_report_valid.jsonl
+examples/audit_reports/cmc_audit_report_drift.jsonl
+```
+
+### Field-level saved audit example verification
+
+```bash
+cargo run --bin audit_report_example_verify --locked
+```
+
+Expected meaning:
+
+```text
+saved valid report -> 8 cases, 8 passed, 0 failed
+saved drift report -> 8 cases, 7 passed, 1 failed
+required JSONL fields -> checked explicitly
+```
+
+This is still an early developer report format, but the saved examples are executable-verified at field level.
 
 ### Divergence detection
 
@@ -204,6 +288,34 @@ These provide npm-facing entrypoints for demo, golden snapshot verification, and
 
 ---
 
+## 5. CI interpretation
+
+The CMC GitHub Actions workflow runs the reviewer baseline and explicit CMC checks on changes to:
+
+```text
+rust/cmc-core/**
+scripts/run-cmc-reviewer-demo.mjs
+package.json
+.github/workflows/cmc-rust.yml
+```
+
+The workflow includes explicit steps for:
+
+```text
+legacy trace verification
+legacy tamper detection
+SHA-256 trace verification
+SHA-256 tamper detection
+audit report emission
+saved audit example verification
+replay divergence detection
+one-command reviewer demo
+```
+
+Doc-only changes outside those paths do not necessarily trigger the workflow.
+
+---
+
 ## What this quickstart proves
 
 This quickstart demonstrates that CMC currently has executable evidence for:
@@ -212,14 +324,21 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - unknown cause rejection
 - commit-before-effect enforcement
 - accepted committed effect path
+- causal read rejection without explicit cause
+- causal read rejection with unknown cause or unavailable address
+- accepted read after legitimate write
 - deterministic trace emission
 - replay fixture checking
 - fixture fingerprint stability
 - manifest-linked audit report output
-- tampering detection
+- saved valid/drift audit report examples
+- field-level verification of saved audit examples
+- legacy tampering detection
+- SHA-256 trace sealing and verification
+- SHA-256 tampering detection
 - divergence detection
 - one-command reviewer verification
-- CI-enforced replay checks
+- CI-enforced replay/integrity/audit checks
 
 ---
 
@@ -228,10 +347,13 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 It does not claim:
 
 - production cryptography
+- certified trace storage
+- hardware root of trust
 - hardware implementation
 - formal verification
 - complete AI safety coverage
 - production workload performance
+- replacement for sandboxing, access control, or policy design
 
 The current repository is an executable research scaffold.
 
@@ -244,7 +366,7 @@ The key thing to evaluate is not whether CMC is finished.
 The key thing to evaluate is whether the project has made this claim testable:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, manifest-linked, and regression-tested
 ```
 
 That is the current proof point.
@@ -254,5 +376,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, trace integrity, SHA-256 sealing, tamper detection, divergence detection, and CI-compatible validation.
 ```
