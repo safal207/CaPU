@@ -7,7 +7,7 @@ This document gives reviewers a short path from thesis to executable evidence.
 Goal:
 
 ```text
-verify that causal legitimacy is represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, manifest-linked, and regression-tested by executable artifacts
+verify that causal legitimacy is represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested by executable artifacts
 ```
 
 ---
@@ -34,7 +34,7 @@ Causal computing verifies transition legitimacy.
 Baseline claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 ---
@@ -57,6 +57,7 @@ cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
 cargo run --bin verify_trace_sha256 --locked
 cargo run --bin verify_trace_sha256_tampered --locked
+cargo run --bin verify_trace_sha256_fixture --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
@@ -73,7 +74,7 @@ result=reviewer_baseline_passed
 Evidence claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested
 ```
 
 ---
@@ -93,8 +94,10 @@ read after legitimate write -> accept
 trace events -> emitted deterministically
 legacy valid trace -> accepted
 legacy tampered decision -> detected
-SHA-256 sealed trace -> accepted
-SHA-256 tampered decision -> detected
+SHA-256 generated sealed trace -> accepted
+SHA-256 generated tampered decision -> detected
+SHA-256 saved valid fixture -> accepted
+SHA-256 saved tampered fixture -> rejected at event 1
 fixture structure -> valid
 fixture fingerprints -> stable
 manifest-linked audit report -> emitted as JSONL
@@ -162,7 +165,7 @@ legacy tampered decision -> detected
 
 Note: this is a developer FNV-1a64 hash-chain demo kept for continuity. It is not production cryptography.
 
-### SHA-256 trace integrity and tampering detection
+### SHA-256 generated trace integrity and tampering detection
 
 ```bash
 cargo run --bin verify_trace_sha256 --locked
@@ -172,8 +175,8 @@ cargo run --bin verify_trace_sha256_tampered --locked
 Expected meaning:
 
 ```text
-SHA-256 sealed trace -> accepted
-SHA-256 tampered decision -> detected
+SHA-256 generated sealed trace -> accepted
+SHA-256 generated tampered decision -> detected
 ```
 
 The SHA-256 reference path is documented in:
@@ -191,6 +194,34 @@ rust/cmc-core/src/bin/verify_trace_sha256_tampered.rs
 ```
 
 Note: this is stronger executable reference evidence than the legacy developer hash demo, but it is still not a production security certification.
+
+### SHA-256 sealed fixture verification
+
+```bash
+cargo run --bin verify_trace_sha256_fixture --locked
+```
+
+Expected meaning:
+
+```text
+saved SHA-256 valid fixture -> accepted
+saved SHA-256 tampered fixture -> rejected at event 1
+```
+
+Saved sealed fixtures:
+
+```text
+rust/cmc-core/fixtures/trace_integrity/sha256_valid.jsonl
+rust/cmc-core/fixtures/trace_integrity/sha256_tampered.jsonl
+```
+
+Verifier:
+
+```text
+rust/cmc-core/src/bin/verify_trace_sha256_fixture.rs
+```
+
+This is important because it turns SHA-256 trace integrity from a runtime-only demo into stable saved evidence artifacts.
 
 ### Replay fixtures and fingerprint stability
 
@@ -304,8 +335,9 @@ The workflow includes explicit steps for:
 ```text
 legacy trace verification
 legacy tamper detection
-SHA-256 trace verification
-SHA-256 tamper detection
+SHA-256 generated trace verification
+SHA-256 generated tamper detection
+SHA-256 sealed fixture verification
 audit report emission
 saved audit example verification
 replay divergence detection
@@ -334,8 +366,10 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - saved valid/drift audit report examples
 - field-level verification of saved audit examples
 - legacy tampering detection
-- SHA-256 trace sealing and verification
-- SHA-256 tampering detection
+- SHA-256 generated trace sealing and verification
+- SHA-256 generated tampering detection
+- saved SHA-256 valid/tampered sealed fixtures
+- executable verification of saved SHA-256 sealed fixtures
 - divergence detection
 - one-command reviewer verification
 - CI-enforced replay/integrity/audit checks
@@ -366,7 +400,7 @@ The key thing to evaluate is not whether CMC is finished.
 The key thing to evaluate is whether the project has made this claim testable:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested
 ```
 
 That is the current proof point.
@@ -376,5 +410,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, trace integrity, SHA-256 sealing, tamper detection, divergence detection, and CI-compatible validation.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
 ```
