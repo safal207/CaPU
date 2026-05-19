@@ -34,11 +34,15 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> save
 
 | Claim | Evidence artifact | Executable check | CI gate |
 | --- | --- | --- | --- |
-| CMC models causal memory/effect decisions | `rust/cmc-core/src/lib.rs` | `cargo test --all --locked` | Yes |
+| CMC models causal memory/read/effect decisions | `rust/cmc-core/src/lib.rs` | `cargo test --all --locked` | Yes |
 | I1: Missing cause must reject memory write | `CMC_INVARIANTS.md` + `missing_cause.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
 | I2: Unknown cause must reject memory write | `CMC_INVARIANTS.md` + `unknown_cause.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
 | I3: Effect cannot execute before causal commit | `CMC_INVARIANTS.md` + `forbidden_effect_before_commit_fixture.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
 | I4: Committed cause can authorize effect | `CMC_INVARIANTS.md` + `valid_committed_effect.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
+| I5: Missing cause must reject memory read | `CMC_INVARIANTS.md` + `read_missing_cause.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
+| I6: Unknown cause/address must reject memory read | `CMC_INVARIANTS.md` + `read_unknown_cause_or_address.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
+| I7: Missing parent cause must reject effect | `CMC_INVARIANTS.md` + `effect_missing_parent.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
+| I8: Known cause can authorize read after write | `CMC_INVARIANTS.md` + `valid_read_after_write.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
 | CMC emits deterministic trace events | `trace_events()` / `trace_jsonl()` | `cargo test --all --locked` | Yes |
 | Basic flow has a stable golden snapshot | `fixtures/basic_flow.golden.txt` | `npm run verify:cmc-golden` | Via tests |
 | Replay fixtures preserve semantic structure | `fixtures/replay/MANIFEST.tsv` + `replay_fixture_verify.rs` | `cargo run --bin replay_fixture_verify --locked` | Yes |
@@ -73,12 +77,16 @@ scenario_id	invariant_id	path	decision	events	fingerprint	category	severity	expe
 
 Current checked scenarios:
 
-| Scenario | Invariant | Fixture | Decision | Category | Severity | Verdict |
-| --- | --- | --- | --- | --- | --- | --- |
-| `write_missing_cause` | `I1` | `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
-| `write_unknown_cause` | `I2` | `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
-| `effect_before_commit` | `I3` | `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | `effect_commit_boundary` | `critical` | `blocked_illegitimate_transition` |
-| `valid_committed_effect` | `I4` | `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | `effect_commit_boundary` | `info` | `accepted_legitimate_transition` |
+| Scenario | Invariant | Fixture | Decision | Events | Fingerprint | Category | Severity | Verdict |
+| --- | --- | --- | --- | ---: | --- | --- | --- | --- |
+| `write_missing_cause` | `I1` | `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `88fd99689760140e` | `write_authorization` | high | `blocked_illegitimate_transition` |
+| `write_unknown_cause` | `I2` | `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `d8c4983b8a5a0ab0` | `write_authorization` | high | `blocked_illegitimate_transition` |
+| `effect_before_commit` | `I3` | `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | 1 | `28bf87f68e4ec6cb` | `effect_commit_boundary` | critical | `blocked_illegitimate_transition` |
+| `valid_committed_effect` | `I4` | `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | 1 | `e3e96ba017e2c235` | `effect_commit_boundary` | info | `accepted_legitimate_transition` |
+| `read_missing_cause` | `I5` | `read_missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `9f49c650fcd31fff` | `read_authorization` | high | `blocked_illegitimate_transition` |
+| `read_unknown_cause_or_address` | `I6` | `read_unknown_cause_or_address.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `91768923fb87d345` | `read_authorization` | high | `blocked_illegitimate_transition` |
+| `effect_missing_parent` | `I7` | `effect_missing_parent.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `da78371555a0b983` | `effect_commit_boundary` | critical | `blocked_illegitimate_transition` |
+| `valid_read_after_write` | `I8` | `valid_read_after_write.jsonl` | `ACCEPT_READ` | 2 | `d6b83bfe3651c60d` | `read_authorization` | info | `accepted_legitimate_transition` |
 
 This makes the evidence chain explicit:
 
@@ -121,7 +129,7 @@ cd rust/cmc-core
 cargo run --bin audit_report_example_verify --locked
 ```
 
-The verifier parses each saved JSONL line as a flat JSON object and checks typed fields such as `type`, `scenario_id`, `invariant_id`, `ok`, `status`, `cases`, `passed`, and `failed`.
+The verifier parses each saved JSONL line as a flat JSON object and checks typed fields such as `type`, `scenario_id`, `invariant_id`, `ok`, `status`, `cases`, `passed`, and `failed`. It now expects 8 valid audit cases.
 
 This is still an early developer report format, not a certification-grade audit artifact.
 
@@ -228,11 +236,15 @@ Today, the repository demonstrates that a minimal CMC simulator can:
 - reject writes with unknown cause
 - reject effects before causal commit
 - accept effects after commit
-- map I1-I4 invariants to replay scenarios
+- reject memory reads without explicit cause
+- reject reads with unknown cause or unavailable address
+- reject effects without parent cause
+- accept reads after a legitimate write under a known cause
+- map I1-I8 invariants to replay scenarios
 - verify replay fixture structure through a machine-readable manifest
 - verify replay fixture fingerprints through the same manifest
 - emit manifest-linked audit evidence as JSONL
-- preserve saved valid and drift audit examples
+- preserve saved valid and drift audit examples for 8 cases
 - verify those saved audit examples at field level
 - emit replayable trace events
 - export trace events as JSONL
@@ -276,5 +288,5 @@ That is the core research direction.
 ## One-line summary
 
 ```text
-CMC turns causal legitimacy from prose into manifest-linked executable evidence, JSONL audit output, and field-level verified audit examples.
+CMC turns causal legitimacy from prose into 8 manifest-linked replay scenarios, executable evidence, JSONL audit output, and field-level verified audit examples.
 ```
