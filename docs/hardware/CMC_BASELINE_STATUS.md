@@ -2,7 +2,7 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after thesis, architecture, manifest-linked persona boundary corpus, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, canonical trace encoding v0, legacy integrity demos, SHA-256 trace-integrity reference checks, saved SHA-256 sealed trace fixtures, one-command reviewer demo, and CI-gate work.
+This document summarizes the current CMC baseline after thesis, architecture, manifest-linked persona boundary corpus for P1/P7, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, canonical trace encoding v0, legacy integrity demos, SHA-256 trace-integrity reference checks, saved SHA-256 sealed trace fixtures, one-command reviewer demo, and CI-gate work.
 
 ---
 
@@ -28,7 +28,7 @@ Future AI personas require causal legitimacy, not only conversational coherence.
 thesis
  -> architecture
  -> persona boundary framing
- -> manifest-linked persona boundary corpus
+ -> manifest-linked persona boundary corpus for P1/P7
  -> 8 replay invariants
  -> simulator
  -> deterministic trace events
@@ -103,6 +103,8 @@ Current executable persona corpus:
 rust/cmc-core/fixtures/persona/MANIFEST.tsv
 rust/cmc-core/fixtures/persona/inferred_preference_rejected.jsonl
 rust/cmc-core/fixtures/persona/confirmed_preference_accepted.jsonl
+rust/cmc-core/fixtures/persona/unlabeled_introspection_rejected.jsonl
+rust/cmc-core/fixtures/persona/hypothesis_labeled_introspection_accepted.jsonl
 rust/cmc-core/src/bin/persona_boundary_verify.rs
 ```
 
@@ -112,6 +114,8 @@ Current checked persona scenarios:
 | --- | --- | --- | --- | --- |
 | `inferred_preference_rejected` | `P1` | `REJECT_INFERRED_MEMORY` | `null` | `blocked_unconfirmed_persona_memory` |
 | `confirmed_preference_accepted` | `P1` | `ACCEPT_CONFIRMED_MEMORY` | `42` | `accepted_confirmed_persona_memory` |
+| `unlabeled_introspection_rejected` | `P7` | `REJECT_UNLABELED_INTROSPECTION` | `null` | `blocked_claimed_inner_truth` |
+| `hypothesis_labeled_introspection_accepted` | `P7` | `ACCEPT_HYPOTHESIS_LABELED_INTROSPECTION` | `null` | `accepted_hypothesis_labeled_reflection` |
 
 Reviewer command:
 
@@ -346,6 +350,8 @@ The baseline is strong because it turns a conceptual claim into executable artif
 - manifest-linked persona-boundary corpus for future AI companion/persona systems
 - rejected inferred persona memory without confirmation/cause
 - accepted confirmed persona memory with confirmation/cause
+- rejected unlabeled introspection that claims inner truth
+- accepted hypothesis-labeled introspection as reflection
 - rejected illegal memory writes without cause
 - rejected writes with unknown cause
 - rejected effects before causal commit
@@ -412,5 +418,5 @@ The next phase should focus on:
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked persona-boundary-aware, JSONL-reporting, field-level example-verified, canonical-trace-encoded, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked persona-boundary-aware, hypothesis-label-aware, JSONL-reporting, field-level example-verified, canonical-trace-encoded, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
