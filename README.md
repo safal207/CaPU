@@ -97,6 +97,7 @@ Current CMC artifacts:
 - Trace event stream: `trace_events()` in [rust/cmc-core/src/lib.rs](rust/cmc-core/src/lib.rs)
 - Golden fixture: [rust/cmc-core/fixtures/basic_flow.golden.txt](rust/cmc-core/fixtures/basic_flow.golden.txt)
 - Benchmark results: [rust/cmc-core/BENCHMARK_RESULTS.md](rust/cmc-core/BENCHMARK_RESULTS.md)
+- Executable demo: `npm run demo:cmc`
 - Developer benchmark: `npm run bench:cmc`
 
 CMC-0 now emits deterministic trace events for memory/effect decisions:
@@ -119,6 +120,7 @@ Current CMC-0 simulator checks:
 - read emits a trace event
 - memory-derived effect chain can be reconstructed
 - basic flow matches a golden fixture snapshot including trace event count
+- executable blocked-transition demo runs in CI
 
 CMC is not a physical chip or production memory controller. It is an evidence path from causal semantics to simulator, embedded profile, FPGA proof-of-behavior, and possible hardware architecture.
 
@@ -161,6 +163,7 @@ This repository includes a deterministic validation path:
 - CMC-0 Rust simulator tests for causal memory/effect invariants
 - CMC trace event emission for accepted/rejected write/read/effect decisions
 - CMC golden snapshot verification via `npm run verify:cmc-golden`
+- CMC executable demo verification via `npm run demo:cmc`
 - CMC developer benchmark via `npm run bench:cmc`
 - CMC benchmark report anchor in [rust/cmc-core/BENCHMARK_RESULTS.md](rust/cmc-core/BENCHMARK_RESULTS.md)
 
@@ -198,6 +201,12 @@ CMC simulator:
 ```bash
 cd rust/cmc-core
 cargo test
+```
+
+CMC executable demo:
+
+```bash
+npm run demo:cmc
 ```
 
 CMC golden snapshot:
