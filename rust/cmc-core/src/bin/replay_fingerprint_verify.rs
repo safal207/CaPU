@@ -12,7 +12,9 @@ struct Case {
 
 const CASES: &[Case] = &[
     Case { path: "fixtures/replay/missing_cause.jsonl", decision: "REJECT_MISSING_CAUSE", events: 1, fingerprint: "88fd99689760140e" },
+    Case { path: "fixtures/replay/unknown_cause.jsonl", decision: "REJECT_UNKNOWN_CAUSE", events: 1, fingerprint: "d8c4983b8a5a0ab0" },
     Case { path: "fixtures/replay/forbidden_effect_before_commit_fixture.jsonl", decision: "REJECT_EFFECT_BEFORE_COMMIT", events: 1, fingerprint: "28bf87f68e4ec6cb" },
+    Case { path: "fixtures/replay/valid_committed_effect.jsonl", decision: "ACCEPT_EFFECT", events: 1, fingerprint: "e3e96ba017e2c235" },
 ];
 
 fn fp(input: &str) -> String {
@@ -53,6 +55,7 @@ fn main() -> ExitCode {
         println!("fixture={} decision={} events={} fingerprint={} status=stable", case.path, case.decision, events, actual_fp);
     }
 
+    println!("fixtures_checked={}", CASES.len());
     println!("result=replay_fingerprints_stable");
     ExitCode::SUCCESS
 }
