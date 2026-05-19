@@ -1,3 +1,5 @@
+pub mod trace_crypto;
+
 use std::collections::{HashMap, HashSet};
 
 pub type Address = u64;
