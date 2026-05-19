@@ -17,7 +17,7 @@ on:
 
 jobs:
   test:
-    name: cargo test + demos + trace integrity + replay checks + reviewer demo
+    name: cargo test + demos + SHA-256 trace + replay + audit checks + reviewer demo
     runs-on: ubuntu-latest
 
     defaults:
@@ -56,17 +56,29 @@ jobs:
       - name: Run executable CMC demo
         run: cargo run --bin cmc_demo --locked
 
-      - name: Verify valid trace hash chain
+      - name: Verify legacy trace hash chain
         run: cargo run --bin verify_trace --locked
 
-      - name: Verify tampering detection demo
+      - name: Verify legacy tampering detection demo
         run: cargo run --bin verify_trace_tampered --locked
+
+      - name: Verify SHA-256 trace sealing
+        run: cargo run --bin verify_trace_sha256 --locked
+
+      - name: Verify SHA-256 tampering detection demo
+        run: cargo run --bin verify_trace_sha256_tampered --locked
 
       - name: Verify replay fixture structure
         run: cargo run --bin replay_fixture_verify --locked
 
       - name: Verify replay fixture fingerprints
         run: cargo run --bin replay_fingerprint_verify --locked
+
+      - name: Emit manifest-linked audit report
+        run: cargo run --bin cmc_audit_report --locked
+
+      - name: Verify saved audit report examples
+        run: cargo run --bin audit_report_example_verify --locked
 
       - name: Verify replay divergence detection
         run: cargo run --bin trace_divergence --locked
