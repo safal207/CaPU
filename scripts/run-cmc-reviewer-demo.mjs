@@ -60,6 +60,13 @@ const steps = [
     proves: 'Replay fixture drift is detectable.',
   },
   {
+    name: 'audit report jsonl',
+    command: 'cargo',
+    args: ['run', '--bin', 'cmc_audit_report', '--locked'],
+    cwd: cmcDir,
+    proves: 'Manifest-linked replay evidence can be emitted as auditor-facing JSONL.',
+  },
+  {
     name: 'replay divergence detection',
     command: 'cargo',
     args: ['run', '--bin', 'trace_divergence', '--locked'],
@@ -105,5 +112,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
