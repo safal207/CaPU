@@ -22,10 +22,16 @@ Traditional computing verifies state transitions.
 Causal computing verifies transition legitimacy.
 ```
 
+Persona-boundary thesis:
+
+```text
+Future AI personas require causal legitimacy, not only conversational coherence.
+```
+
 Current executable evidence chain:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> trace integrity -> sealed trace fixtures -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> persona boundary -> trace integrity -> sealed trace fixtures -> reviewer command -> CI
 ```
 
 ---
@@ -35,6 +41,10 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> save
 | Claim | Evidence artifact | Executable check | CI gate |
 | --- | --- | --- | --- |
 | CMC models causal memory/read/effect decisions | `rust/cmc-core/src/lib.rs` | `cargo test --all --locked` | Yes |
+| Future AI personas require causal legitimacy, not only conversational coherence | `CMC_PERSONA_BOUNDARY.md` | Documentation review | No |
+| P1: Persona memory requires cause | `fixtures/persona/MANIFEST.tsv` + persona fixtures + `persona_boundary_verify.rs` | `cargo run --bin persona_boundary_verify --locked` | Yes |
+| Inferred persona preference must not become memory without confirmation/cause | `inferred_preference_rejected.jsonl` + `MANIFEST.tsv` | `cargo run --bin persona_boundary_verify --locked` | Yes |
+| Confirmed persona preference can become memory with confirmation/cause | `confirmed_preference_accepted.jsonl` + `MANIFEST.tsv` | `cargo run --bin persona_boundary_verify --locked` | Yes |
 | I1: Missing cause must reject memory write | `CMC_INVARIANTS.md` + `missing_cause.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
 | I2: Unknown cause must reject memory write | `CMC_INVARIANTS.md` + `unknown_cause.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
 | I3: Effect cannot execute before causal commit | `CMC_INVARIANTS.md` + `forbidden_effect_before_commit_fixture.jsonl` + `MANIFEST.tsv` | `cargo run --bin replay_fixture_verify --locked` | Yes |
@@ -61,6 +71,50 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> save
 | Phase 2 has an explicit next-step roadmap | `CMC_PHASE_2_ROADMAP.md` | Documentation review | No |
 | Invariants are explicitly mapped to executable evidence | `CMC_INVARIANTS.md` + `fixtures/replay/MANIFEST.tsv` | `npm run review:cmc` | Yes |
 | Future hardware path is scoped but non-claimed | `CMC_FPGA_SKETCH.md` | Documentation review | No |
+
+---
+
+## Manifest-linked persona boundary evidence
+
+The persona boundary corpus is currently driven by:
+
+```text
+rust/cmc-core/fixtures/persona/MANIFEST.tsv
+```
+
+Current manifest shape:
+
+```tsv
+scenario_id	invariant_id	path	boundary	user_confirmation	decision	cause_id	expected_verdict
+```
+
+Current checked scenarios:
+
+| Scenario | Invariant | Fixture | Boundary | Confirmation | Decision | Cause | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `inferred_preference_rejected` | `P1` | `inferred_preference_rejected.jsonl` | `persona_memory_requires_cause` | `false` | `REJECT_INFERRED_MEMORY` | `null` | `blocked_unconfirmed_persona_memory` |
+| `confirmed_preference_accepted` | `P1` | `confirmed_preference_accepted.jsonl` | `persona_memory_requires_cause` | `true` | `ACCEPT_CONFIRMED_MEMORY` | `42` | `accepted_confirmed_persona_memory` |
+
+Verifier command:
+
+```bash
+cd rust/cmc-core
+cargo run --bin persona_boundary_verify --locked
+```
+
+Expected output includes:
+
+```text
+CMC-PERSONA-BOUNDARY-MANIFEST v0
+cases=2
+result=persona_boundary_manifest_valid
+```
+
+This gives the persona boundary the same evidence pattern as replay:
+
+```text
+persona invariant -> manifest row -> JSONL fixture -> verifier -> reviewer demo -> CI
+```
 
 ---
 
@@ -178,33 +232,38 @@ Recommended review order:
 ```text
 1. WHY_CAUSAL_COMPUTATION.md
 2. CAUSAL_EXECUTION_ARCHITECTURE.md
-3. CAUSAL_MEMORY_CONTROLLER.md
-4. CMC_REPLAY.md
-5. CMC_HASH_CHAIN.md
-6. CMC_TRACE_INTEGRITY.md
-7. CMC_INVARIANTS.md
-8. rust/cmc-core/fixtures/replay/MANIFEST.md
-9. rust/cmc-core/fixtures/replay/MANIFEST.tsv
-10. rust/cmc-core/fixtures/trace_integrity/sha256_valid.jsonl
-11. rust/cmc-core/fixtures/trace_integrity/sha256_tampered.jsonl
-12. rust/cmc-core/src/bin/verify_trace_sha256_fixture.rs
-13. rust/cmc-core/src/bin/cmc_audit_report.rs
-14. rust/cmc-core/src/bin/audit_report_example_verify.rs
-15. examples/audit_reports/cmc_audit_report_valid.jsonl
-16. examples/audit_reports/cmc_audit_report_drift.jsonl
-17. CMC_AUDITOR_REPORT.md
-18. CMC_EVIDENCE_MAP.md
-19. CMC_REVIEWER_QUICKSTART.md
-20. CMC_BASELINE_STATUS.md
-21. CMC_PHASE_2_ROADMAP.md
-22. rust/cmc-core/README.md
-23. rust/cmc-core/src/lib.rs
-24. rust/cmc-core/src/trace_crypto.rs
-25. scripts/run-cmc-reviewer-demo.mjs
-26. .github/workflows/cmc-rust.yml
+3. CMC_PERSONA_BOUNDARY.md
+4. rust/cmc-core/fixtures/persona/MANIFEST.tsv
+5. rust/cmc-core/fixtures/persona/inferred_preference_rejected.jsonl
+6. rust/cmc-core/fixtures/persona/confirmed_preference_accepted.jsonl
+7. rust/cmc-core/src/bin/persona_boundary_verify.rs
+8. CAUSAL_MEMORY_CONTROLLER.md
+9. CMC_REPLAY.md
+10. CMC_HASH_CHAIN.md
+11. CMC_TRACE_INTEGRITY.md
+12. CMC_INVARIANTS.md
+13. rust/cmc-core/fixtures/replay/MANIFEST.md
+14. rust/cmc-core/fixtures/replay/MANIFEST.tsv
+15. rust/cmc-core/fixtures/trace_integrity/sha256_valid.jsonl
+16. rust/cmc-core/fixtures/trace_integrity/sha256_tampered.jsonl
+17. rust/cmc-core/src/bin/verify_trace_sha256_fixture.rs
+18. rust/cmc-core/src/bin/cmc_audit_report.rs
+19. rust/cmc-core/src/bin/audit_report_example_verify.rs
+20. examples/audit_reports/cmc_audit_report_valid.jsonl
+21. examples/audit_reports/cmc_audit_report_drift.jsonl
+22. CMC_AUDITOR_REPORT.md
+23. CMC_EVIDENCE_MAP.md
+24. CMC_REVIEWER_QUICKSTART.md
+25. CMC_BASELINE_STATUS.md
+26. CMC_PHASE_2_ROADMAP.md
+27. rust/cmc-core/README.md
+28. rust/cmc-core/src/lib.rs
+29. rust/cmc-core/src/trace_crypto.rs
+30. scripts/run-cmc-reviewer-demo.mjs
+31. .github/workflows/cmc-rust.yml
 ```
 
-This path moves from thesis to architecture to invariants to executable validation, sealed trace artifacts, and auditor-facing output.
+This path moves from thesis to persona boundary to architecture to invariants to executable validation, sealed trace artifacts, and auditor-facing output.
 
 ---
 
@@ -227,6 +286,7 @@ cargo run --bin verify_trace_tampered --locked
 cargo run --bin verify_trace_sha256 --locked
 cargo run --bin verify_trace_sha256_tampered --locked
 cargo run --bin verify_trace_sha256_fixture --locked
+cargo run --bin persona_boundary_verify --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
@@ -248,6 +308,9 @@ This command is also executed in the CMC GitHub Actions workflow.
 
 Today, the repository demonstrates that a minimal CMC simulator can:
 
+- reject inferred persona memory without confirmation/cause
+- accept confirmed persona memory with confirmation/cause
+- verify persona boundary fixtures through a machine-readable manifest
 - reject memory writes without explicit cause
 - reject writes with unknown cause
 - reject effects before causal commit
@@ -287,6 +350,8 @@ The current evidence does not claim:
 - performance under real production workloads
 - formal proof of all transition semantics
 - complete agent safety coverage
+- AI consciousness or personhood
+- therapeutic diagnosis or treatment
 - replacement for sandboxing, policy design, or conventional security engineering
 
 The current repository should be read as an executable research scaffold for legitimacy-preserving computation.
@@ -300,7 +365,7 @@ The strongest claim is not that CMC is finished.
 The strongest claim is:
 
 ```text
-transition legitimacy can be made observable, replayable, testable, reportable, field-level example-verified, SHA-256 sealed, fixture-verified, one-command verifiable, manifest-linked, and CI-enforced.
+transition legitimacy can be made observable, replayable, testable, reportable, persona-boundary-verified, field-level example-verified, SHA-256 sealed, fixture-verified, one-command verifiable, manifest-linked, and CI-enforced.
 ```
 
 That is the core research direction.
@@ -310,5 +375,5 @@ That is the core research direction.
 ## One-line summary
 
 ```text
-CMC turns causal legitimacy from prose into 8 manifest-linked replay scenarios, executable evidence, JSONL audit output, field-level verified audit examples, and saved SHA-256 trace-integrity fixtures.
+CMC turns causal legitimacy from prose into manifest-linked persona boundary fixtures, 8 manifest-linked replay scenarios, executable evidence, JSONL audit output, field-level verified audit examples, and saved SHA-256 trace-integrity fixtures.
 ```
