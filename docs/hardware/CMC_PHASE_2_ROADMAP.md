@@ -5,7 +5,7 @@ Status: next-phase roadmap after reviewer-ready baseline.
 This roadmap starts after the current CMC baseline:
 
 ```text
-thesis -> architecture -> simulator -> replay fixtures -> integrity demos -> CI gate -> evidence map -> reviewer quickstart -> baseline status
+thesis -> architecture -> simulator -> replay fixtures -> integrity demos -> one-command reviewer demo -> CI gate -> evidence map -> reviewer quickstart -> baseline status
 ```
 
 Phase 2 goal:
@@ -23,8 +23,31 @@ Do not overclaim hardware or production security.
 The next phase should strengthen the claim that:
 
 ```text
-transition legitimacy can be represented, replayed, checked, regression-tested, and reported
+transition legitimacy can be represented, replayed, checked, one-command verified, regression-tested, and reported
 ```
+
+---
+
+## Phase 2 progress snapshot
+
+Done:
+
+- `CMC_INVARIANTS.md`
+- `scripts/run-cmc-reviewer-demo.mjs`
+- npm script: `review:cmc`
+- CI step: `npm run review:cmc`
+- README links for Phase 2 roadmap and invariants
+- reviewer quickstart updated to prefer `npm run review:cmc`
+- evidence map updated for one-command reviewer baseline
+- baseline status updated for one-command, CI-enforced scaffold
+
+Next:
+
+- expand replay fixture coverage
+- introduce a canonical replay fixture manifest
+- strengthen hash-chain implementation beyond developer FNV-1a64 demo
+- add auditor-facing JSON report output
+- add repeated-run benchmark/stability reporting
 
 ---
 
@@ -35,6 +58,7 @@ Current state:
 - developer FNV-1a64 hash-chain demo
 - trace tampering detection demo
 - fixture fingerprint stability checks
+- one-command reviewer baseline runs current integrity checks
 
 Target:
 
@@ -68,6 +92,7 @@ Current state:
 - effect before commit fixture
 - fixture structure verifier
 - fixture fingerprint verifier
+- one-command reviewer baseline runs fixture checks
 
 Target:
 
@@ -104,6 +129,7 @@ Current state:
 - command output is human-readable
 - evidence map exists
 - reviewer quickstart exists
+- one-command reviewer demo exists
 
 Target:
 
@@ -184,29 +210,20 @@ Current state:
 - informal invariants in docs
 - executable tests in Rust
 - decision codes exist
+- canonical invariants map exists: `CMC_INVARIANTS.md`
 
-Target:
-
-Turn invariants into canonical semantics.
-
-Candidate invariants:
-
-```text
-I1: WRITE without cause must reject.
-I2: WRITE with unknown cause must reject.
-I3: EFFECT before COMMIT must reject.
-I4: Every decision must emit exactly one TraceEvent.
-I5: TraceEvent decision must match runtime decision.
-I6: Replay divergence must be observable.
-I7: Fixture drift must fail verification.
-```
-
-Candidate deliverables:
+Completed deliverables:
 
 - `CMC_INVARIANTS.md`
-- decision-code table
-- invariant-to-test map
-- invariant-to-fixture map
+- invariant-to-evidence map
+- invariant-to-command map
+- Phase 2 gaps table
+
+Remaining target:
+
+- add dedicated tests for exactly-one TraceEvent per decision
+- expand invariant-to-fixture coverage as replay corpus grows
+- add decision-code table if decision semantics expand
 
 Definition of done:
 
@@ -223,27 +240,33 @@ Current state:
 - reviewer quickstart exists
 - evidence map exists
 - baseline status exists
+- one-command reviewer script exists: `scripts/run-cmc-reviewer-demo.mjs`
+- npm script exists: `npm run review:cmc`
+- CI runs the reviewer command
 
-Target:
-
-Create a single reviewer command or script.
-
-Candidate deliverables:
+Completed deliverables:
 
 - `scripts/run-cmc-reviewer-demo.mjs`
 - npm script: `review:cmc`
-- output summary:
+- workflow step: `npm run review:cmc`
+- README entry
+- updated reviewer quickstart
+- updated evidence map
+- updated baseline status
+
+Expected output summary:
 
 ```text
 CMC reviewer demo
-tests: ok
-blocked transition demo: ok
-trace integrity: ok
-tampering detection: ok
-fixture structure: ok
-fixture fingerprints: ok
-replay divergence: ok
-result: reviewer_baseline_passed
+formatting: ok
+simulator tests: ok
+blocked-transition demo: ok
+valid trace hash-chain demo: ok
+tampering detection demo: ok
+replay fixture structure: ok
+replay fixture fingerprints: ok
+replay divergence detection: ok
+result=reviewer_baseline_passed
 ```
 
 Definition of done:
@@ -252,24 +275,30 @@ Definition of done:
 A reviewer can run one top-level command and see the whole baseline pass/fail summary.
 ```
 
----
-
-## Suggested implementation order
+Current status:
 
 ```text
-1. CMC_INVARIANTS.md
-2. scripts/run-cmc-reviewer-demo.mjs + npm review:cmc
-3. expanded replay fixtures
-4. crypto hash-chain module
-5. auditor JSON report CLI
-6. overhead benchmark report
+Done for baseline; future work may add auditor JSON output.
+```
+
+---
+
+## Suggested implementation order from here
+
+```text
+1. expanded replay fixtures
+2. replay fixture manifest
+3. crypto hash-chain module
+4. auditor JSON report CLI
+5. overhead benchmark report
 ```
 
 Reasoning:
 
-- Invariants make the next work disciplined.
-- One-command reviewer demo improves adoption immediately.
+- Invariants are now present and give discipline to fixture expansion.
+- One-command reviewer demo is now present and CI-enforced.
 - Fixtures broaden evidence coverage.
+- A manifest makes fixture expectations less hardcoded.
 - Crypto hash-chain strengthens integrity.
 - Auditor report makes the project usable outside code review.
 - Benchmarks add engineering credibility without overclaiming.
@@ -308,5 +337,5 @@ It defines invariants, produces traces, verifies fixtures, detects drift, detect
 ## One-line roadmap summary
 
 ```text
-Phase 1 made causal legitimacy executable; Phase 2 makes it broader, stronger, and easier to audit.
+Phase 1 made causal legitimacy executable; Phase 2 makes it broader, stronger, easier to verify, and easier to audit.
 ```
