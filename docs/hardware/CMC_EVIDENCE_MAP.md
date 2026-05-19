@@ -40,8 +40,11 @@ Causal computing verifies transition legitimacy.
 | Trace hash chain can validate expected trace | `verify_trace.rs` | `cargo run --bin verify_trace --locked` | Yes |
 | Tampered trace can be detected | `verify_trace_tampered.rs` | `cargo run --bin verify_trace_tampered --locked` | Yes |
 | Diverged replay can be detected | `trace_divergence.rs` | `cargo run --bin trace_divergence --locked` | Yes |
+| Full reviewer baseline can run as one command | `scripts/run-cmc-reviewer-demo.mjs` | `npm run review:cmc` | Yes |
 | Architecture has a coherent conceptual model | `CAUSAL_EXECUTION_ARCHITECTURE.md` | Documentation review | No |
 | Causal computation thesis is explicit | `WHY_CAUSAL_COMPUTATION.md` | Documentation review | No |
+| Phase 2 has an explicit next-step roadmap | `CMC_PHASE_2_ROADMAP.md` | Documentation review | No |
+| Invariants are explicitly mapped to evidence | `CMC_INVARIANTS.md` | Documentation review | No |
 | Future hardware path is scoped but non-claimed | `CMC_FPGA_SKETCH.md` | Documentation review | No |
 
 ---
@@ -56,12 +59,49 @@ Recommended review order:
 3. CAUSAL_MEMORY_CONTROLLER.md
 4. CMC_REPLAY.md
 5. CMC_HASH_CHAIN.md
-6. rust/cmc-core/README.md
-7. rust/cmc-core/src/lib.rs
-8. .github/workflows/cmc-rust.yml
+6. CMC_EVIDENCE_MAP.md
+7. CMC_REVIEWER_QUICKSTART.md
+8. CMC_BASELINE_STATUS.md
+9. CMC_PHASE_2_ROADMAP.md
+10. CMC_INVARIANTS.md
+11. rust/cmc-core/README.md
+12. rust/cmc-core/src/lib.rs
+13. scripts/run-cmc-reviewer-demo.mjs
+14. .github/workflows/cmc-rust.yml
 ```
 
 This path moves from thesis to architecture to executable validation.
+
+---
+
+## One-command validation
+
+From repository root:
+
+```bash
+npm run review:cmc
+```
+
+This runs the full CMC reviewer baseline:
+
+```text
+cargo fmt --check
+cargo test --all --locked
+cargo run --bin cmc_demo --locked
+cargo run --bin verify_trace --locked
+cargo run --bin verify_trace_tampered --locked
+cargo run --bin replay_fixture_verify --locked
+cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin trace_divergence --locked
+```
+
+Expected final result:
+
+```text
+result=reviewer_baseline_passed
+```
+
+This command is also executed in the CMC GitHub Actions workflow.
 
 ---
 
@@ -70,6 +110,7 @@ This path moves from thesis to architecture to executable validation.
 From repository root:
 
 ```bash
+npm run review:cmc
 npm run demo:cmc
 npm run verify:cmc-golden
 npm run bench:cmc
@@ -105,6 +146,7 @@ Today, the repository demonstrates that a minimal CMC simulator can:
 - verify replay fixture fingerprints
 - detect tampered trace decisions
 - detect replay divergence
+- run the full reviewer baseline through one command
 - enforce these checks in CI
 
 ---
@@ -131,7 +173,7 @@ The strongest claim is not that CMC is finished.
 The strongest claim is:
 
 ```text
-transition legitimacy can be made observable, replayable, testable, and CI-enforced.
+transition legitimacy can be made observable, replayable, testable, one-command verifiable, and CI-enforced.
 ```
 
 That is the core research direction.
@@ -141,5 +183,5 @@ That is the core research direction.
 ## One-line summary
 
 ```text
-CMC turns causal legitimacy from prose into executable evidence.
+CMC turns causal legitimacy from prose into one-command executable evidence.
 ```
