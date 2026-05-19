@@ -2,7 +2,7 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after thesis, architecture, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, canonical trace encoding v0, legacy integrity demos, SHA-256 trace-integrity reference checks, saved SHA-256 sealed trace fixtures, one-command reviewer demo, and CI-gate work.
+This document summarizes the current CMC baseline after thesis, architecture, persona boundary framing, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, canonical trace encoding v0, legacy integrity demos, SHA-256 trace-integrity reference checks, saved SHA-256 sealed trace fixtures, one-command reviewer demo, and CI-gate work.
 
 ---
 
@@ -14,6 +14,12 @@ transition legitimacy can be represented, replayed, checked, reported, field-lev
 
 The current repository does not claim a finished product. It claims an executable research scaffold for legitimacy-preserving computation.
 
+Related persona-boundary framing:
+
+```text
+Future AI personas require causal legitimacy, not only conversational coherence.
+```
+
 ---
 
 ## Current evidence chain
@@ -21,6 +27,7 @@ The current repository does not claim a finished product. It claims an executabl
 ```text
 thesis
  -> architecture
+ -> persona boundary framing
  -> 8 replay invariants
  -> simulator
  -> deterministic trace events
@@ -59,6 +66,7 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> save
 - [WHY_CAUSAL_COMPUTATION.md](WHY_CAUSAL_COMPUTATION.md)
 - [CAUSAL_EXECUTION_ARCHITECTURE.md](CAUSAL_EXECUTION_ARCHITECTURE.md)
 - [CAUSAL_MEMORY_CONTROLLER.md](CAUSAL_MEMORY_CONTROLLER.md)
+- [CMC_PERSONA_BOUNDARY.md](CMC_PERSONA_BOUNDARY.md)
 - [CMC_REPLAY.md](CMC_REPLAY.md)
 - [CMC_HASH_CHAIN.md](CMC_HASH_CHAIN.md)
 - [CMC_CANONICAL_TRACE_ENCODING.md](CMC_CANONICAL_TRACE_ENCODING.md)
@@ -69,6 +77,26 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> save
 - [CMC_REVIEWER_QUICKSTART.md](CMC_REVIEWER_QUICKSTART.md)
 - [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
 - [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
+
+---
+
+## Persona boundary
+
+The persona boundary is documented in:
+
+```text
+docs/hardware/CMC_PERSONA_BOUNDARY.md
+```
+
+It frames CMC as a safety substrate for future companion/persona-like AI systems.
+
+Core persona boundary rule:
+
+```text
+A persona may express continuity only when the continuity is causally grounded.
+```
+
+This is not a claim of AI consciousness, personhood, therapeutic capability, or autonomous moral agency.
 
 ---
 
@@ -289,6 +317,7 @@ Doc-only changes outside those paths do not necessarily trigger this workflow.
 
 The baseline is strong because it turns a conceptual claim into executable artifacts:
 
+- causal persona-boundary framing for future AI companion/persona systems
 - rejected illegal memory writes without cause
 - rejected writes with unknown cause
 - rejected effects before causal commit
@@ -327,6 +356,8 @@ The baseline does not yet provide:
 - hardware root of trust
 - formal verification
 - full JSON canonicalization standard compatibility
+- AI consciousness or personhood claims
+- therapeutic diagnosis or treatment
 - real workload performance evaluation
 - full multi-agent benchmark coverage
 - certification-grade assurance
@@ -340,17 +371,18 @@ The current repository should be read as an executable research scaffold for leg
 The next phase should focus on:
 
 1. adding exact canonical event-line tests,
-2. connecting manifest entries to SHA-256 sealed trace evidence,
-3. adding richer manifest validation rules,
-4. adding removed-event and reordered-event negative trace-integrity fixtures,
-5. measuring overhead and stability across repeated runs,
-6. optionally replacing lightweight flat JSON parsing with dependency-backed JSON parsing if dependency policy changes,
-7. expanding beyond current memory/read/effect cases into broader workloads.
+2. adding persona-boundary replay fixtures for inferred vs confirmed memory,
+3. connecting manifest entries to SHA-256 sealed trace evidence,
+4. adding richer manifest validation rules,
+5. adding removed-event and reordered-event negative trace-integrity fixtures,
+6. measuring overhead and stability across repeated runs,
+7. optionally replacing lightweight flat JSON parsing with dependency-backed JSON parsing if dependency policy changes,
+8. expanding beyond current memory/read/effect cases into broader workloads.
 
 ---
 
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked, JSONL-reporting, field-level example-verified, canonical-trace-encoded, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as an 8-scenario, one-command, persona-boundary-aware, manifest-linked, JSONL-reporting, field-level example-verified, canonical-trace-encoded, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
