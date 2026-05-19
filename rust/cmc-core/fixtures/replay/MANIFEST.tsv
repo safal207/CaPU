@@ -1,5 +1,5 @@
-path	decision	events	fingerprint
-fixtures/replay/missing_cause.jsonl	REJECT_MISSING_CAUSE	1	88fd99689760140e
-fixtures/replay/unknown_cause.jsonl	REJECT_UNKNOWN_CAUSE	1	d8c4983b8a5a0ab0
-fixtures/replay/forbidden_effect_before_commit_fixture.jsonl	REJECT_EFFECT_BEFORE_COMMIT	1	28bf87f68e4ec6cb
-fixtures/replay/valid_committed_effect.jsonl	ACCEPT_EFFECT	1	e3e96ba017e2c235
+scenario_id	invariant_id	path	decision	events	fingerprint
+write_missing_cause	I1	fixtures/replay/missing_cause.jsonl	REJECT_MISSING_CAUSE	1	88fd99689760140e
+write_unknown_cause	I2	fixtures/replay/unknown_cause.jsonl	REJECT_UNKNOWN_CAUSE	1	d8c4983b8a5a0ab0
+effect_before_commit	I3	fixtures/replay/forbidden_effect_before_commit_fixture.jsonl	REJECT_EFFECT_BEFORE_COMMIT	1	28bf87f68e4ec6cb
+valid_committed_effect	I4	fixtures/replay/valid_committed_effect.jsonl	ACCEPT_EFFECT	1	e3e96ba017e2c235
