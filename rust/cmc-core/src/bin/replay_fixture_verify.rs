@@ -2,37 +2,68 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+const MANIFEST_PATH: &str = "fixtures/replay/MANIFEST.tsv";
+
 #[derive(Debug)]
 struct FixtureCheck {
-    path: &'static str,
-    expected_decision: &'static str,
+    path: String,
+    expected_decision: String,
+    expected_events: usize,
 }
 
-const FIXTURES: &[FixtureCheck] = &[
-    FixtureCheck {
-        path: "fixtures/replay/missing_cause.jsonl",
-        expected_decision: "REJECT_MISSING_CAUSE",
-    },
-    FixtureCheck {
-        path: "fixtures/replay/unknown_cause.jsonl",
-        expected_decision: "REJECT_UNKNOWN_CAUSE",
-    },
-    FixtureCheck {
-        path: "fixtures/replay/forbidden_effect_before_commit_fixture.jsonl",
-        expected_decision: "REJECT_EFFECT_BEFORE_COMMIT",
-    },
-    FixtureCheck {
-        path: "fixtures/replay/valid_committed_effect.jsonl",
-        expected_decision: "ACCEPT_EFFECT",
-    },
-];
+fn parse_manifest() -> Result<Vec<FixtureCheck>, String> {
+    let content = fs::read_to_string(MANIFEST_PATH)
+        .map_err(|err| format!("failed to read {MANIFEST_PATH}: {err}"))?;
+
+    let mut checks = Vec::new();
+
+    for (idx, line) in content.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        if idx == 0 && line == "path\tdecision\tevents\tfingerprint" {
+            continue;
+        }
+
+        let fields: Vec<&str> = line.split('\t').collect();
+        if fields.len() != 4 {
+            return Err(format!(
+                "{MANIFEST_PATH}:{} expected 4 tab-separated fields, got {}",
+                idx + 1,
+                fields.len()
+            ));
+        }
+
+        let expected_events = fields[2].parse::<usize>().map_err(|err| {
+            format!(
+                "{MANIFEST_PATH}:{} invalid event count `{}`: {err}",
+                idx + 1,
+                fields[2]
+            )
+        })?;
+
+        checks.push(FixtureCheck {
+            path: fields[0].to_string(),
+            expected_decision: fields[1].to_string(),
+            expected_events,
+        });
+    }
+
+    if checks.is_empty() {
+        return Err(format!("{MANIFEST_PATH} contains no fixture entries"));
+    }
+
+    Ok(checks)
+}
 
 fn has_json_field(line: &str, field: &str) -> bool {
     line.contains(&format!("\"{field}\":"))
 }
 
 fn verify_fixture(check: &FixtureCheck) -> Result<usize, String> {
-    let path = PathBuf::from(check.path);
+    let path = PathBuf::from(&check.path);
     let content = fs::read_to_string(&path)
         .map_err(|err| format!("failed to read {}: {err}", path.display()))?;
 
@@ -79,15 +110,32 @@ fn verify_fixture(check: &FixtureCheck) -> Result<usize, String> {
         return Err(format!("{} contains no replay events", path.display()));
     }
 
+    if lines_seen != check.expected_events {
+        return Err(format!(
+            "{} event count drift: expected {}, actual {}",
+            path.display(),
+            check.expected_events,
+            lines_seen
+        ));
+    }
+
     Ok(lines_seen)
 }
 
 fn main() -> ExitCode {
     println!("CMC-REPLAY-FIXTURE-VERIFY v0");
 
+    let checks = match parse_manifest() {
+        Ok(checks) => checks,
+        Err(err) => {
+            eprintln!("status=failed error={err}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let mut total_events = 0;
 
-    for check in FIXTURES {
+    for check in &checks {
         match verify_fixture(check) {
             Ok(events) => {
                 total_events += events;
@@ -103,7 +151,8 @@ fn main() -> ExitCode {
         }
     }
 
-    println!("fixtures_checked={}", FIXTURES.len());
+    println!("manifest={MANIFEST_PATH}");
+    println!("fixtures_checked={}", checks.len());
     println!("events_checked={total_events}");
     println!("result=replay_fixture_corpus_valid");
     ExitCode::SUCCESS
