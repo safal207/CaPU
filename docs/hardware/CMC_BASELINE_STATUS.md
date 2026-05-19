@@ -2,14 +2,14 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after thesis, architecture, persona boundary framing, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, canonical trace encoding v0, legacy integrity demos, SHA-256 trace-integrity reference checks, saved SHA-256 sealed trace fixtures, one-command reviewer demo, and CI-gate work.
+This document summarizes the current CMC baseline after thesis, architecture, manifest-linked persona boundary corpus, 8 replay invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, canonical trace encoding v0, legacy integrity demos, SHA-256 trace-integrity reference checks, saved SHA-256 sealed trace fixtures, one-command reviewer demo, and CI-gate work.
 
 ---
 
 ## Baseline claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 The current repository does not claim a finished product. It claims an executable research scaffold for legitimacy-preserving computation.
@@ -28,6 +28,7 @@ Future AI personas require causal legitimacy, not only conversational coherence.
 thesis
  -> architecture
  -> persona boundary framing
+ -> manifest-linked persona boundary corpus
  -> 8 replay invariants
  -> simulator
  -> deterministic trace events
@@ -56,7 +57,7 @@ thesis
 Short form:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> canonical trace encoding -> trace integrity -> sealed trace fixtures -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> persona boundary -> canonical trace encoding -> trace integrity -> sealed trace fixtures -> reviewer command -> CI
 ```
 
 ---
@@ -94,6 +95,29 @@ Core persona boundary rule:
 
 ```text
 A persona may express continuity only when the continuity is causally grounded.
+```
+
+Current executable persona corpus:
+
+```text
+rust/cmc-core/fixtures/persona/MANIFEST.tsv
+rust/cmc-core/fixtures/persona/inferred_preference_rejected.jsonl
+rust/cmc-core/fixtures/persona/confirmed_preference_accepted.jsonl
+rust/cmc-core/src/bin/persona_boundary_verify.rs
+```
+
+Current checked persona scenarios:
+
+| Scenario | Invariant | Decision | Cause | Verdict |
+| --- | --- | --- | --- | --- |
+| `inferred_preference_rejected` | `P1` | `REJECT_INFERRED_MEMORY` | `null` | `blocked_unconfirmed_persona_memory` |
+| `confirmed_preference_accepted` | `P1` | `ACCEPT_CONFIRMED_MEMORY` | `42` | `accepted_confirmed_persona_memory` |
+
+Reviewer command:
+
+```bash
+cd rust/cmc-core
+cargo run --bin persona_boundary_verify --locked
 ```
 
 This is not a claim of AI consciousness, personhood, therapeutic capability, or autonomous moral agency.
@@ -272,6 +296,7 @@ cargo run --bin verify_trace_tampered --locked
 cargo run --bin verify_trace_sha256 --locked
 cargo run --bin verify_trace_sha256_tampered --locked
 cargo run --bin verify_trace_sha256_fixture --locked
+cargo run --bin persona_boundary_verify --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
@@ -302,6 +327,7 @@ The workflow currently covers:
 - SHA-256 generated trace sealing verifier
 - SHA-256 generated tampering detection demo
 - SHA-256 sealed trace fixture verifier
+- manifest-linked persona boundary verifier
 - manifest-linked replay fixture structure verifier
 - manifest-linked replay fixture fingerprint verifier
 - manifest-linked audit report JSONL output
@@ -317,7 +343,9 @@ Doc-only changes outside those paths do not necessarily trigger this workflow.
 
 The baseline is strong because it turns a conceptual claim into executable artifacts:
 
-- causal persona-boundary framing for future AI companion/persona systems
+- manifest-linked persona-boundary corpus for future AI companion/persona systems
+- rejected inferred persona memory without confirmation/cause
+- accepted confirmed persona memory with confirmation/cause
 - rejected illegal memory writes without cause
 - rejected writes with unknown cause
 - rejected effects before causal commit
@@ -371,18 +399,18 @@ The current repository should be read as an executable research scaffold for leg
 The next phase should focus on:
 
 1. adding exact canonical event-line tests,
-2. adding persona-boundary replay fixtures for inferred vs confirmed memory,
+2. adding persona-boundary fixtures for action proposals and persona state changes,
 3. connecting manifest entries to SHA-256 sealed trace evidence,
 4. adding richer manifest validation rules,
 5. adding removed-event and reordered-event negative trace-integrity fixtures,
 6. measuring overhead and stability across repeated runs,
 7. optionally replacing lightweight flat JSON parsing with dependency-backed JSON parsing if dependency policy changes,
-8. expanding beyond current memory/read/effect cases into broader workloads.
+8. expanding beyond current memory/read/effect/persona-boundary cases into broader workloads.
 
 ---
 
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as an 8-scenario, one-command, persona-boundary-aware, manifest-linked, JSONL-reporting, field-level example-verified, canonical-trace-encoded, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as an 8-scenario, one-command, manifest-linked persona-boundary-aware, JSONL-reporting, field-level example-verified, canonical-trace-encoded, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
