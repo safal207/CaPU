@@ -25,7 +25,7 @@ Causal computing verifies transition legitimacy.
 Current executable evidence chain:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> reviewer command -> CI
 ```
 
 ---
@@ -43,6 +43,7 @@ invariant -> scenario -> fixture -> manifest -> verifier -> reviewer command -> 
 | Basic flow has a stable golden snapshot | `fixtures/basic_flow.golden.txt` | `npm run verify:cmc-golden` | Via tests |
 | Replay fixtures preserve semantic structure | `fixtures/replay/MANIFEST.tsv` + `replay_fixture_verify.rs` | `cargo run --bin replay_fixture_verify --locked` | Yes |
 | Replay fixture drift can be detected | `fixtures/replay/MANIFEST.tsv` + `replay_fingerprint_verify.rs` | `cargo run --bin replay_fingerprint_verify --locked` | Yes |
+| Manifest-linked audit evidence can be emitted | `cmc_audit_report.rs` + `fixtures/replay/MANIFEST.tsv` | `cargo run --bin cmc_audit_report --locked` | Yes |
 | Trace hash chain can validate expected trace | `verify_trace.rs` | `cargo run --bin verify_trace --locked` | Yes |
 | Tampered trace can be detected | `verify_trace_tampered.rs` | `cargo run --bin verify_trace_tampered --locked` | Yes |
 | Diverged replay can be detected | `trace_divergence.rs` | `cargo run --bin trace_divergence --locked` | Yes |
@@ -66,23 +67,46 @@ rust/cmc-core/fixtures/replay/MANIFEST.tsv
 Current manifest shape:
 
 ```tsv
-scenario_id	invariant_id	path	decision	events	fingerprint
+scenario_id	invariant_id	path	decision	events	fingerprint	category	severity	expected_verdict
 ```
 
 Current checked scenarios:
 
-| Scenario | Invariant | Fixture | Decision | Fingerprint |
-| --- | --- | --- | --- | --- |
-| `write_missing_cause` | `I1` | `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | `88fd99689760140e` |
-| `write_unknown_cause` | `I2` | `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | `d8c4983b8a5a0ab0` |
-| `effect_before_commit` | `I3` | `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | `28bf87f68e4ec6cb` |
-| `valid_committed_effect` | `I4` | `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | `e3e96ba017e2c235` |
+| Scenario | Invariant | Fixture | Decision | Category | Severity | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `write_missing_cause` | `I1` | `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
+| `write_unknown_cause` | `I2` | `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
+| `effect_before_commit` | `I3` | `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | `effect_commit_boundary` | `critical` | `blocked_illegitimate_transition` |
+| `valid_committed_effect` | `I4` | `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | `effect_commit_boundary` | `info` | `accepted_legitimate_transition` |
 
 This makes the evidence chain explicit:
 
 ```text
-thesis -> invariant -> scenario -> fixture -> fingerprint -> verifier -> CI
+thesis -> invariant -> scenario -> fixture -> fingerprint -> verifier -> audit report -> CI
 ```
+
+---
+
+## Auditor-facing report
+
+The current auditor-facing command is:
+
+```bash
+cd rust/cmc-core
+cargo run --bin cmc_audit_report --locked
+```
+
+It emits JSONL records for each manifest-linked replay scenario and validates:
+
+```text
+fixture exists
+fingerprint is stable
+event count matches
+expected decision is present
+scenario/invariant/category/severity/verdict metadata is carried into output
+```
+
+This is still an early developer report format, not a certification-grade audit artifact.
 
 ---
 
@@ -99,17 +123,18 @@ Recommended review order:
 6. CMC_INVARIANTS.md
 7. rust/cmc-core/fixtures/replay/MANIFEST.md
 8. rust/cmc-core/fixtures/replay/MANIFEST.tsv
-9. CMC_EVIDENCE_MAP.md
-10. CMC_REVIEWER_QUICKSTART.md
-11. CMC_BASELINE_STATUS.md
-12. CMC_PHASE_2_ROADMAP.md
-13. rust/cmc-core/README.md
-14. rust/cmc-core/src/lib.rs
-15. scripts/run-cmc-reviewer-demo.mjs
-16. .github/workflows/cmc-rust.yml
+9. rust/cmc-core/src/bin/cmc_audit_report.rs
+10. CMC_EVIDENCE_MAP.md
+11. CMC_REVIEWER_QUICKSTART.md
+12. CMC_BASELINE_STATUS.md
+13. CMC_PHASE_2_ROADMAP.md
+14. rust/cmc-core/README.md
+15. rust/cmc-core/src/lib.rs
+16. scripts/run-cmc-reviewer-demo.mjs
+17. .github/workflows/cmc-rust.yml
 ```
 
-This path moves from thesis to architecture to invariants to executable validation.
+This path moves from thesis to architecture to invariants to executable validation and auditor-facing output.
 
 ---
 
@@ -131,6 +156,7 @@ cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin cmc_audit_report --locked
 cargo run --bin trace_divergence --locked
 ```
 
@@ -165,6 +191,7 @@ cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin cmc_audit_report --locked
 cargo run --bin trace_divergence --locked
 ```
 
@@ -181,6 +208,7 @@ Today, the repository demonstrates that a minimal CMC simulator can:
 - map I1-I4 invariants to replay scenarios
 - verify replay fixture structure through a machine-readable manifest
 - verify replay fixture fingerprints through the same manifest
+- emit manifest-linked audit evidence as JSONL
 - emit replayable trace events
 - export trace events as JSONL
 - preserve a golden fixture snapshot
@@ -213,7 +241,7 @@ The strongest claim is not that CMC is finished.
 The strongest claim is:
 
 ```text
-transition legitimacy can be made observable, replayable, testable, one-command verifiable, manifest-linked, and CI-enforced.
+transition legitimacy can be made observable, replayable, testable, one-command verifiable, manifest-linked, reportable, and CI-enforced.
 ```
 
 That is the core research direction.
@@ -223,5 +251,5 @@ That is the core research direction.
 ## One-line summary
 
 ```text
-CMC turns causal legitimacy from prose into manifest-linked executable evidence.
+CMC turns causal legitimacy from prose into manifest-linked executable evidence and JSONL audit output.
 ```
