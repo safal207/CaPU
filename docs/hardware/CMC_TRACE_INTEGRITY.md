@@ -9,7 +9,13 @@ The goal is not to claim production-grade security or certified hardware integri
 The current goal is narrower:
 
 ```text
-CMC trace events can be sealed, saved as golden fixtures, replayed, checked, drift-detected, tamper-detected, and exercised by CI.
+CMC trace events can be canonically encoded, sealed, saved as golden fixtures, replayed, checked, drift-detected, tamper-detected, and exercised by CI.
+```
+
+Canonical byte-level encoding is documented in:
+
+```text
+docs/hardware/CMC_CANONICAL_TRACE_ENCODING.md
 ```
 
 ---
@@ -22,7 +28,7 @@ The repository currently has two trace-integrity paths.
 | --- | --- | --- | --- |
 | Legacy developer hash path | FNV-1a64 demo inside CLI examples | Stable developer integrity demo and continuity with older fixtures | `cargo run --bin verify_trace --locked` |
 | Legacy tamper demo | FNV-1a64 demo with modified trace event | Shows that changed trace decisions invalidate the legacy hash chain | `cargo run --bin verify_trace_tampered --locked` |
-| SHA-256 reference path | `src/trace_crypto.rs` | Std-only reference trace sealing and verification path | `cargo run --bin verify_trace_sha256 --locked` |
+| SHA-256 reference path | `src/trace_crypto.rs` + `CMC_CANONICAL_TRACE_ENCODING.md` | Std-only reference trace sealing and verification path | `cargo run --bin verify_trace_sha256 --locked` |
 | SHA-256 tamper demo | `src/bin/verify_trace_sha256_tampered.rs` | Shows that changed trace decisions invalidate the SHA-256 chain | `cargo run --bin verify_trace_sha256_tampered --locked` |
 | SHA-256 sealed fixtures | `fixtures/trace_integrity/*.jsonl` | Saved valid/tampered sealed trace artifacts | `cargo run --bin verify_trace_sha256_fixture --locked` |
 
@@ -39,6 +45,7 @@ rust/cmc-core/src/trace_crypto.rs
 rust/cmc-core/src/bin/verify_trace_sha256.rs
 rust/cmc-core/src/bin/verify_trace_sha256_tampered.rs
 rust/cmc-core/src/bin/verify_trace_sha256_fixture.rs
+docs/hardware/CMC_CANONICAL_TRACE_ENCODING.md
 ```
 
 Golden sealed fixtures:
@@ -69,6 +76,18 @@ The first event starts from:
 
 ```text
 0000000000000000000000000000000000000000000000000000000000000000
+```
+
+The canonical event line is produced by:
+
+```text
+TraceEvent::to_json_line()
+```
+
+Current v0 field order:
+
+```text
+seq, kind, decision, address, effect_id, cause_id, message
 ```
 
 ---
@@ -153,6 +172,7 @@ Current split:
 | --- | --- |
 | Replay fixture fingerprints | stable developer drift detection |
 | Saved audit examples | field-level JSONL verification |
+| Canonical trace encoding | v0 byte-level event-line encoding note |
 | Legacy trace hash chain | FNV developer demo |
 | SHA-256 trace hash chain | std-only reference path |
 | SHA-256 sealed trace fixtures | saved valid/tampered integrity artifacts |
@@ -165,7 +185,7 @@ Current split:
 The current implementation supports this claim:
 
 ```text
-CMC can produce trace evidence that is sealed, saved as golden fixtures, verified, tamper-detected, replay-checked, audit-reported, example-verified, and regression-tested.
+CMC can produce canonically encoded trace evidence that is sealed, saved as golden fixtures, verified, tamper-detected, replay-checked, audit-reported, example-verified, and regression-tested.
 ```
 
 The current implementation does not yet claim:
@@ -175,6 +195,7 @@ The current implementation does not yet claim:
 - formal security certification
 - adversarially hardened runtime isolation
 - complete cryptographic protocol design
+- full JSON canonicalization standard compatibility
 - replacement for sandboxing, access control, or policy design
 
 ---
@@ -183,7 +204,7 @@ The current implementation does not yet claim:
 
 Useful next steps:
 
-1. define canonical trace-event encoding more explicitly
+1. add exact canonical event-line tests
 2. connect manifest entries to SHA-256 sealed trace evidence
 3. add multi-step branch-divergence SHA-256 fixtures
 4. add removed-event and reordered-event negative fixtures
@@ -200,5 +221,5 @@ The important upgrade is this:
 
 ```text
 The project no longer relies only on a developer FNV hash-chain demo.
-It now includes a std-only SHA-256 reference path, positive/tamper executables, saved valid/tampered sealed fixtures, and a fixture verifier in CI.
+It now includes a documented v0 canonical trace encoding, a std-only SHA-256 reference path, positive/tamper executables, saved valid/tampered sealed fixtures, and a fixture verifier in CI.
 ```
