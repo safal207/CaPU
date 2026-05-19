@@ -1,0 +1,1 @@
+{"seq":1,"kind":"WRITE","decision":"REJECT_UNKNOWN_CAUSE","address":4096,"effect_id":null,"cause_id":999,"message":"memory write references an unknown cause"}
