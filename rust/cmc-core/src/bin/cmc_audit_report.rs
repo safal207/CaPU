@@ -1,4 +1,4 @@
-use std::{fs, process::ExitCode};
+use std::{fmt::Write, fs, process::ExitCode};
 
 const MANIFEST_PATH: &str = "fixtures/replay/MANIFEST.tsv";
 const MANIFEST_HEADER: &str = "scenario_id\tinvariant_id\tpath\tdecision\tevents\tfingerprint\tcategory\tseverity\texpected_verdict";
@@ -88,6 +88,18 @@ fn json_escape(value: &str) -> String {
         .replace('\t', "\\t")
 }
 
+fn push_str_field(out: &mut String, key: &str, value: &str) {
+    let _ = write!(out, ",\"{key}\":\"{}\"", json_escape(value));
+}
+
+fn push_usize_field(out: &mut String, key: &str, value: usize) {
+    let _ = write!(out, ",\"{key}\":{value}");
+}
+
+fn push_bool_field(out: &mut String, key: &str, value: bool) {
+    let _ = write!(out, ",\"{key}\":{value}");
+}
+
 fn audit_case(case: &AuditCase) -> (bool, String, usize, String) {
     let Ok(content) = fs::read_to_string(&case.path) else {
         return (
@@ -139,35 +151,60 @@ fn audit_case(case: &AuditCase) -> (bool, String, usize, String) {
     )
 }
 
-fn print_case(case: &AuditCase, ok: bool, status: &str, actual_events: usize, actual_fp: &str) {
-    println!(
-        "{{\"type\":\"cmc_audit_case\",\"scenario_id\":\"{}\",\"invariant_id\":\"{}\",\"category\":\"{}\",\"severity\":\"{}\",\"expected_verdict\":\"{}\",\"fixture\":\"{}\",\"decision\":\"{}\",\"expected_events\":{},\"actual_events\":{},\"expected_fingerprint\":\"{}\",\"actual_fingerprint\":\"{}\",\"ok\":{},\"status\":\"{}\"}}",
-        json_escape(&case.scenario_id),
-        json_escape(&case.invariant_id),
-        json_escape(&case.category),
-        json_escape(&case.severity),
-        json_escape(&case.expected_verdict),
-        json_escape(&case.path),
-        json_escape(&case.decision),
-        case.events,
-        actual_events,
-        json_escape(&case.fingerprint),
-        json_escape(actual_fp),
-        ok,
-        json_escape(status)
-    );
+fn audit_case_json(
+    case: &AuditCase,
+    ok: bool,
+    status: &str,
+    actual_events: usize,
+    actual_fp: &str,
+) -> String {
+    let mut out = "{\"type\":\"cmc_audit_case\"".to_string();
+    push_str_field(&mut out, "scenario_id", &case.scenario_id);
+    push_str_field(&mut out, "invariant_id", &case.invariant_id);
+    push_str_field(&mut out, "category", &case.category);
+    push_str_field(&mut out, "severity", &case.severity);
+    push_str_field(&mut out, "expected_verdict", &case.expected_verdict);
+    push_str_field(&mut out, "fixture", &case.path);
+    push_str_field(&mut out, "decision", &case.decision);
+    push_usize_field(&mut out, "expected_events", case.events);
+    push_usize_field(&mut out, "actual_events", actual_events);
+    push_str_field(&mut out, "expected_fingerprint", &case.fingerprint);
+    push_str_field(&mut out, "actual_fingerprint", actual_fp);
+    push_bool_field(&mut out, "ok", ok);
+    push_str_field(&mut out, "status", status);
+    out.push('}');
+    out
+}
+
+fn summary_json(ok: bool, cases: usize, passed: usize, failed: usize, status: &str) -> String {
+    let mut out = "{\"type\":\"cmc_audit_report_summary\"".to_string();
+    push_bool_field(&mut out, "ok", ok);
+    push_usize_field(&mut out, "cases", cases);
+    push_usize_field(&mut out, "passed", passed);
+    push_usize_field(&mut out, "failed", failed);
+    push_str_field(&mut out, "status", status);
+    out.push('}');
+    out
+}
+
+fn manifest_error_json(error: &str) -> String {
+    let mut out = "{\"type\":\"cmc_audit_report_summary\"".to_string();
+    push_bool_field(&mut out, "ok", false);
+    push_str_field(&mut out, "status", "manifest_error");
+    push_str_field(&mut out, "error", error);
+    out.push('}');
+    out
 }
 
 fn main() -> ExitCode {
-    println!("{{\"type\":\"cmc_audit_report_start\",\"manifest\":\"{MANIFEST_PATH}\"}}");
+    println!(
+        "{{\"type\":\"cmc_audit_report_start\",\"manifest\":\"{MANIFEST_PATH}\"}}"
+    );
 
     let cases = match parse_manifest() {
         Ok(cases) => cases,
         Err(err) => {
-            println!(
-                "{{\"type\":\"cmc_audit_report_summary\",\"ok\":false,\"status\":\"manifest_error\",\"error\":\"{}\"}}",
-                json_escape(&err)
-            );
+            println!("{}", manifest_error_json(&err));
             return ExitCode::FAILURE;
         }
     };
@@ -182,18 +219,21 @@ fn main() -> ExitCode {
         } else {
             failed += 1;
         }
-        print_case(case, ok, &status, actual_events, &actual_fp);
+
+        println!(
+            "{}",
+            audit_case_json(case, ok, &status, actual_events, &actual_fp)
+        );
     }
 
     let ok = failed == 0;
-    println!(
-        "{{\"type\":\"cmc_audit_report_summary\",\"ok\":{},\"cases\":{},\"passed\":{},\"failed\":{},\"status\":\"{}\"}}",
-        ok,
-        cases.len(),
-        passed,
-        failed,
-        if ok { "audit_report_valid" } else { "audit_report_failed" }
-    );
+    let status = if ok {
+        "audit_report_valid"
+    } else {
+        "audit_report_failed"
+    };
+
+    println!("{}", summary_json(ok, cases.len(), passed, failed, status));
 
     if ok {
         ExitCode::SUCCESS
