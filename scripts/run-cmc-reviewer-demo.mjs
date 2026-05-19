@@ -67,6 +67,13 @@ const steps = [
     proves: 'Manifest-linked replay evidence can be emitted as auditor-facing JSONL.',
   },
   {
+    name: 'audit report examples',
+    command: 'cargo',
+    args: ['run', '--bin', 'audit_report_example_verify', '--locked'],
+    cwd: cmcDir,
+    proves: 'Saved valid and drift audit report examples preserve expected schema semantics.',
+  },
+  {
     name: 'replay divergence detection',
     command: 'cargo',
     args: ['run', '--bin', 'trace_divergence', '--locked'],
@@ -112,5 +119,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, example-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
