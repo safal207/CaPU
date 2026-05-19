@@ -1,3 +1,3 @@
 {"type":"cmc_audit_report_start","manifest":"fixtures/replay/MANIFEST.tsv"}
 {"type":"cmc_audit_case","scenario_id":"write_missing_cause","invariant_id":"I1","category":"write_authorization","severity":"high","expected_verdict":"blocked_illegitimate_transition","fixture":"fixtures/replay/missing_cause.jsonl","decision":"REJECT_MISSING_CAUSE","expected_events":1,"actual_events":1,"expected_fingerprint":"88fd99689760140e","actual_fingerprint":"0000000000000000","ok":false,"status":"fixture_fingerprint_drift"}
-{"type":"cmc_audit_report_summary","ok":false,"cases":4,"passed":3,"failed":1,"status":"audit_report_failed"}
+{"type":"cmc_audit_report_summary","ok":false,"cases":8,"passed":7,"failed":1,"status":"audit_report_failed"}
