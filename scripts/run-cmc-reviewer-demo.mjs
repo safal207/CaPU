@@ -67,6 +67,13 @@ const steps = [
     proves: 'Saved SHA-256 sealed trace fixtures are executable-verified, including tamper detection.',
   },
   {
+    name: 'persona boundary fixtures',
+    command: 'cargo',
+    args: ['run', '--bin', 'persona_boundary_verify', '--locked'],
+    cwd: cmcDir,
+    proves: 'Persona memory requires confirmation/cause: inferred preference is rejected, confirmed preference is accepted.',
+  },
+  {
     name: 'replay fixture structure',
     command: 'cargo',
     args: ['run', '--bin', 'replay_fixture_verify', '--locked'],
@@ -140,5 +147,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
