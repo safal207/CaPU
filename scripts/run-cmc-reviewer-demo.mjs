@@ -36,14 +36,28 @@ const steps = [
     command: 'cargo',
     args: ['run', '--bin', 'verify_trace', '--locked'],
     cwd: cmcDir,
-    proves: 'Expected trace evidence can be verified.',
+    proves: 'Expected trace evidence can be verified with the legacy developer hash demo.',
   },
   {
     name: 'tampering detection demo',
     command: 'cargo',
     args: ['run', '--bin', 'verify_trace_tampered', '--locked'],
     cwd: cmcDir,
-    proves: 'Modified trace decisions are detected.',
+    proves: 'Modified trace decisions are detected by the legacy developer hash demo.',
+  },
+  {
+    name: 'sha256 trace verification demo',
+    command: 'cargo',
+    args: ['run', '--bin', 'verify_trace_sha256', '--locked'],
+    cwd: cmcDir,
+    proves: 'Expected trace evidence can be sealed and verified with the std-only SHA-256 reference path.',
+  },
+  {
+    name: 'sha256 tampering detection demo',
+    command: 'cargo',
+    args: ['run', '--bin', 'verify_trace_sha256_tampered', '--locked'],
+    cwd: cmcDir,
+    proves: 'Modified trace decisions are detected by the SHA-256 reference path.',
   },
   {
     name: 'replay fixture structure',
@@ -119,5 +133,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, example-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
