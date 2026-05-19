@@ -31,6 +31,7 @@ ASCII fallback:
 
 - Why causal computation: [docs/hardware/WHY_CAUSAL_COMPUTATION.md](docs/hardware/WHY_CAUSAL_COMPUTATION.md)
 - Causal execution architecture: [docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md](docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md)
+- CMC evidence map: [docs/hardware/CMC_EVIDENCE_MAP.md](docs/hardware/CMC_EVIDENCE_MAP.md)
 - Device vision: [docs/DEVICE_VISION.md](docs/DEVICE_VISION.md)
 - Hardware roadmap: [docs/HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
 - Causal Memory Controller thesis: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
@@ -64,6 +65,7 @@ WHY_CAUSAL_COMPUTATION
  -> CAUSAL_MEMORY_CONTROLLER
  -> CMC_REPLAY
  -> CMC_HASH_CHAIN
+ -> CMC_EVIDENCE_MAP
  -> rust/cmc-core
  -> CMC GitHub Actions
 ```
@@ -134,6 +136,7 @@ Current CMC artifacts:
 
 - Causal computation thesis: [docs/hardware/WHY_CAUSAL_COMPUTATION.md](docs/hardware/WHY_CAUSAL_COMPUTATION.md)
 - Architecture map: [docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md](docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md)
+- Evidence map: [docs/hardware/CMC_EVIDENCE_MAP.md](docs/hardware/CMC_EVIDENCE_MAP.md)
 - CMC thesis document: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
 - Replay model: [docs/hardware/CMC_REPLAY.md](docs/hardware/CMC_REPLAY.md)
 - Hash-chain sketch: [docs/hardware/CMC_HASH_CHAIN.md](docs/hardware/CMC_HASH_CHAIN.md)
