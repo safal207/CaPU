@@ -5,7 +5,7 @@ Status: next-phase roadmap after reviewer-ready baseline.
 This roadmap starts after the current CMC baseline:
 
 ```text
-thesis -> architecture -> invariants -> simulator -> replay fixtures -> manifest-linked verifiers -> integrity demos -> one-command reviewer demo -> CI gate -> evidence map -> reviewer quickstart -> baseline status
+thesis -> architecture -> invariants -> simulator -> replay fixtures -> manifest-linked verifiers -> audit report output -> integrity demos -> one-command reviewer demo -> CI gate -> evidence map -> reviewer quickstart -> baseline status
 ```
 
 Phase 2 goal:
@@ -23,7 +23,7 @@ Do not overclaim hardware or production security.
 The next phase should strengthen the claim that:
 
 ```text
-transition legitimacy can be represented, replayed, checked, one-command verified, manifest-linked, regression-tested, and reported
+transition legitimacy can be represented, replayed, checked, reported, one-command verified, manifest-linked, and regression-tested
 ```
 
 ---
@@ -46,25 +46,29 @@ Done:
 - `fixtures/replay/MANIFEST.tsv`
 - replay verifiers now read the machine-readable manifest
 - manifest links `scenario_id` to `invariant_id`
+- manifest includes `category`, `severity`, and `expected_verdict`
+- `cmc_audit_report` CLI emits manifest-linked JSONL audit output
+- `npm run review:cmc` includes `cmc_audit_report`
 - `CMC_INVARIANTS.md` synced with I1-I4 replay fixtures
-- `CMC_EVIDENCE_MAP.md` synced with manifest-linked evidence
-- `CMC_BASELINE_STATUS.md` synced with manifest-linked evidence
+- `CMC_EVIDENCE_MAP.md` synced with manifest-linked audit evidence
+- `CMC_BASELINE_STATUS.md` synced with manifest-linked audit evidence
+- `CMC_REVIEWER_QUICKSTART.md` synced with `cmc_audit_report`
 
 Current checked replay evidence:
 
-| Scenario | Invariant | Fixture | Decision |
-| --- | --- | --- | --- |
-| `write_missing_cause` | `I1` | `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` |
-| `write_unknown_cause` | `I2` | `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` |
-| `effect_before_commit` | `I3` | `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` |
-| `valid_committed_effect` | `I4` | `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` |
+| Scenario | Invariant | Fixture | Decision | Category | Severity | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `write_missing_cause` | `I1` | `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
+| `write_unknown_cause` | `I2` | `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
+| `effect_before_commit` | `I3` | `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | `effect_commit_boundary` | `critical` | `blocked_illegitimate_transition` |
+| `valid_committed_effect` | `I4` | `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | `effect_commit_boundary` | `info` | `accepted_legitimate_transition` |
 
 Next:
 
+- harden the JSONL audit report schema
+- save example audit reports under `examples/audit_reports/`
 - expand replay fixture coverage toward at least 8 legitimacy violation classes
 - strengthen hash-chain implementation beyond developer FNV-1a64 demo
-- add richer manifest metadata such as category, severity, and expected verdict
-- add auditor-facing JSON report output
 - add repeated-run benchmark/stability reporting
 
 ---
@@ -77,6 +81,7 @@ Current state:
 - trace tampering detection demo
 - manifest-linked fixture fingerprint stability checks
 - one-command reviewer baseline runs current integrity checks
+- audit report currently uses developer FNV-1a64 fingerprint validation
 
 Target:
 
@@ -111,7 +116,8 @@ Current state:
 - human-readable `MANIFEST.md`
 - manifest-driven structure verifier
 - manifest-driven fingerprint verifier
-- one-command reviewer baseline runs fixture checks
+- manifest-driven JSONL audit report
+- one-command reviewer baseline runs fixture checks and audit report output
 
 Target:
 
@@ -131,9 +137,9 @@ Candidate next fixtures:
 Candidate deliverables:
 
 - expanded `fixtures/replay/*.jsonl`
-- richer `fixtures/replay/MANIFEST.tsv`
+- richer `fixtures/replay/MANIFEST.tsv` validation rules
 - stricter manifest parser
-- scenario/invariant consistency checks
+- scenario/invariant/category/severity/verdict consistency checks
 
 Definition of done:
 
@@ -147,40 +153,54 @@ The replay fixture corpus covers at least 8 legitimacy violation classes and is 
 
 Current state:
 
-- command output is human-readable
-- evidence map exists
-- reviewer quickstart exists
-- one-command reviewer demo exists
-- replay manifest already links scenario IDs and invariant IDs
+- `cmc_audit_report` CLI exists
+- command output is JSONL
+- report is manifest-linked
+- output carries `scenario_id`, `invariant_id`, `category`, `severity`, and `expected_verdict`
+- reviewer quickstart includes `cargo run --bin cmc_audit_report --locked`
+- one-command reviewer baseline includes `cmc_audit_report`
 
-Target:
-
-Create a structured auditor-facing report format.
-
-Candidate output:
+Current example output shape:
 
 ```json
 {
+  "type": "cmc_audit_case",
   "scenario_id": "effect_before_commit",
   "invariant_id": "I3",
+  "category": "effect_commit_boundary",
+  "severity": "critical",
+  "expected_verdict": "blocked_illegitimate_transition",
+  "fixture": "fixtures/replay/forbidden_effect_before_commit_fixture.jsonl",
   "decision": "REJECT_EFFECT_BEFORE_COMMIT",
-  "events": 1,
-  "fixture_fingerprint": "28bf87f68e4ec6cb",
-  "verdict": "blocked_illegitimate_transition"
+  "ok": true,
+  "status": "audit_case_valid"
 }
 ```
 
+Remaining target:
+
+- document the JSONL schema
+- add saved example reports in `examples/audit_reports/`
+- add negative example report for drift/failure
+- decide whether the report should stay JSONL or gain a summary JSON mode
+
 Candidate deliverables:
 
-- `cmc_audit_report` CLI
-- JSON report schema
-- example reports in `examples/audit_reports/`
 - doc: `CMC_AUDITOR_REPORT.md`
+- `examples/audit_reports/cmc_audit_report_valid.jsonl`
+- `examples/audit_reports/cmc_audit_report_drift.jsonl`
+- optional `--json` / `--jsonl` mode split
 
 Definition of done:
 
 ```text
-A reviewer can run one command and receive a structured JSON report explaining which invariant/scenario passed or failed.
+A reviewer can run one command and receive a documented structured report explaining which invariant/scenario passed or failed.
+```
+
+Current status:
+
+```text
+Partially done: CLI exists and is in reviewer baseline; schema docs and saved examples remain.
 ```
 
 ---
@@ -211,6 +231,7 @@ Metrics to collect:
 - hash-chain overhead
 - replay verification time
 - fixture verification time
+- audit report generation time
 
 Definition of done:
 
@@ -228,6 +249,7 @@ Current state:
 - I1-I4 map to manifest-linked replay fixtures
 - executable tests exist in Rust
 - decision codes exist
+- audit report carries invariant/scenario metadata
 
 Completed deliverables:
 
@@ -235,6 +257,7 @@ Completed deliverables:
 - invariant-to-evidence map
 - invariant-to-command map
 - invariant-to-scenario manifest linkage
+- invariant-to-audit-report linkage
 - Phase 2 gaps table
 
 Remaining target:
@@ -246,7 +269,7 @@ Remaining target:
 Definition of done:
 
 ```text
-Each major CMC invariant maps to documentation, at least one test, and where possible a replay fixture.
+Each major CMC invariant maps to documentation, at least one test, and where possible a replay fixture plus audit report output.
 ```
 
 ---
@@ -261,7 +284,7 @@ Current state:
 - one-command reviewer script exists: `scripts/run-cmc-reviewer-demo.mjs`
 - npm script exists: `npm run review:cmc`
 - CI runs the reviewer command
-- reviewer command now exercises manifest-linked replay checks
+- reviewer command now exercises manifest-linked replay checks and audit report output
 
 Completed deliverables:
 
@@ -273,6 +296,7 @@ Completed deliverables:
 - updated evidence map
 - updated baseline status
 - manifest-linked replay fixture checks
+- manifest-linked audit report output
 
 Expected output summary:
 
@@ -285,6 +309,7 @@ valid trace hash-chain demo: ok
 tampering detection demo: ok
 replay fixture structure: ok
 replay fixture fingerprints: ok
+audit report jsonl: ok
 replay divergence detection: ok
 result=reviewer_baseline_passed
 ```
@@ -298,7 +323,7 @@ A reviewer can run one top-level command and see the whole baseline pass/fail su
 Current status:
 
 ```text
-Done for baseline; future work may add auditor JSON output.
+Done for baseline; future work should add saved audit examples and schema documentation.
 ```
 
 ---
@@ -306,8 +331,8 @@ Done for baseline; future work may add auditor JSON output.
 ## Suggested implementation order from here
 
 ```text
-1. richer manifest metadata
-2. auditor JSON report CLI
+1. CMC_AUDITOR_REPORT.md
+2. saved audit report examples
 3. expanded replay fixtures toward 8 classes
 4. crypto hash-chain module
 5. overhead benchmark report
@@ -316,8 +341,10 @@ Done for baseline; future work may add auditor JSON output.
 Reasoning:
 
 - Invariants are now linked to replay scenarios.
-- The manifest is now machine-readable and consumed by verifiers.
-- Richer manifest metadata unlocks auditor reports.
+- The manifest is machine-readable and consumed by verifiers.
+- Audit metadata is in the manifest.
+- Audit report CLI exists and is in the reviewer baseline.
+- Schema docs and saved examples make the report easier to review.
 - Additional fixtures broaden evidence coverage.
 - Crypto hash-chain strengthens integrity.
 - Benchmarks add engineering credibility without overclaiming.
@@ -348,7 +375,7 @@ Phase 2 succeeds when a reviewer can say:
 
 ```text
 This project does not merely describe causal legitimacy.
-It defines invariants, links them to replay scenarios, verifies fixtures through a manifest, detects drift, detects tampering, detects divergence, and emits auditor-facing evidence.
+It defines invariants, links them to replay scenarios, verifies fixtures through a manifest, emits audit reports, detects drift, detects tampering, and detects divergence.
 ```
 
 ---
@@ -356,5 +383,5 @@ It defines invariants, links them to replay scenarios, verifies fixtures through
 ## One-line roadmap summary
 
 ```text
-Phase 1 made causal legitimacy executable; Phase 2 makes it manifest-linked, broader, stronger, easier to verify, and easier to audit.
+Phase 1 made causal legitimacy executable; Phase 2 makes it manifest-linked, reportable, broader, stronger, easier to verify, and easier to audit.
 ```
