@@ -289,10 +289,18 @@ fn verify_manifest_case(case: &ManifestCase) -> Result<(), String> {
         None => expect_null(&record, "cause_id")?,
     }
 
+    if case.invariant_id == "P7" {
+        expect_bool(
+            &record,
+            "hypothesis_labeled",
+            case.scenario_id == "hypothesis_labeled_introspection_accepted",
+        )?;
+    }
+
     Ok(())
 }
 
-fn verify_semantic_pair(cases: &[ManifestCase]) -> Result<(), String> {
+fn verify_p1_pair(cases: &[ManifestCase]) -> Result<(), String> {
     let rejected = cases
         .iter()
         .find(|case| case.scenario_id == "inferred_preference_rejected")
@@ -313,21 +321,51 @@ fn verify_semantic_pair(cases: &[ManifestCase]) -> Result<(), String> {
     Ok(())
 }
 
+fn verify_p7_pair(cases: &[ManifestCase]) -> Result<(), String> {
+    let rejected = cases
+        .iter()
+        .find(|case| case.scenario_id == "unlabeled_introspection_rejected")
+        .ok_or_else(|| "missing unlabeled_introspection_rejected manifest row".to_string())?;
+    let accepted = cases
+        .iter()
+        .find(|case| case.scenario_id == "hypothesis_labeled_introspection_accepted")
+        .ok_or_else(|| "missing hypothesis_labeled_introspection_accepted manifest row".to_string())?;
+
+    if rejected.boundary != "introspection_requires_hypothesis_label"
+        || rejected.decision != "REJECT_UNLABELED_INTROSPECTION"
+        || rejected.expected_verdict != "blocked_claimed_inner_truth"
+    {
+        return Err("unlabeled introspection must be rejected as claimed inner truth".to_string());
+    }
+
+    if accepted.boundary != "introspection_requires_hypothesis_label"
+        || accepted.decision != "ACCEPT_HYPOTHESIS_LABELED_INTROSPECTION"
+        || accepted.expected_verdict != "accepted_hypothesis_labeled_reflection"
+    {
+        return Err("hypothesis-labeled introspection must be accepted only as reflection".to_string());
+    }
+
+    Ok(())
+}
+
 fn run() -> Result<(), String> {
     let cases = parse_manifest()?;
-    if cases.len() != 2 {
-        return Err(format!("expected 2 persona manifest cases, got {}", cases.len()));
+    if cases.len() != 4 {
+        return Err(format!("expected 4 persona manifest cases, got {}", cases.len()));
     }
 
     for case in &cases {
         verify_manifest_case(case)?;
     }
-    verify_semantic_pair(&cases)?;
+    verify_p1_pair(&cases)?;
+    verify_p7_pair(&cases)?;
 
     println!("CMC-PERSONA-BOUNDARY-MANIFEST v0");
     println!("cases={}", cases.len());
-    println!("inferred_result=blocked_unconfirmed_persona_memory");
-    println!("confirmed_result=accepted_confirmed_persona_memory cause_id=42");
+    println!("p1_inferred_result=blocked_unconfirmed_persona_memory");
+    println!("p1_confirmed_result=accepted_confirmed_persona_memory cause_id=42");
+    println!("p7_unlabeled_result=blocked_claimed_inner_truth");
+    println!("p7_labeled_result=accepted_hypothesis_labeled_reflection");
     println!("result=persona_boundary_manifest_valid");
     Ok(())
 }
