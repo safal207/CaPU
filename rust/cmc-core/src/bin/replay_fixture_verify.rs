@@ -14,8 +14,16 @@ const FIXTURES: &[FixtureCheck] = &[
         expected_decision: "REJECT_MISSING_CAUSE",
     },
     FixtureCheck {
+        path: "fixtures/replay/unknown_cause.jsonl",
+        expected_decision: "REJECT_UNKNOWN_CAUSE",
+    },
+    FixtureCheck {
         path: "fixtures/replay/forbidden_effect_before_commit_fixture.jsonl",
         expected_decision: "REJECT_EFFECT_BEFORE_COMMIT",
+    },
+    FixtureCheck {
+        path: "fixtures/replay/valid_committed_effect.jsonl",
+        expected_decision: "ACCEPT_EFFECT",
     },
 ];
 
