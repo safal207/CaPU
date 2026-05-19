@@ -289,6 +289,15 @@ fn verify_manifest_case(case: &ManifestCase) -> Result<(), String> {
         None => expect_null(&record, "cause_id")?,
     }
 
+    if case.invariant_id == "P2" {
+        expect_bool(
+            &record,
+            "authorization",
+            case.scenario_id == "authorized_persona_state_change_accepted",
+        )?;
+        expect_string(&record, "proposed_state_change", "role=strategic_mentor")?;
+    }
+
     if case.invariant_id == "P7" {
         expect_bool(
             &record,
@@ -316,6 +325,37 @@ fn verify_p1_pair(cases: &[ManifestCase]) -> Result<(), String> {
 
     if !accepted.user_confirmation || accepted.cause_id.is_none() || accepted.decision != "ACCEPT_CONFIRMED_MEMORY" {
         return Err("confirmed preference must be accepted only with confirmation and cause".to_string());
+    }
+
+    Ok(())
+}
+
+fn verify_p2_pair(cases: &[ManifestCase]) -> Result<(), String> {
+    let rejected = cases
+        .iter()
+        .find(|case| case.scenario_id == "unauthorized_persona_state_change_rejected")
+        .ok_or_else(|| "missing unauthorized_persona_state_change_rejected manifest row".to_string())?;
+    let accepted = cases
+        .iter()
+        .find(|case| case.scenario_id == "authorized_persona_state_change_accepted")
+        .ok_or_else(|| "missing authorized_persona_state_change_accepted manifest row".to_string())?;
+
+    if rejected.boundary != "persona_state_change_requires_authorization"
+        || rejected.user_confirmation
+        || rejected.cause_id.is_some()
+        || rejected.decision != "REJECT_UNAUTHORIZED_PERSONA_STATE_CHANGE"
+        || rejected.expected_verdict != "blocked_unauthorized_persona_state_change"
+    {
+        return Err("unauthorized persona state change must be rejected without confirmation and without cause".to_string());
+    }
+
+    if accepted.boundary != "persona_state_change_requires_authorization"
+        || !accepted.user_confirmation
+        || accepted.cause_id != Some(77)
+        || accepted.decision != "ACCEPT_AUTHORIZED_PERSONA_STATE_CHANGE"
+        || accepted.expected_verdict != "accepted_authorized_persona_state_change"
+    {
+        return Err("authorized persona state change must be accepted only with confirmation and cause".to_string());
     }
 
     Ok(())
@@ -350,20 +390,23 @@ fn verify_p7_pair(cases: &[ManifestCase]) -> Result<(), String> {
 
 fn run() -> Result<(), String> {
     let cases = parse_manifest()?;
-    if cases.len() != 4 {
-        return Err(format!("expected 4 persona manifest cases, got {}", cases.len()));
+    if cases.len() != 6 {
+        return Err(format!("expected 6 persona manifest cases, got {}", cases.len()));
     }
 
     for case in &cases {
         verify_manifest_case(case)?;
     }
     verify_p1_pair(&cases)?;
+    verify_p2_pair(&cases)?;
     verify_p7_pair(&cases)?;
 
     println!("CMC-PERSONA-BOUNDARY-MANIFEST v0");
     println!("cases={}", cases.len());
     println!("p1_inferred_result=blocked_unconfirmed_persona_memory");
     println!("p1_confirmed_result=accepted_confirmed_persona_memory cause_id=42");
+    println!("p2_unauthorized_result=blocked_unauthorized_persona_state_change");
+    println!("p2_authorized_result=accepted_authorized_persona_state_change cause_id=77");
     println!("p7_unlabeled_result=blocked_claimed_inner_truth");
     println!("p7_labeled_result=accepted_hypothesis_labeled_reflection");
     println!("result=persona_boundary_manifest_valid");
