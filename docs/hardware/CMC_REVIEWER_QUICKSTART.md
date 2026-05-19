@@ -19,6 +19,7 @@ Start here:
 1. [WHY_CAUSAL_COMPUTATION.md](WHY_CAUSAL_COMPUTATION.md)
 2. [CAUSAL_EXECUTION_ARCHITECTURE.md](CAUSAL_EXECUTION_ARCHITECTURE.md)
 3. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
+4. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
 
 Core claim:
 
@@ -29,18 +30,77 @@ Causal computing verifies transition legitimacy.
 
 ---
 
-## 1. Run the CMC simulator tests
+## 1. Run the one-command reviewer demo
 
 From repository root:
 
 ```bash
-cd rust/cmc-core
+npm run review:cmc
+```
+
+This command runs the full CMC baseline evidence path:
+
+```text
+cargo fmt --check
+cargo test --all --locked
+cargo run --bin cmc_demo --locked
+cargo run --bin verify_trace --locked
+cargo run --bin verify_trace_tampered --locked
+cargo run --bin replay_fixture_verify --locked
+cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin trace_divergence --locked
+```
+
+Expected final output:
+
+```text
+result=reviewer_baseline_passed
+```
+
+Evidence claim:
+
+```text
+transition legitimacy can be represented, replayed, checked, and regression-tested
+```
+
+---
+
+## 2. What the one-command demo proves
+
+The reviewer demo checks that:
+
+```text
+missing cause -> reject
+unknown cause -> reject
+effect before commit -> reject
+committed cause -> accept effect
+trace events -> emitted deterministically
+valid trace -> accepted
+tampered decision -> detected
+fixture structure -> valid
+fixture fingerprints -> stable
+expected trace vs diverged trace -> mismatch detected
+```
+
+Evidence claim:
+
+```text
+CMC can model memory/effect decisions using explicit causal authorization and executable replay evidence.
+```
+
+---
+
+## 3. Manual command breakdown
+
+If you want to inspect each step manually, run the following from `rust/cmc-core`.
+
+### Simulator tests
+
+```bash
 cargo test --all --locked
 ```
 
-This checks that the simulator enforces basic causal memory/effect invariants.
-
-Expected meaning:
+Checks basic causal memory/effect invariants:
 
 ```text
 missing cause -> reject
@@ -50,17 +110,7 @@ committed cause -> accept effect
 trace events -> emitted deterministically
 ```
 
-Evidence claim:
-
-```text
-CMC can model memory/effect decisions using explicit causal authorization.
-```
-
----
-
-## 2. Run the blocked-transition demo
-
-From `rust/cmc-core`:
+### Blocked-transition demo
 
 ```bash
 cargo run --bin cmc_demo --locked
@@ -75,17 +125,7 @@ trace_events -> emitted
 result -> blocked illegitimate transition
 ```
 
-Evidence claim:
-
-```text
-A requested transition is not automatically legitimate.
-```
-
----
-
-## 3. Verify trace integrity and tampering detection
-
-From `rust/cmc-core`:
+### Trace integrity and tampering detection
 
 ```bash
 cargo run --bin verify_trace --locked
@@ -99,19 +139,9 @@ valid trace -> accepted
 tampered decision -> detected
 ```
 
-Evidence claim:
-
-```text
-CMC traces can be sealed and checked for decision-level tampering in the developer integrity demo.
-```
-
 Note: this is currently a developer hash-chain demo, not production cryptography.
 
----
-
-## 4. Verify replay fixtures and fingerprint stability
-
-From `rust/cmc-core`:
+### Replay fixtures and fingerprint stability
 
 ```bash
 cargo run --bin replay_fixture_verify --locked
@@ -126,17 +156,7 @@ expected decisions -> present
 fixture fingerprints -> stable
 ```
 
-Evidence claim:
-
-```text
-Replay fixtures are not only examples; they are checked for semantic structure and drift.
-```
-
----
-
-## 5. Verify divergence detection
-
-From `rust/cmc-core`:
+### Divergence detection
 
 ```bash
 cargo run --bin trace_divergence --locked
@@ -148,15 +168,9 @@ Expected meaning:
 expected trace vs diverged trace -> mismatch detected
 ```
 
-Evidence claim:
-
-```text
-Replay divergence can be surfaced as executable evidence.
-```
-
 ---
 
-## 6. Optional root-level commands
+## 4. Optional root-level commands
 
 From repository root:
 
@@ -166,7 +180,7 @@ npm run verify:cmc-golden
 npm run bench:cmc
 ```
 
-These provide the npm-facing entrypoints for demo, golden snapshot verification, and developer benchmark.
+These provide npm-facing entrypoints for demo, golden snapshot verification, and developer benchmark.
 
 ---
 
@@ -182,6 +196,7 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - fixture fingerprint stability
 - tampering detection
 - divergence detection
+- one-command reviewer verification
 - CI-enforced replay checks
 
 ---
@@ -217,5 +232,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run the tests, demos, trace verifiers, fixture verifiers, and divergence detector; each step turns a causal legitimacy claim into executable evidence.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check.
 ```
