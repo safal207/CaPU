@@ -29,9 +29,13 @@ ASCII fallback:
 
 ## Review links
 
+- Why causal computation: [docs/hardware/WHY_CAUSAL_COMPUTATION.md](docs/hardware/WHY_CAUSAL_COMPUTATION.md)
+- Causal execution architecture: [docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md](docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md)
 - Device vision: [docs/DEVICE_VISION.md](docs/DEVICE_VISION.md)
 - Hardware roadmap: [docs/HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
 - Causal Memory Controller thesis: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
+- CMC replay model: [docs/hardware/CMC_REPLAY.md](docs/hardware/CMC_REPLAY.md)
+- CMC hash-chain sketch: [docs/hardware/CMC_HASH_CHAIN.md](docs/hardware/CMC_HASH_CHAIN.md)
 - CMC TraceOut spec: [docs/hardware/CMC_TRACEOUT.md](docs/hardware/CMC_TRACEOUT.md)
 - CMC investor one-pager: [docs/hardware/CMC_INVESTOR_ONE_PAGER.md](docs/hardware/CMC_INVESTOR_ONE_PAGER.md)
 - CMC Rust simulator: [rust/cmc-core/README.md](rust/cmc-core/README.md)
@@ -40,6 +44,44 @@ ASCII fallback:
 - Runtime state machine: [STATE_MACHINE.md](STATE_MACHINE.md)
 - Dependency boundaries: [DEPENDENCIES.md](DEPENDENCIES.md)
 - Threat model: [docs/safety/agentic_execution_threat_model.md](docs/safety/agentic_execution_threat_model.md)
+
+## Core Concepts and Architecture
+
+The shortest conceptual entrypoint is:
+
+```text
+Traditional computing verifies state transitions.
+Causal computing verifies transition legitimacy.
+```
+
+CaPU/CMC treats legitimacy as something that should be represented, replayed, and checked near execution and memory/effect boundaries.
+
+Recommended reviewer path:
+
+```text
+WHY_CAUSAL_COMPUTATION
+ -> CAUSAL_EXECUTION_ARCHITECTURE
+ -> CAUSAL_MEMORY_CONTROLLER
+ -> CMC_REPLAY
+ -> CMC_HASH_CHAIN
+ -> rust/cmc-core
+ -> CMC GitHub Actions
+```
+
+Core distinction:
+
+```text
+Blockchain protects transaction history.
+CMC protects causal legitimacy.
+```
+
+The emerging primitive is:
+
+```text
+legitimate transition history
+```
+
+Not only what changed, but whether the change had the right to happen.
 
 ## Why CaPU Exists
 
@@ -90,12 +132,19 @@ context -> permission -> action -> memory write -> later effect
 
 Current CMC artifacts:
 
-- Thesis document: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
+- Causal computation thesis: [docs/hardware/WHY_CAUSAL_COMPUTATION.md](docs/hardware/WHY_CAUSAL_COMPUTATION.md)
+- Architecture map: [docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md](docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md)
+- CMC thesis document: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
+- Replay model: [docs/hardware/CMC_REPLAY.md](docs/hardware/CMC_REPLAY.md)
+- Hash-chain sketch: [docs/hardware/CMC_HASH_CHAIN.md](docs/hardware/CMC_HASH_CHAIN.md)
 - TraceOut spec: [docs/hardware/CMC_TRACEOUT.md](docs/hardware/CMC_TRACEOUT.md)
+- Demo scenario: [docs/hardware/CMC_DEMO_SCENARIO.md](docs/hardware/CMC_DEMO_SCENARIO.md)
+- FPGA sketch: [docs/hardware/CMC_FPGA_SKETCH.md](docs/hardware/CMC_FPGA_SKETCH.md)
 - Investor one-pager: [docs/hardware/CMC_INVESTOR_ONE_PAGER.md](docs/hardware/CMC_INVESTOR_ONE_PAGER.md)
 - Rust simulator: [rust/cmc-core](rust/cmc-core)
 - Trace event stream: `trace_events()` in [rust/cmc-core/src/lib.rs](rust/cmc-core/src/lib.rs)
 - Golden fixture: [rust/cmc-core/fixtures/basic_flow.golden.txt](rust/cmc-core/fixtures/basic_flow.golden.txt)
+- Replay fixture corpus: [rust/cmc-core/fixtures/replay](rust/cmc-core/fixtures/replay)
 - Benchmark results: [rust/cmc-core/BENCHMARK_RESULTS.md](rust/cmc-core/BENCHMARK_RESULTS.md)
 - Executable demo: `npm run demo:cmc`
 - Developer benchmark: `npm run bench:cmc`
@@ -121,6 +170,11 @@ Current CMC-0 simulator checks:
 - memory-derived effect chain can be reconstructed
 - basic flow matches a golden fixture snapshot including trace event count
 - executable blocked-transition demo runs in CI
+- valid trace hash-chain verifier runs in CI
+- tampered trace detection runs in CI
+- replay fixture structure verifier runs in CI
+- replay fixture fingerprint verifier runs in CI
+- replay divergence detector runs in CI
 
 CMC is not a physical chip or production memory controller. It is an evidence path from causal semantics to simulator, embedded profile, FPGA proof-of-behavior, and possible hardware architecture.
 
@@ -164,6 +218,11 @@ This repository includes a deterministic validation path:
 - CMC trace event emission for accepted/rejected write/read/effect decisions
 - CMC golden snapshot verification via `npm run verify:cmc-golden`
 - CMC executable demo verification via `npm run demo:cmc`
+- CMC valid trace hash-chain verification via `cargo run --bin verify_trace --locked`
+- CMC tampering detection via `cargo run --bin verify_trace_tampered --locked`
+- CMC replay fixture structure verification via `cargo run --bin replay_fixture_verify --locked`
+- CMC replay fixture fingerprint verification via `cargo run --bin replay_fingerprint_verify --locked`
+- CMC replay divergence detection via `cargo run --bin trace_divergence --locked`
 - CMC developer benchmark via `npm run bench:cmc`
 - CMC benchmark report anchor in [rust/cmc-core/BENCHMARK_RESULTS.md](rust/cmc-core/BENCHMARK_RESULTS.md)
 
@@ -213,6 +272,17 @@ CMC golden snapshot:
 
 ```bash
 npm run verify:cmc-golden
+```
+
+CMC replay and integrity checks:
+
+```bash
+cd rust/cmc-core
+cargo run --bin verify_trace --locked
+cargo run --bin verify_trace_tampered --locked
+cargo run --bin replay_fixture_verify --locked
+cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin trace_divergence --locked
 ```
 
 CMC developer benchmark:
