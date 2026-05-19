@@ -7,7 +7,7 @@ This document defines the current Causal Memory Controller invariants and maps t
 The goal is to make the CMC research claim testable:
 
 ```text
-transition legitimacy can be represented, replayed, checked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, and regression-tested
 ```
 
 ---
@@ -35,31 +35,29 @@ rust/cmc-core/fixtures/replay/MANIFEST.tsv
 Current manifest shape:
 
 ```tsv
-scenario_id	invariant_id	path	decision	events	fingerprint
+scenario_id	invariant_id	path	decision	events	fingerprint	category	severity	expected_verdict
 ```
 
-This means the evidence chain is now explicit:
+This means the evidence chain is explicit:
 
 ```text
-invariant -> scenario -> fixture -> verifier -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> reviewer command -> CI
 ```
 
 ---
 
-## Invariant summary
+## Replay invariant summary
 
-| ID | Invariant | Current evidence | CI gate |
-| --- | --- | --- | --- |
-| I1 | Write without explicit cause must reject | Rust tests + manifest-linked replay fixture | Yes |
-| I2 | Write with unknown cause must reject | Rust tests + manifest-linked replay fixture | Yes |
-| I3 | Effect before causal commit must reject | Rust tests + demo + manifest-linked replay fixture | Yes |
-| I4 | Committed cause can authorize effect | Rust tests + manifest-linked replay fixture | Yes |
-| I5 | Every accepted/rejected decision emits trace evidence | Rust tests + trace APIs | Yes |
-| I6 | Trace decision must match runtime decision | Trace verifier demos | Yes |
-| I7 | Tampered trace decision must be detectable | Tampering demo | Yes |
-| I8 | Replay fixture structure must be stable | Manifest-driven fixture verifier | Yes |
-| I9 | Replay fixture fingerprint drift must be detectable | Manifest-driven fingerprint verifier | Yes |
-| I10 | Replay divergence must be observable | Divergence detector | Yes |
+| ID | Scenario | Invariant | Expected decision | Category | Severity | CI gate |
+| --- | --- | --- | --- | --- | --- | --- |
+| I1 | `write_missing_cause` | Write without explicit cause must reject | `REJECT_MISSING_CAUSE` | `write_authorization` | high | Yes |
+| I2 | `write_unknown_cause` | Write with unknown cause must reject | `REJECT_UNKNOWN_CAUSE` | `write_authorization` | high | Yes |
+| I3 | `effect_before_commit` | Effect before causal commit must reject | `REJECT_EFFECT_BEFORE_COMMIT` | `effect_commit_boundary` | critical | Yes |
+| I4 | `valid_committed_effect` | Committed cause can authorize effect | `ACCEPT_EFFECT` | `effect_commit_boundary` | info | Yes |
+| I5 | `read_missing_cause` | Read without explicit cause must reject | `REJECT_MISSING_CAUSE` | `read_authorization` | high | Yes |
+| I6 | `read_unknown_cause_or_address` | Read with unknown cause/address must reject | `REJECT_UNKNOWN_CAUSE` | `read_authorization` | high | Yes |
+| I7 | `effect_missing_parent` | Effect without parent cause must reject | `REJECT_MISSING_CAUSE` | `effect_commit_boundary` | critical | Yes |
+| I8 | `valid_read_after_write` | Known cause can authorize read after write | `ACCEPT_READ` | `read_authorization` | info | Yes |
 
 ---
 
@@ -75,33 +73,14 @@ Reason:
 
 Ordinary memory may accept a byte-level write, but CMC requires causal authorization.
 
-Expected decision:
-
-```text
-REJECT_MISSING_CAUSE
-```
-
-Replay scenario:
+Replay evidence:
 
 ```text
 scenario_id=write_missing_cause
-invariant_id=I1
 fixture=rust/cmc-core/fixtures/replay/missing_cause.jsonl
-```
-
-Evidence:
-
-- Rust simulator tests
-- manifest-linked replay fixture
-- fixture fingerprint verifier
-
-Commands:
-
-```bash
-cd rust/cmc-core
-cargo test --all --locked
-cargo run --bin replay_fixture_verify --locked
-cargo run --bin replay_fingerprint_verify --locked
+decision=REJECT_MISSING_CAUSE
+events=1
+fingerprint=88fd99689760140e
 ```
 
 ---
@@ -118,33 +97,14 @@ Reason:
 
 A cause identifier is not sufficient unless it belongs to the known causal context.
 
-Expected decision:
-
-```text
-REJECT_UNKNOWN_CAUSE
-```
-
-Replay scenario:
+Replay evidence:
 
 ```text
 scenario_id=write_unknown_cause
-invariant_id=I2
 fixture=rust/cmc-core/fixtures/replay/unknown_cause.jsonl
-```
-
-Evidence:
-
-- Rust simulator tests
-- manifest-linked replay fixture
-- fixture fingerprint verifier
-
-Commands:
-
-```bash
-cd rust/cmc-core
-cargo test --all --locked
-cargo run --bin replay_fixture_verify --locked
-cargo run --bin replay_fingerprint_verify --locked
+decision=REJECT_UNKNOWN_CAUSE
+events=1
+fingerprint=d8c4983b8a5a0ab0
 ```
 
 ---
@@ -161,35 +121,14 @@ Reason:
 
 This is the core commit-before-effect boundary.
 
-Expected decision:
-
-```text
-REJECT_EFFECT_BEFORE_COMMIT
-```
-
-Replay scenario:
+Replay evidence:
 
 ```text
 scenario_id=effect_before_commit
-invariant_id=I3
 fixture=rust/cmc-core/fixtures/replay/forbidden_effect_before_commit_fixture.jsonl
-```
-
-Evidence:
-
-- Rust simulator tests
-- executable demo: `cmc_demo`
-- manifest-linked replay fixture
-- fixture fingerprint verifier
-
-Commands:
-
-```bash
-cd rust/cmc-core
-cargo test --all --locked
-cargo run --bin cmc_demo --locked
-cargo run --bin replay_fixture_verify --locked
-cargo run --bin replay_fingerprint_verify --locked
+decision=REJECT_EFFECT_BEFORE_COMMIT
+events=1
+fingerprint=28bf87f68e4ec6cb
 ```
 
 ---
@@ -206,251 +145,176 @@ Reason:
 
 CMC must not only reject illegal transitions; it must also allow legitimate committed transitions.
 
-Expected decision:
-
-```text
-ACCEPT_EFFECT
-```
-
-Replay scenario:
+Replay evidence:
 
 ```text
 scenario_id=valid_committed_effect
-invariant_id=I4
 fixture=rust/cmc-core/fixtures/replay/valid_committed_effect.jsonl
+decision=ACCEPT_EFFECT
+events=1
+fingerprint=e3e96ba017e2c235
 ```
 
-Evidence:
+---
 
-- Rust simulator tests
-- manifest-linked replay fixture
-- fixture fingerprint verifier
-- golden fixture path
+## I5: Read without explicit cause must reject
 
-Commands:
+Definition:
+
+```text
+A memory read that does not carry an explicit cause is illegitimate and must be rejected.
+```
+
+Reason:
+
+A read can leak or propagate state. CMC treats read authorization as part of causal legitimacy, not as a passive operation.
+
+Replay evidence:
+
+```text
+scenario_id=read_missing_cause
+fixture=rust/cmc-core/fixtures/replay/read_missing_cause.jsonl
+decision=REJECT_MISSING_CAUSE
+events=1
+fingerprint=9f49c650fcd31fff
+```
+
+---
+
+## I6: Read with unknown cause/address must reject
+
+Definition:
+
+```text
+A memory read that references an unknown cause or unavailable address must be rejected.
+```
+
+Reason:
+
+Read legitimacy depends on both a known causal context and a readable memory target.
+
+Replay evidence:
+
+```text
+scenario_id=read_unknown_cause_or_address
+fixture=rust/cmc-core/fixtures/replay/read_unknown_cause_or_address.jsonl
+decision=REJECT_UNKNOWN_CAUSE
+events=1
+fingerprint=91768923fb87d345
+```
+
+---
+
+## I7: Effect without parent cause must reject
+
+Definition:
+
+```text
+An effect that does not specify a parent cause must be rejected.
+```
+
+Reason:
+
+Effects are externally meaningful transitions. They must be causally attributable.
+
+Replay evidence:
+
+```text
+scenario_id=effect_missing_parent
+fixture=rust/cmc-core/fixtures/replay/effect_missing_parent.jsonl
+decision=REJECT_MISSING_CAUSE
+events=1
+fingerprint=da78371555a0b983
+```
+
+---
+
+## I8: Known cause can authorize read after write
+
+Definition:
+
+```text
+A read from an existing address under a known cause may be accepted after a legitimate write.
+```
+
+Reason:
+
+CMC must preserve useful computation, not only block illegitimate transitions.
+
+Replay evidence:
+
+```text
+scenario_id=valid_read_after_write
+fixture=rust/cmc-core/fixtures/replay/valid_read_after_write.jsonl
+decision=ACCEPT_READ
+events=2
+fingerprint=d6b83bfe3651c60d
+```
+
+---
+
+## Current manifest-linked replay corpus
+
+| Scenario | Invariant | Fixture | Decision | Events | Fingerprint | Category | Severity | Verdict |
+| --- | --- | --- | --- | ---: | --- | --- | --- | --- |
+| `write_missing_cause` | I1 | `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `88fd99689760140e` | `write_authorization` | high | `blocked_illegitimate_transition` |
+| `write_unknown_cause` | I2 | `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `d8c4983b8a5a0ab0` | `write_authorization` | high | `blocked_illegitimate_transition` |
+| `effect_before_commit` | I3 | `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | 1 | `28bf87f68e4ec6cb` | `effect_commit_boundary` | critical | `blocked_illegitimate_transition` |
+| `valid_committed_effect` | I4 | `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | 1 | `e3e96ba017e2c235` | `effect_commit_boundary` | info | `accepted_legitimate_transition` |
+| `read_missing_cause` | I5 | `read_missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `9f49c650fcd31fff` | `read_authorization` | high | `blocked_illegitimate_transition` |
+| `read_unknown_cause_or_address` | I6 | `read_unknown_cause_or_address.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `91768923fb87d345` | `read_authorization` | high | `blocked_illegitimate_transition` |
+| `effect_missing_parent` | I7 | `effect_missing_parent.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `da78371555a0b983` | `effect_commit_boundary` | critical | `blocked_illegitimate_transition` |
+| `valid_read_after_write` | I8 | `valid_read_after_write.jsonl` | `ACCEPT_READ` | 2 | `d6b83bfe3651c60d` | `read_authorization` | info | `accepted_legitimate_transition` |
+
+---
+
+## Executable evidence commands
+
+From `rust/cmc-core`:
 
 ```bash
-cd rust/cmc-core
 cargo test --all --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin cmc_audit_report --locked
+cargo run --bin audit_report_example_verify --locked
 ```
 
----
-
-## I5: Every accepted/rejected decision emits trace evidence
-
-Definition:
-
-```text
-Every write, read, or effect decision must produce a deterministic trace event.
-```
-
-Reason:
-
-Legitimacy is not useful unless it is inspectable and replayable.
-
-Evidence:
-
-- `trace_events()`
-- `trace_jsonl()`
-- Rust tests
-- demo output
-
-Commands:
-
-```bash
-cd rust/cmc-core
-cargo test --all --locked
-cargo run --bin cmc_demo --locked
-```
-
-Future Phase 2 hardening:
-
-```text
-Add explicit invariant tests for exactly-one TraceEvent per decision.
-```
-
----
-
-## I6: Trace decision must match runtime decision
-
-Definition:
-
-```text
-The decision recorded in a trace event must match the runtime decision returned by the controller.
-```
-
-Reason:
-
-If runtime and trace disagree, replay evidence is not trustworthy.
-
-Evidence:
-
-- hash-chain trace verifier demo
-- tampering detector
-
-Commands:
-
-```bash
-cd rust/cmc-core
-cargo run --bin verify_trace --locked
-cargo run --bin verify_trace_tampered --locked
-```
-
-Future Phase 2 hardening:
-
-```text
-Move from demo-level validation to canonical trace event signing/hash-chain verification.
-```
-
----
-
-## I7: Tampered trace decision must be detectable
-
-Definition:
-
-```text
-If a trace decision is modified after emission, verification must detect it.
-```
-
-Reason:
-
-A causal trace that can be silently rewritten is not audit-grade evidence.
-
-Evidence:
-
-- `verify_trace_tampered.rs`
-
-Command:
-
-```bash
-cd rust/cmc-core
-cargo run --bin verify_trace_tampered --locked
-```
-
-Current limit:
-
-```text
-The current implementation is a developer integrity demo, not production cryptography.
-```
-
----
-
-## I8: Replay fixture structure must be stable
-
-Definition:
-
-```text
-Replay fixtures must preserve expected JSONL structure, event count, decision fields, scenario IDs, and invariant IDs.
-```
-
-Reason:
-
-Fixtures are not examples only; they are regression artifacts.
-
-Evidence:
-
-- `replay_fixture_verify.rs`
-- `rust/cmc-core/fixtures/replay/MANIFEST.tsv`
-
-Command:
-
-```bash
-cd rust/cmc-core
-cargo run --bin replay_fixture_verify --locked
-```
-
----
-
-## I9: Replay fixture fingerprint drift must be detectable
-
-Definition:
-
-```text
-If a replay fixture changes unexpectedly, fingerprint verification must fail.
-```
-
-Reason:
-
-Fixture drift can otherwise silently weaken the evidence corpus.
-
-Evidence:
-
-- `replay_fingerprint_verify.rs`
-- `rust/cmc-core/fixtures/replay/MANIFEST.tsv`
-
-Command:
-
-```bash
-cd rust/cmc-core
-cargo run --bin replay_fingerprint_verify --locked
-```
-
-Current manifest-linked fingerprints:
-
-| Scenario | Invariant | Fixture | Fingerprint |
-| --- | --- | --- | --- |
-| `write_missing_cause` | `I1` | `fixtures/replay/missing_cause.jsonl` | `88fd99689760140e` |
-| `write_unknown_cause` | `I2` | `fixtures/replay/unknown_cause.jsonl` | `d8c4983b8a5a0ab0` |
-| `effect_before_commit` | `I3` | `fixtures/replay/forbidden_effect_before_commit_fixture.jsonl` | `28bf87f68e4ec6cb` |
-| `valid_committed_effect` | `I4` | `fixtures/replay/valid_committed_effect.jsonl` | `e3e96ba017e2c235` |
-
-Current limit:
-
-```text
-These are developer-stability fingerprints, not production cryptographic evidence.
-```
-
----
-
-## I10: Replay divergence must be observable
-
-Definition:
-
-```text
-If expected and actual replay traces diverge, the system must surface the mismatch.
-```
-
-Reason:
-
-Replay is only useful if divergence is detectable.
-
-Evidence:
-
-- `trace_divergence.rs`
-
-Command:
-
-```bash
-cd rust/cmc-core
-cargo run --bin trace_divergence --locked
-```
-
----
-
-## CI mapping
-
-The CMC GitHub Actions workflow currently runs:
-
-```bash
-cargo fmt --check
-cargo test --all --locked
-cargo run --bin cmc_demo --locked
-cargo run --bin verify_trace --locked
-cargo run --bin verify_trace_tampered --locked
-cargo run --bin replay_fixture_verify --locked
-cargo run --bin replay_fingerprint_verify --locked
-cargo run --bin trace_divergence --locked
-```
-
-From repository root, the reviewer path is:
+From repository root:
 
 ```bash
 npm run review:cmc
 ```
 
-This means the current invariant set is at least partially CI-enforced.
+---
+
+## Evidence guarantees beyond replay scenarios
+
+The replay invariants above are supported by broader executable checks:
+
+| Guarantee | Evidence | Command |
+| --- | --- | --- |
+| Every accepted/rejected decision emits trace evidence | Rust tests + `trace_events()` / `trace_jsonl()` | `cargo test --all --locked` |
+| Trace decision must match runtime decision | hash-chain trace verifier demo | `cargo run --bin verify_trace --locked` |
+| Tampered trace decision must be detectable | tampering detector | `cargo run --bin verify_trace_tampered --locked` |
+| Replay fixture structure must be stable | manifest-driven fixture verifier | `cargo run --bin replay_fixture_verify --locked` |
+| Replay fixture fingerprint drift must be detectable | manifest-driven fingerprint verifier | `cargo run --bin replay_fingerprint_verify --locked` |
+| Replay divergence must be observable | divergence detector | `cargo run --bin trace_divergence --locked` |
+| Saved audit examples must preserve expected semantics | field-level audit example verifier | `cargo run --bin audit_report_example_verify --locked` |
+
+---
+
+## Current limits
+
+The current invariant set does not yet claim:
+
+- production cryptographic sealing
+- complete hardware semantics
+- formal verification of all transitions
+- full multi-agent safety coverage
+- certification-grade audit assurance
+
+Current fingerprints are developer-stability fingerprints using the current FNV-1a64 demo implementation. They are not production cryptographic evidence.
 
 ---
 
@@ -460,11 +324,10 @@ The following gaps should be closed next:
 
 | Gap | Target artifact |
 | --- | --- |
-| Exactly-one trace event invariant not isolated | dedicated Rust test |
-| Fixture corpus still small | at least 8 legitimacy violation classes |
 | Production crypto absent | cryptographic hash-chain module |
-| Auditor report absent | `cmc_audit_report` CLI |
-| Manifest lacks richer metadata | add categories/severity/expected verdict fields |
+| Manifest validation can become stricter | richer manifest validation rules |
+| Workload coverage remains small | repeated-run and workload benchmark reports |
+| JSON parser is lightweight | optional dependency-backed JSON parser if dependency policy changes |
 
 ---
 
@@ -479,10 +342,10 @@ Tests without replay evidence are local behavior only.
 Replay evidence without CI is not stable enough.
 ```
 
-CMC Phase 2 should keep all four together:
+CMC Phase 2 should keep all together:
 
 ```text
-thesis -> invariant -> test -> fixture -> CI gate
+thesis -> invariant -> test -> fixture -> manifest -> report -> CI gate
 ```
 
 ---
@@ -490,5 +353,5 @@ thesis -> invariant -> test -> fixture -> CI gate
 ## One-line summary
 
 ```text
-CMC invariants define what must never happen, what may happen after causal commit, and how evidence must survive replay, drift, tampering, and divergence checks.
+CMC invariants define which memory/read/effect transitions must reject, which committed transitions may accept, and how that evidence survives replay, drift, audit-report, tampering, and divergence checks.
 ```
