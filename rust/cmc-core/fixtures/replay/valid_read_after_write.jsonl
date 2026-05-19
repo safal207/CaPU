@@ -1,0 +1,2 @@
+{"seq":1,"kind":"WRITE","decision":"ACCEPT_WRITE","address":8192,"effect_id":null,"cause_id":1,"message":"causal memory write accepted"}
+{"seq":2,"kind":"READ","decision":"ACCEPT_READ","address":8192,"effect_id":null,"cause_id":1,"message":"causal memory read accepted"}
