@@ -2,14 +2,14 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after thesis, architecture, invariants, replay fixtures, manifest-linked evidence, integrity demos, one-command reviewer demo, and CI-gate work.
+This document summarizes the current CMC baseline after thesis, architecture, invariants, replay fixtures, manifest-linked evidence, audit report output, integrity demos, one-command reviewer demo, and CI-gate work.
 
 ---
 
 ## Baseline claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, one-command verified, manifest-linked, and regression-tested
 ```
 
 The current repository does not claim a finished product. It claims an executable research scaffold for legitimacy-preserving computation.
@@ -28,6 +28,7 @@ thesis
  -> machine-readable replay manifest
  -> manifest-linked fixture structure checks
  -> manifest-linked fixture fingerprint checks
+ -> JSONL audit report output
  -> hash-chain integrity demo
  -> tampering detection demo
  -> divergence detection demo
@@ -40,7 +41,7 @@ thesis
 Short form:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> reviewer command -> CI
 ```
 
 ---
@@ -77,19 +78,32 @@ rust/cmc-core/fixtures/replay/MANIFEST.md
 Current manifest shape:
 
 ```tsv
-scenario_id	invariant_id	path	decision	events	fingerprint
+scenario_id	invariant_id	path	decision	events	fingerprint	category	severity	expected_verdict
 ```
 
 Current checked scenarios:
 
-| Scenario | Invariant | Fixture | Decision | Events | Fingerprint |
-| --- | --- | --- | --- | ---: | --- |
-| `write_missing_cause` | `I1` | `fixtures/replay/missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `88fd99689760140e` |
-| `write_unknown_cause` | `I2` | `fixtures/replay/unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `d8c4983b8a5a0ab0` |
-| `effect_before_commit` | `I3` | `fixtures/replay/forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | 1 | `28bf87f68e4ec6cb` |
-| `valid_committed_effect` | `I4` | `fixtures/replay/valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | 1 | `e3e96ba017e2c235` |
+| Scenario | Invariant | Fixture | Decision | Category | Severity | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `write_missing_cause` | `I1` | `fixtures/replay/missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
+| `write_unknown_cause` | `I2` | `fixtures/replay/unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | `write_authorization` | `high` | `blocked_illegitimate_transition` |
+| `effect_before_commit` | `I3` | `fixtures/replay/forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | `effect_commit_boundary` | `critical` | `blocked_illegitimate_transition` |
+| `valid_committed_effect` | `I4` | `fixtures/replay/valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | `effect_commit_boundary` | `info` | `accepted_legitimate_transition` |
 
 These fingerprints are developer-stability fingerprints using the current FNV-1a64 demo implementation. They are not production cryptographic evidence.
+
+---
+
+## Audit report output
+
+Current auditor-facing command:
+
+```bash
+cd rust/cmc-core
+cargo run --bin cmc_audit_report --locked
+```
+
+It emits JSONL records derived from `MANIFEST.tsv` and fails if a fixture is missing, drifted, has the wrong event count, or no longer contains the expected decision.
 
 ---
 
@@ -117,6 +131,7 @@ cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
+cargo run --bin cmc_audit_report --locked
 cargo run --bin trace_divergence --locked
 ```
 
@@ -142,6 +157,7 @@ The workflow currently covers:
 - tampering detection demo
 - manifest-linked replay fixture structure verifier
 - manifest-linked replay fixture fingerprint verifier
+- manifest-linked audit report JSONL output
 - replay divergence detector
 - one-command reviewer demo via `npm run review:cmc`
 
@@ -160,6 +176,7 @@ The baseline is strong because it turns a conceptual claim into executable artif
 - machine-readable replay manifest
 - manifest-linked replay fixture structure checks
 - manifest-linked fixture fingerprint drift checks
+- manifest-linked audit report output
 - tampering detection demo
 - divergence detection demo
 - one-command reviewer verification
@@ -188,8 +205,8 @@ The next phase should focus on:
 
 1. replacing developer hash demo with a stronger cryptographic hash-chain implementation,
 2. expanding replay fixture coverage toward at least 8 legitimacy violation classes,
-3. adding richer manifest metadata such as category, severity, and expected verdict,
-4. creating an auditor-facing report format,
+3. hardening the audit report schema and saving example reports,
+4. adding richer manifest validation rules,
 5. measuring overhead and stability across repeated runs.
 
 ---
@@ -197,5 +214,5 @@ The next phase should focus on:
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as a one-command, manifest-linked, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as a one-command, manifest-linked, JSONL-reporting, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
