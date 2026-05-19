@@ -18,18 +18,25 @@ Start here:
 
 1. [WHY_CAUSAL_COMPUTATION.md](WHY_CAUSAL_COMPUTATION.md)
 2. [CAUSAL_EXECUTION_ARCHITECTURE.md](CAUSAL_EXECUTION_ARCHITECTURE.md)
-3. [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
-4. [CMC_CANONICAL_TRACE_ENCODING.md](CMC_CANONICAL_TRACE_ENCODING.md)
-5. [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
-6. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
-7. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
-8. [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
+3. [CMC_PERSONA_BOUNDARY.md](CMC_PERSONA_BOUNDARY.md)
+4. [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
+5. [CMC_CANONICAL_TRACE_ENCODING.md](CMC_CANONICAL_TRACE_ENCODING.md)
+6. [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
+7. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
+8. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
+9. [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
 
 Core claim:
 
 ```text
 Traditional computing verifies state transitions.
 Causal computing verifies transition legitimacy.
+```
+
+Persona boundary claim:
+
+```text
+Future AI personas require causal legitimacy, not only conversational coherence.
 ```
 
 Baseline claim:
@@ -135,6 +142,26 @@ committed cause -> accept effect
 read authorization -> checked
 trace events -> emitted deterministically
 ```
+
+### Persona boundary
+
+Read:
+
+```text
+docs/hardware/CMC_PERSONA_BOUNDARY.md
+```
+
+Expected meaning:
+
+```text
+AI companion/persona continuity must be causally grounded
+persona memory requires cause
+persona state changes require authorization
+external action requires commit
+interpretations remain hypotheses unless confirmed
+```
+
+This is a conceptual safety bridge, not a claim of AI consciousness, personhood, or therapeutic capability.
 
 ### Canonical trace encoding
 
@@ -386,6 +413,7 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - causal read rejection with unknown cause or unavailable address
 - accepted read after legitimate write
 - deterministic trace emission
+- conceptual persona boundary for future companion/persona systems
 - documented v0 canonical trace encoding
 - replay fixture checking
 - fixture fingerprint stability
@@ -415,6 +443,8 @@ It does not claim:
 - complete AI safety coverage
 - production workload performance
 - full JSON canonicalization standard compatibility
+- AI consciousness or personhood
+- therapeutic diagnosis or treatment
 - replacement for sandboxing, access control, or policy design
 
 The current repository is an executable research scaffold.
@@ -438,5 +468,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, persona boundary, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
 ```
