@@ -6,14 +6,28 @@ This directory collects canonical replay cases for CMC.
 
 The goal is to move from individual demos toward a replay conformance suite.
 
-## Checked fixture cases
+## Manifest source of truth
 
-These fixtures are currently checked by both:
+The machine-readable fixture manifest is:
+
+```text
+MANIFEST.tsv
+```
+
+Both replay verifier binaries read this manifest:
 
 ```bash
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 ```
+
+The human-readable manifest explanation is:
+
+```text
+MANIFEST.md
+```
+
+## Checked fixture cases
 
 | Fixture | Decision | Events | Fingerprint | Purpose |
 | --- | --- | ---: | --- | --- |
