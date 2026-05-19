@@ -2,14 +2,14 @@
 
 Status: reviewer-ready baseline snapshot.
 
-This document summarizes the current CMC baseline after thesis, architecture, invariants, replay fixtures, manifest-linked evidence, audit report output, executable-verified audit examples, integrity demos, one-command reviewer demo, and CI-gate work.
+This document summarizes the current CMC baseline after thesis, architecture, invariants, replay fixtures, manifest-linked evidence, audit report output, field-level verified audit examples, integrity demos, one-command reviewer demo, and CI-gate work.
 
 ---
 
 ## Baseline claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, example-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 The current repository does not claim a finished product. It claims an executable research scaffold for legitimacy-preserving computation.
@@ -30,7 +30,7 @@ thesis
  -> manifest-linked fixture fingerprint checks
  -> JSONL audit report output
  -> saved valid/drift audit examples
- -> audit report example verifier
+ -> field-level audit report example verifier
  -> hash-chain integrity demo
  -> tampering detection demo
  -> divergence detection demo
@@ -43,7 +43,7 @@ thesis
 Short form:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> example verifier -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> reviewer command -> CI
 ```
 
 ---
@@ -115,12 +115,14 @@ examples/audit_reports/cmc_audit_report_valid.jsonl
 examples/audit_reports/cmc_audit_report_drift.jsonl
 ```
 
-Executable example verifier:
+Field-level executable example verifier:
 
 ```bash
 cd rust/cmc-core
 cargo run --bin audit_report_example_verify --locked
 ```
+
+The verifier parses each saved JSONL line as a flat object and checks typed fields such as `type`, `scenario_id`, `invariant_id`, `ok`, `status`, `cases`, `passed`, and `failed`.
 
 ---
 
@@ -176,7 +178,7 @@ The workflow currently covers:
 - manifest-linked replay fixture structure verifier
 - manifest-linked replay fixture fingerprint verifier
 - manifest-linked audit report JSONL output
-- executable verification of saved valid/drift audit report examples
+- field-level executable verification of saved valid/drift audit report examples
 - replay divergence detector
 - one-command reviewer demo via `npm run review:cmc`
 
@@ -197,7 +199,7 @@ The baseline is strong because it turns a conceptual claim into executable artif
 - manifest-linked fixture fingerprint drift checks
 - manifest-linked audit report output
 - saved valid/drift audit report examples
-- executable verification of audit report examples
+- field-level executable verification of audit report examples
 - tampering detection demo
 - divergence detection demo
 - one-command reviewer verification
@@ -226,7 +228,7 @@ The next phase should focus on:
 
 1. replacing developer hash demo with a stronger cryptographic hash-chain implementation,
 2. expanding replay fixture coverage toward at least 8 legitimacy violation classes,
-3. hardening audit report validation beyond token-based checks,
+3. hardening audit report validation beyond lightweight flat JSON parsing if external dependencies become acceptable,
 4. adding richer manifest validation rules,
 5. measuring overhead and stability across repeated runs.
 
@@ -235,5 +237,5 @@ The next phase should focus on:
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as a one-command, manifest-linked, JSONL-reporting, example-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as a one-command, manifest-linked, JSONL-reporting, field-level example-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
 ```
