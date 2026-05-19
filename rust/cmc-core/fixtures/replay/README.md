@@ -14,6 +14,12 @@ The machine-readable fixture manifest is:
 MANIFEST.tsv
 ```
 
+It uses this shape:
+
+```tsv
+scenario_id	invariant_id	path	decision	events	fingerprint
+```
+
 Both replay verifier binaries read this manifest:
 
 ```bash
@@ -29,22 +35,22 @@ MANIFEST.md
 
 ## Checked fixture cases
 
-| Fixture | Decision | Events | Fingerprint | Purpose |
-| --- | --- | ---: | --- | --- |
-| `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `88fd99689760140e` | A write is rejected because no cause was supplied. |
-| `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `d8c4983b8a5a0ab0` | A write is rejected because the referenced cause is unknown. |
-| `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | 1 | `28bf87f68e4ec6cb` | An effect is rejected because its cause exists but is not committed. |
-| `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | 1 | `e3e96ba017e2c235` | An effect is accepted after committed causal authorization. |
+| Scenario | Invariant | Fixture | Decision | Events | Fingerprint | Purpose |
+| --- | --- | --- | --- | ---: | --- | --- |
+| `write_missing_cause` | `I1` | `missing_cause.jsonl` | `REJECT_MISSING_CAUSE` | 1 | `88fd99689760140e` | A write is rejected because no cause was supplied. |
+| `write_unknown_cause` | `I2` | `unknown_cause.jsonl` | `REJECT_UNKNOWN_CAUSE` | 1 | `d8c4983b8a5a0ab0` | A write is rejected because the referenced cause is unknown. |
+| `effect_before_commit` | `I3` | `forbidden_effect_before_commit_fixture.jsonl` | `REJECT_EFFECT_BEFORE_COMMIT` | 1 | `28bf87f68e4ec6cb` | An effect is rejected because its cause exists but is not committed. |
+| `valid_committed_effect` | `I4` | `valid_committed_effect.jsonl` | `ACCEPT_EFFECT` | 1 | `e3e96ba017e2c235` | An effect is accepted after committed causal authorization. |
 
 ## Corpus coverage
 
 Current checked coverage:
 
 ```text
-negative write/no cause
-negative write/unknown cause
-negative effect/before commit
-positive effect/after commit
+I1 negative write/no cause
+I2 negative write/unknown cause
+I3 negative effect/before commit
+I4 positive effect/after commit
 ```
 
 This gives the corpus both rejection evidence and positive legitimacy evidence.
@@ -58,6 +64,14 @@ transition -> decision -> trace -> replay -> integrity -> admissibility
 ```
 
 A fixture corpus lets future tooling verify that accepted, rejected, tampered, and diverged traces remain stable across implementation changes.
+
+## Evidence chain
+
+```text
+invariant -> scenario -> fixture -> verifier -> reviewer command -> CI
+```
+
+The manifest makes that chain explicit instead of leaving fixtures as disconnected examples.
 
 ## Current limits
 
