@@ -1,0 +1,1 @@
+{"seq":1,"kind":"EFFECT","decision":"REJECT_EFFECT_BEFORE_COMMIT","address":null,"effect_id":9001,"cause_id":2,"message":"effect cannot execute before causal commit"}
