@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const MANIFEST_PATH: &str = "fixtures/replay/MANIFEST.tsv";
-const MANIFEST_HEADER: &str = "scenario_id\tinvariant_id\tpath\tdecision\tevents\tfingerprint";
+const MANIFEST_HEADER: &str = "scenario_id\tinvariant_id\tpath\tdecision\tevents\tfingerprint\tcategory\tseverity\texpected_verdict";
 
 #[derive(Debug)]
 struct FixtureCheck {
@@ -12,6 +12,9 @@ struct FixtureCheck {
     path: String,
     expected_decision: String,
     expected_events: usize,
+    category: String,
+    severity: String,
+    expected_verdict: String,
 }
 
 fn parse_manifest() -> Result<Vec<FixtureCheck>, String> {
@@ -31,9 +34,9 @@ fn parse_manifest() -> Result<Vec<FixtureCheck>, String> {
         }
 
         let fields: Vec<&str> = line.split('\t').collect();
-        if fields.len() != 6 {
+        if fields.len() != 9 {
             return Err(format!(
-                "{MANIFEST_PATH}:{} expected 6 tab-separated fields, got {}",
+                "{MANIFEST_PATH}:{} expected 9 tab-separated fields, got {}",
                 idx + 1,
                 fields.len()
             ));
@@ -53,6 +56,9 @@ fn parse_manifest() -> Result<Vec<FixtureCheck>, String> {
             path: fields[2].to_string(),
             expected_decision: fields[3].to_string(),
             expected_events,
+            category: fields[6].to_string(),
+            severity: fields[7].to_string(),
+            expected_verdict: fields[8].to_string(),
         });
     }
 
@@ -145,9 +151,12 @@ fn main() -> ExitCode {
             Ok(events) => {
                 total_events += events;
                 println!(
-                    "scenario={} invariant={} fixture={} decision={} events={} status=ok",
+                    "scenario={} invariant={} category={} severity={} verdict={} fixture={} decision={} events={} status=ok",
                     check.scenario_id,
                     check.invariant_id,
+                    check.category,
+                    check.severity,
+                    check.expected_verdict,
                     check.path,
                     check.expected_decision,
                     events
