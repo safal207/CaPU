@@ -17,7 +17,7 @@ on:
 
 jobs:
   test:
-    name: cargo test + demos + SHA-256 trace + sealed fixtures + replay + audit checks + reviewer demo
+    name: cargo test + demos + SHA-256 trace + sealed fixtures + persona + replay + audit checks + reviewer demo
     runs-on: ubuntu-latest
 
     defaults:
@@ -43,7 +43,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             rust/cmc-core/target
-          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs', 'rust/cmc-core/fixtures/replay/**/*.jsonl', 'rust/cmc-core/fixtures/trace_integrity/**/*.jsonl', 'scripts/run-cmc-reviewer-demo.mjs', 'package.json') }}
+          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs', 'rust/cmc-core/fixtures/replay/**/*.jsonl', 'rust/cmc-core/fixtures/trace_integrity/**/*.jsonl', 'rust/cmc-core/fixtures/persona/**/*.jsonl', 'scripts/run-cmc-reviewer-demo.mjs', 'package.json') }}
           restore-keys: |
             ${{ runner.os }}-cmc-rust-
 
@@ -70,6 +70,9 @@ jobs:
 
       - name: Verify SHA-256 sealed trace fixtures
         run: cargo run --bin verify_trace_sha256_fixture --locked
+
+      - name: Verify persona boundary fixtures
+        run: cargo run --bin persona_boundary_verify --locked
 
       - name: Verify replay fixture structure
         run: cargo run --bin replay_fixture_verify --locked
