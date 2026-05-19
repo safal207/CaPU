@@ -162,6 +162,7 @@ Current CMC artifacts:
 - Replay fixture corpus: [rust/cmc-core/fixtures/replay](rust/cmc-core/fixtures/replay)
 - Benchmark results: [rust/cmc-core/BENCHMARK_RESULTS.md](rust/cmc-core/BENCHMARK_RESULTS.md)
 - Executable demo: `npm run demo:cmc`
+- One-command reviewer demo: `npm run review:cmc`
 - Developer benchmark: `npm run bench:cmc`
 
 CMC-0 now emits deterministic trace events for memory/effect decisions:
@@ -185,6 +186,7 @@ Current CMC-0 simulator checks:
 - memory-derived effect chain can be reconstructed
 - basic flow matches a golden fixture snapshot including trace event count
 - executable blocked-transition demo runs in CI
+- one-command reviewer demo is available via `npm run review:cmc`
 - valid trace hash-chain verifier runs in CI
 - tampered trace detection runs in CI
 - replay fixture structure verifier runs in CI
@@ -233,6 +235,7 @@ This repository includes a deterministic validation path:
 - CMC trace event emission for accepted/rejected write/read/effect decisions
 - CMC golden snapshot verification via `npm run verify:cmc-golden`
 - CMC executable demo verification via `npm run demo:cmc`
+- CMC one-command reviewer demo via `npm run review:cmc`
 - CMC valid trace hash-chain verification via `cargo run --bin verify_trace --locked`
 - CMC tampering detection via `cargo run --bin verify_trace_tampered --locked`
 - CMC replay fixture structure verification via `cargo run --bin replay_fixture_verify --locked`
@@ -271,6 +274,14 @@ Note: this is a spec-led repository that now includes a minimal in-memory refere
 10. Run `npm run report:validation` to regenerate [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md).
 
 For the short CMC reviewer path, see [docs/hardware/CMC_REVIEWER_QUICKSTART.md](docs/hardware/CMC_REVIEWER_QUICKSTART.md). For current baseline status and claim boundaries, see [docs/hardware/CMC_BASELINE_STATUS.md](docs/hardware/CMC_BASELINE_STATUS.md). For Phase 2, see [docs/hardware/CMC_PHASE_2_ROADMAP.md](docs/hardware/CMC_PHASE_2_ROADMAP.md) and [docs/hardware/CMC_INVARIANTS.md](docs/hardware/CMC_INVARIANTS.md).
+
+CMC reviewer demo:
+
+```bash
+npm run review:cmc
+```
+
+This runs the full CMC baseline evidence path: formatting, tests, blocked-transition demo, trace verification, tampering detection, replay fixture verification, fingerprint stability, and replay divergence detection.
 
 CMC simulator:
 
