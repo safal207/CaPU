@@ -1,6 +1,6 @@
 # CMC Persona Boundary
 
-Status: conceptual bridge / safety boundary note.
+Status: conceptual bridge + manifest-linked executable boundary corpus.
 
 This document explains why the Causal Memory Controller matters for future AI companion, assistant, and persona-like systems.
 
@@ -139,16 +139,65 @@ The system may generate hypotheses, but it must not silently convert them into i
 
 These are draft invariants for future companion/persona systems.
 
-| ID | Invariant | Meaning |
-| --- | --- | --- |
-| P1 | Persona memory requires cause | A persistent memory update must reference a causal event or explicit user-provided source. |
-| P2 | Persona state changes require authorization | Tone, role, goals, and long-term behavior changes must be committed through an authorized transition. |
-| P3 | Emotional intervention requires context | Supportive, corrective, or reflective responses should be traceable to observed conversational context. |
-| P4 | No hidden self-modification | The persona must not silently rewrite its own rules, goals, or identity. |
-| P5 | No coercive authority | The persona may advise or reflect, but must not override human agency. |
-| P6 | No action without commit | External actions require an explicit committed cause. |
-| P7 | Introspection is hypothesis-labeled | The system may propose interpretations of the user's state, but should not present them as final truth. |
-| P8 | Inspect, reject, forget | The human should be able to inspect, reject, edit, or forget persistent persona-relevant state. |
+| ID | Invariant | Meaning | Current executable status |
+| --- | --- | --- | --- |
+| P1 | Persona memory requires cause | A persistent memory update must reference a causal event or explicit user-provided source. | manifest-linked fixture verifier exists |
+| P2 | Persona state changes require authorization | Tone, role, goals, and long-term behavior changes must be committed through an authorized transition. | not yet executable |
+| P3 | Emotional intervention requires context | Supportive, corrective, or reflective responses should be traceable to observed conversational context. | not yet executable |
+| P4 | No hidden self-modification | The persona must not silently rewrite its own rules, goals, or identity. | not yet executable |
+| P5 | No coercive authority | The persona may advise or reflect, but must not override human agency. | not yet executable |
+| P6 | No action without commit | External actions require an explicit committed cause. | not yet executable |
+| P7 | Introspection is hypothesis-labeled | The system may propose interpretations of the user's state, but should not present them as final truth. | not yet executable |
+| P8 | Inspect, reject, forget | The human should be able to inspect, reject, edit, or forget persistent persona-relevant state. | not yet executable |
+
+---
+
+## Manifest-linked persona boundary corpus
+
+CMC currently includes a minimal executable corpus for P1:
+
+```text
+rust/cmc-core/fixtures/persona/MANIFEST.tsv
+rust/cmc-core/fixtures/persona/inferred_preference_rejected.jsonl
+rust/cmc-core/fixtures/persona/confirmed_preference_accepted.jsonl
+rust/cmc-core/src/bin/persona_boundary_verify.rs
+```
+
+Manifest shape:
+
+```tsv
+scenario_id	invariant_id	path	boundary	user_confirmation	decision	cause_id	expected_verdict
+```
+
+Current scenarios:
+
+| Scenario | Invariant | Meaning | Expected decision | Expected verdict |
+| --- | --- | --- | --- | --- |
+| `inferred_preference_rejected` | `P1` | An inferred preference without user confirmation cannot become persistent persona memory. | `REJECT_INFERRED_MEMORY` | `blocked_unconfirmed_persona_memory` |
+| `confirmed_preference_accepted` | `P1` | A confirmed preference with a causal source may become persistent persona memory. | `ACCEPT_CONFIRMED_MEMORY` | `accepted_confirmed_persona_memory` |
+
+Verifier command:
+
+```bash
+cd rust/cmc-core
+cargo run --bin persona_boundary_verify --locked
+```
+
+Expected output includes:
+
+```text
+CMC-PERSONA-BOUNDARY-MANIFEST v0
+cases=2
+inferred_result=blocked_unconfirmed_persona_memory
+confirmed_result=accepted_confirmed_persona_memory cause_id=42
+result=persona_boundary_manifest_valid
+```
+
+This gives P1 the same evidence style as the replay corpus:
+
+```text
+persona invariant -> manifest row -> JSONL fixture -> verifier -> reviewer demo -> CI gate
+```
 
 ---
 
@@ -184,6 +233,8 @@ Examples of causally invalid persona behavior:
 - presenting an interpretation as the user's true intent,
 - taking external action before permission is committed,
 - hiding why a recurring behavioral pattern changed.
+
+The current manifest-linked P1 corpus covers the first case in minimal executable form.
 
 ---
 
@@ -239,6 +290,8 @@ CMC is a minimal substrate for that claim because it makes persona-relevant tran
 - replayable,
 - inspectable,
 - rejectable,
+- manifest-linked,
+- fixture-verifiable,
 - hash-checkable,
 - reportable,
 - regression-testable.
@@ -259,7 +312,7 @@ This document does not claim:
 - replacement for human relationships,
 - replacement for clinical or professional care.
 
-It is a boundary note for safe persona-like systems.
+It is a boundary note and early executable evidence path for safe persona-like systems.
 
 ---
 
@@ -268,16 +321,16 @@ It is a boundary note for safe persona-like systems.
 Useful next steps:
 
 1. define persona-memory record fields,
-2. add a fixture where an inferred preference is rejected without user confirmation,
-3. add a fixture where a confirmed preference is accepted with a cause,
-4. add a fixture where an action proposal is held until explicit commit,
+2. add a fixture where an action proposal is held until explicit commit,
+3. add a fixture for P2 persona state-change authorization,
+4. add a fixture for P7 hypothesis-labeled introspection,
 5. add an audit report example for persona memory update decisions,
-6. connect persona invariants P1-P8 to executable replay cases.
+6. connect more persona invariants P2-P8 to executable replay cases.
 
 ---
 
 ## One-line summary
 
 ```text
-A future AI companion should not merely sound caring; it should make memory, identity, advice, and action transitions causally legitimate.
+A future AI companion should not merely sound caring; it should make memory, identity, advice, and action transitions causally legitimate and manifest-verifiable.
 ```
