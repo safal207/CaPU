@@ -91,6 +91,40 @@ No authoritative write or external effect without causal permission, commit, and
 
 ---
 
+## First executable proof moment
+
+CMC now includes a minimal executable demo:
+
+```bash
+npm run demo:cmc
+```
+
+The demo shows:
+
+```text
+invalid transition
+  -> blocked effect
+  -> emitted trace evidence
+```
+
+Expected output:
+
+```text
+write_without_cause: REJECT_MISSING_CAUSE
+effect_before_commit: REJECT_EFFECT_BEFORE_COMMIT
+trace_events=2
+result=blocked_illegitimate_transition
+```
+
+Core claim demonstrated:
+
+```text
+A requested transition is not automatically legitimate.
+Memory-derived effects require a committed causal chain.
+```
+
+---
+
 ## Why this can become hardware-relevant
 
 Today, causal tracking is usually implemented in application code, logs, databases, or observability systems. That is useful, but it is often late, slow, optional, or incomplete.
@@ -118,9 +152,13 @@ CMC is currently an early proof path inside the CaPU repository.
 Available artifacts:
 
 - CMC thesis: `docs/hardware/CAUSAL_MEMORY_CONTROLLER.md`
+- TraceOut spec: `docs/hardware/CMC_TRACEOUT.md`
+- FPGA sketch: `docs/hardware/CMC_FPGA_SKETCH.md`
 - Rust simulator: `rust/cmc-core`
+- Executable demo: `npm run demo:cmc`
 - CI workflow: `.github/workflows/cmc-rust.yml`
-- Simulator command:
+
+Simulator command:
 
 ```bash
 cd rust/cmc-core
@@ -135,6 +173,7 @@ Current simulator proof cases:
 - effect before causal commit is rejected
 - committed effect is accepted
 - memory-derived effect chain can be reconstructed
+- accepted/rejected decisions emit trace events
 
 ---
 
@@ -163,6 +202,7 @@ Output:
 - deterministic tests
 - CI badge
 - golden fixtures
+- executable blocked-transition demo
 - first overhead benchmark
 
 Investor question:
