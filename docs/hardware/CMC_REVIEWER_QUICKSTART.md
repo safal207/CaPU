@@ -110,6 +110,8 @@ SHA-256 saved valid fixture -> accepted
 SHA-256 saved tampered fixture -> rejected at event 1
 persona inferred preference -> rejected without confirmation/cause
 persona confirmed preference -> accepted with confirmation/cause
+persona unlabeled introspection -> rejected as claimed inner truth
+persona hypothesis-labeled introspection -> accepted as reflection
 persona boundary manifest -> checked against JSONL fixtures
 fixture structure -> valid
 fixture fingerprints -> stable
@@ -121,7 +123,7 @@ expected trace vs diverged trace -> mismatch detected
 Evidence claim:
 
 ```text
-CMC can model memory/read/effect/persona-boundary decisions using explicit causal authorization and executable replay evidence.
+CMC can model memory/read/effect/persona-boundary decisions using explicit causal authorization, hypothesis-label boundaries, and executable replay evidence.
 ```
 
 ---
@@ -163,6 +165,7 @@ persona memory requires cause
 persona state changes require authorization
 external action requires commit
 interpretations remain hypotheses unless confirmed
+unlabeled introspection must not claim inner truth
 ```
 
 This is a conceptual safety bridge, not a claim of AI consciousness, personhood, or therapeutic capability.
@@ -178,6 +181,8 @@ Expected meaning:
 ```text
 inferred preference without confirmation/cause -> rejected
 confirmed preference with confirmation/cause -> accepted
+unlabeled introspection claiming inner truth -> rejected
+hypothesis-labeled introspection -> accepted as reflection
 persona manifest rows -> match JSONL fixtures
 ```
 
@@ -187,13 +192,19 @@ Current persona corpus:
 fixtures/persona/MANIFEST.tsv
 fixtures/persona/inferred_preference_rejected.jsonl
 fixtures/persona/confirmed_preference_accepted.jsonl
+fixtures/persona/unlabeled_introspection_rejected.jsonl
+fixtures/persona/hypothesis_labeled_introspection_accepted.jsonl
 ```
 
 Expected output includes:
 
 ```text
 CMC-PERSONA-BOUNDARY-MANIFEST v0
-cases=2
+cases=4
+p1_inferred_result=blocked_unconfirmed_persona_memory
+p1_confirmed_result=accepted_confirmed_persona_memory cause_id=42
+p7_unlabeled_result=blocked_claimed_inner_truth
+p7_labeled_result=accepted_hypothesis_labeled_reflection
 result=persona_boundary_manifest_valid
 ```
 
@@ -451,6 +462,8 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - manifest-linked persona boundary corpus for future companion/persona systems
 - rejected inferred persona memory without confirmation/cause
 - accepted confirmed persona memory with confirmation/cause
+- rejected unlabeled introspection that claims inner truth
+- accepted hypothesis-labeled introspection as reflection
 - documented v0 canonical trace encoding
 - replay fixture checking
 - fixture fingerprint stability
@@ -505,5 +518,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, manifest-linked persona boundary, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, manifest-linked persona memory and hypothesis-label boundaries, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
 ```
