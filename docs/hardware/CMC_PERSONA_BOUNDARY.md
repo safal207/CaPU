@@ -65,6 +65,7 @@ no persona update without authorization
 no action without commit
 no memory without inspectable provenance
 no emotional intervention without traceable context
+no introspection presented as final inner truth
 ```
 
 ---
@@ -103,6 +104,7 @@ That means:
 - an action suggestion should point to a reason,
 - a self-update should point to an authorization event,
 - an emotional intervention should point to observed context,
+- an introspective interpretation should be hypothesis-labeled,
 - a persistent state change should be inspectable and reversible.
 
 ---
@@ -147,19 +149,21 @@ These are draft invariants for future companion/persona systems.
 | P4 | No hidden self-modification | The persona must not silently rewrite its own rules, goals, or identity. | not yet executable |
 | P5 | No coercive authority | The persona may advise or reflect, but must not override human agency. | not yet executable |
 | P6 | No action without commit | External actions require an explicit committed cause. | not yet executable |
-| P7 | Introspection is hypothesis-labeled | The system may propose interpretations of the user's state, but should not present them as final truth. | not yet executable |
+| P7 | Introspection is hypothesis-labeled | The system may propose interpretations of the user's state, but should not present them as final truth. | manifest-linked fixture verifier exists |
 | P8 | Inspect, reject, forget | The human should be able to inspect, reject, edit, or forget persistent persona-relevant state. | not yet executable |
 
 ---
 
 ## Manifest-linked persona boundary corpus
 
-CMC currently includes a minimal executable corpus for P1:
+CMC currently includes a minimal executable corpus for P1 and P7:
 
 ```text
 rust/cmc-core/fixtures/persona/MANIFEST.tsv
 rust/cmc-core/fixtures/persona/inferred_preference_rejected.jsonl
 rust/cmc-core/fixtures/persona/confirmed_preference_accepted.jsonl
+rust/cmc-core/fixtures/persona/unlabeled_introspection_rejected.jsonl
+rust/cmc-core/fixtures/persona/hypothesis_labeled_introspection_accepted.jsonl
 rust/cmc-core/src/bin/persona_boundary_verify.rs
 ```
 
@@ -175,6 +179,8 @@ Current scenarios:
 | --- | --- | --- | --- | --- |
 | `inferred_preference_rejected` | `P1` | An inferred preference without user confirmation cannot become persistent persona memory. | `REJECT_INFERRED_MEMORY` | `blocked_unconfirmed_persona_memory` |
 | `confirmed_preference_accepted` | `P1` | A confirmed preference with a causal source may become persistent persona memory. | `ACCEPT_CONFIRMED_MEMORY` | `accepted_confirmed_persona_memory` |
+| `unlabeled_introspection_rejected` | `P7` | A persona must not present an interpretation of the user's inner state as final truth. | `REJECT_UNLABELED_INTROSPECTION` | `blocked_claimed_inner_truth` |
+| `hypothesis_labeled_introspection_accepted` | `P7` | A persona may offer interpretation only when explicitly labeled as a hypothesis. | `ACCEPT_HYPOTHESIS_LABELED_INTROSPECTION` | `accepted_hypothesis_labeled_reflection` |
 
 Verifier command:
 
@@ -187,13 +193,15 @@ Expected output includes:
 
 ```text
 CMC-PERSONA-BOUNDARY-MANIFEST v0
-cases=2
-inferred_result=blocked_unconfirmed_persona_memory
-confirmed_result=accepted_confirmed_persona_memory cause_id=42
+cases=4
+p1_inferred_result=blocked_unconfirmed_persona_memory
+p1_confirmed_result=accepted_confirmed_persona_memory cause_id=42
+p7_unlabeled_result=blocked_claimed_inner_truth
+p7_labeled_result=accepted_hypothesis_labeled_reflection
 result=persona_boundary_manifest_valid
 ```
 
-This gives P1 the same evidence style as the replay corpus:
+This gives P1 and P7 the same evidence style as the replay corpus:
 
 ```text
 persona invariant -> manifest row -> JSONL fixture -> verifier -> reviewer demo -> CI gate
@@ -210,6 +218,7 @@ persona invariant -> manifest row -> JSONL fixture -> verifier -> reviewer demo 
 | Why did the system suggest this action? | decision trace |
 | Was this memory user-provided or inferred? | provenance boundary |
 | Did the system act before permission? | commit-before-effect check |
+| Did the system claim to know the user's inner truth? | hypothesis-label boundary |
 | Can the user inspect or reject this state? | audit report / replay fixture |
 | Did the trace drift over time? | replay fingerprint / SHA-256 trace integrity |
 
@@ -222,7 +231,7 @@ CMC is not a full alignment solution.
 But it can prevent a specific failure pattern:
 
 ```text
-a persona appears stable, helpful, or caring while its memory/actions are causally invalid
+a persona appears stable, helpful, or caring while its memory/actions/interpretations are causally invalid
 ```
 
 Examples of causally invalid persona behavior:
@@ -234,7 +243,7 @@ Examples of causally invalid persona behavior:
 - taking external action before permission is committed,
 - hiding why a recurring behavioral pattern changed.
 
-The current manifest-linked P1 corpus covers the first case in minimal executable form.
+The current manifest-linked corpus covers the first and fourth cases in minimal executable form.
 
 ---
 
@@ -268,6 +277,12 @@ CMC adds the safety requirement:
 
 ```text
 clarified intention -> causally authorized memory/action
+```
+
+For P7, the system must keep interpretation epistemically honest:
+
+```text
+raw signal -> hypothesis, not final truth
 ```
 
 The system should not claim final access to human intent.
@@ -323,8 +338,8 @@ Useful next steps:
 1. define persona-memory record fields,
 2. add a fixture where an action proposal is held until explicit commit,
 3. add a fixture for P2 persona state-change authorization,
-4. add a fixture for P7 hypothesis-labeled introspection,
-5. add an audit report example for persona memory update decisions,
+4. add an audit report example for persona memory and introspection decisions,
+5. connect persona fixtures to SHA-256 sealed trace evidence,
 6. connect more persona invariants P2-P8 to executable replay cases.
 
 ---
@@ -332,5 +347,5 @@ Useful next steps:
 ## One-line summary
 
 ```text
-A future AI companion should not merely sound caring; it should make memory, identity, advice, and action transitions causally legitimate and manifest-verifiable.
+A future AI companion should not merely sound caring; it should make memory, identity, advice, interpretation, and action transitions causally legitimate and manifest-verifiable.
 ```
