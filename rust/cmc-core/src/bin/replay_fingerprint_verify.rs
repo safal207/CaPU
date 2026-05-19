@@ -1,21 +1,63 @@
 use std::{fs, process::ExitCode};
 
+const MANIFEST_PATH: &str = "fixtures/replay/MANIFEST.tsv";
 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
 const FNV_PRIME: u64 = 0x100000001b3;
 
 struct Case {
-    path: &'static str,
-    decision: &'static str,
+    path: String,
+    decision: String,
     events: usize,
-    fingerprint: &'static str,
+    fingerprint: String,
 }
 
-const CASES: &[Case] = &[
-    Case { path: "fixtures/replay/missing_cause.jsonl", decision: "REJECT_MISSING_CAUSE", events: 1, fingerprint: "88fd99689760140e" },
-    Case { path: "fixtures/replay/unknown_cause.jsonl", decision: "REJECT_UNKNOWN_CAUSE", events: 1, fingerprint: "d8c4983b8a5a0ab0" },
-    Case { path: "fixtures/replay/forbidden_effect_before_commit_fixture.jsonl", decision: "REJECT_EFFECT_BEFORE_COMMIT", events: 1, fingerprint: "28bf87f68e4ec6cb" },
-    Case { path: "fixtures/replay/valid_committed_effect.jsonl", decision: "ACCEPT_EFFECT", events: 1, fingerprint: "e3e96ba017e2c235" },
-];
+fn parse_manifest() -> Result<Vec<Case>, String> {
+    let content = fs::read_to_string(MANIFEST_PATH)
+        .map_err(|err| format!("failed to read {MANIFEST_PATH}: {err}"))?;
+
+    let mut cases = Vec::new();
+
+    for (idx, line) in content.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        if idx == 0 && line == "path\tdecision\tevents\tfingerprint" {
+            continue;
+        }
+
+        let fields: Vec<&str> = line.split('\t').collect();
+        if fields.len() != 4 {
+            return Err(format!(
+                "{MANIFEST_PATH}:{} expected 4 tab-separated fields, got {}",
+                idx + 1,
+                fields.len()
+            ));
+        }
+
+        let events = fields[2].parse::<usize>().map_err(|err| {
+            format!(
+                "{MANIFEST_PATH}:{} invalid event count `{}`: {err}",
+                idx + 1,
+                fields[2]
+            )
+        })?;
+
+        cases.push(Case {
+            path: fields[0].to_string(),
+            decision: fields[1].to_string(),
+            events,
+            fingerprint: fields[3].to_string(),
+        });
+    }
+
+    if cases.is_empty() {
+        return Err(format!("{MANIFEST_PATH} contains no fixture entries"));
+    }
+
+    Ok(cases)
+}
 
 fn fp(input: &str) -> String {
     let mut h = FNV_OFFSET;
@@ -29,8 +71,16 @@ fn fp(input: &str) -> String {
 fn main() -> ExitCode {
     println!("CMC-REPLAY-FINGERPRINT-VERIFY v0");
 
-    for case in CASES {
-        let Ok(content) = fs::read_to_string(case.path) else {
+    let cases = match parse_manifest() {
+        Ok(cases) => cases,
+        Err(err) => {
+            eprintln!("result=failed error={err}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    for case in &cases {
+        let Ok(content) = fs::read_to_string(&case.path) else {
             eprintln!("result=failed reason=missing_fixture path={}", case.path);
             return ExitCode::FAILURE;
         };
@@ -47,7 +97,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
 
-        if !content.contains(case.decision) {
+        if !content.contains(&case.decision) {
             eprintln!("result=decision_drift path={} expected={}", case.path, case.decision);
             return ExitCode::FAILURE;
         }
@@ -55,7 +105,8 @@ fn main() -> ExitCode {
         println!("fixture={} decision={} events={} fingerprint={} status=stable", case.path, case.decision, events, actual_fp);
     }
 
-    println!("fixtures_checked={}", CASES.len());
+    println!("manifest={MANIFEST_PATH}");
+    println!("fixtures_checked={}", cases.len());
     println!("result=replay_fingerprints_stable");
     ExitCode::SUCCESS
 }
