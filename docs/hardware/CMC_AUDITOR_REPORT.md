@@ -1,6 +1,6 @@
 # CMC Auditor Report
 
-Status: early auditor-facing JSONL report contract with executable example verification.
+Status: early auditor-facing JSONL report contract with executable field-level example verification.
 
 This document defines the current CMC audit report output produced by:
 
@@ -22,7 +22,7 @@ The goal is to make replay evidence easier to inspect outside Rust test output.
 ## Current claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, example-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 The audit report does not claim certification-grade assurance. It is an early structured evidence artifact.
@@ -32,10 +32,10 @@ The audit report does not claim certification-grade assurance. It is an early st
 ## Evidence chain
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> example verifier -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> reviewer command -> CI
 ```
 
-The audit report is downstream of the manifest and fixture corpus. The saved examples are now executable-checked by a dedicated verifier.
+The audit report is downstream of the manifest and fixture corpus. The saved examples are executable-checked by a dedicated field-level verifier.
 
 ---
 
@@ -219,7 +219,28 @@ cd rust/cmc-core
 cargo run --bin audit_report_example_verify --locked
 ```
 
-The verifier checks that the valid example has 4 passing cases and that the drift example preserves the expected `fixture_fingerprint_drift` / `audit_report_failed` semantics.
+The verifier parses each JSONL line as a flat JSON object and checks fields by type and value, including:
+
+```text
+type
+scenario_id
+invariant_id
+category
+severity
+expected_verdict
+decision
+expected_events
+actual_events
+expected_fingerprint
+actual_fingerprint
+ok
+status
+cases
+passed
+failed
+```
+
+It also checks record counts and duplicate keys. This is still a lightweight internal parser, not a full JSON Schema implementation.
 
 ---
 
@@ -250,15 +271,15 @@ It is a structured developer/reviewer evidence report.
 
 ## Next hardening steps
 
-- add stricter JSON field-level parsing instead of token-based example checks
 - decide whether JSONL should remain the only format or whether a summary JSON mode is needed
 - replace developer FNV-1a64 fingerprints with stronger cryptographic evidence
 - include report generation timing in benchmark/stability work
+- optionally replace the lightweight parser with a dedicated JSON dependency if external dependencies become acceptable
 
 ---
 
 ## One-line summary
 
 ```text
-CMC Auditor Report turns manifest-linked replay evidence into machine-readable JSONL and executable-verified examples for reviewer inspection.
+CMC Auditor Report turns manifest-linked replay evidence into machine-readable JSONL and field-level executable-verified examples for reviewer inspection.
 ```
