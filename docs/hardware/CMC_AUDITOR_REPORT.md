@@ -1,6 +1,6 @@
 # CMC Auditor Report
 
-Status: early auditor-facing JSONL report contract.
+Status: early auditor-facing JSONL report contract with executable example verification.
 
 This document defines the current CMC audit report output produced by:
 
@@ -22,7 +22,7 @@ The goal is to make replay evidence easier to inspect outside Rust test output.
 ## Current claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, example-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 The audit report does not claim certification-grade assurance. It is an early structured evidence artifact.
@@ -32,22 +32,28 @@ The audit report does not claim certification-grade assurance. It is an early st
 ## Evidence chain
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> example verifier -> reviewer command -> CI
 ```
 
-The audit report is downstream of the manifest and fixture corpus.
+The audit report is downstream of the manifest and fixture corpus. The saved examples are now executable-checked by a dedicated verifier.
 
 ---
 
-## Command
+## Commands
 
-From `rust/cmc-core`:
+Generate the live audit report from `rust/cmc-core`:
 
 ```bash
 cargo run --bin cmc_audit_report --locked
 ```
 
-From repository root, the report is included in:
+Verify the saved valid and drift examples from `rust/cmc-core`:
+
+```bash
+cargo run --bin audit_report_example_verify --locked
+```
+
+From repository root, both commands are included in:
 
 ```bash
 npm run review:cmc
@@ -147,13 +153,14 @@ Fields:
 ```text
 audit_case_valid
 audit_report_valid
+audit_report_examples_valid
 ```
 
 ---
 
 ## Current failure statuses
 
-The current CLI can emit these failure statuses:
+The current report and example verifier can surface these failure statuses:
 
 ```text
 manifest_error
@@ -162,6 +169,8 @@ fixture_fingerprint_drift
 event_count_drift
 decision_drift
 audit_report_failed
+result=failed report=valid
+result=failed report=drift
 ```
 
 Failures return a non-zero process exit code.
@@ -203,6 +212,15 @@ examples/audit_reports/cmc_audit_report_drift.jsonl
 
 These are static reviewer artifacts showing both expected success and expected failure semantics.
 
+They are verified by:
+
+```bash
+cd rust/cmc-core
+cargo run --bin audit_report_example_verify --locked
+```
+
+The verifier checks that the valid example has 4 passing cases and that the drift example preserves the expected `fixture_fingerprint_drift` / `audit_report_failed` semantics.
+
 ---
 
 ## Drift example meaning
@@ -232,7 +250,7 @@ It is a structured developer/reviewer evidence report.
 
 ## Next hardening steps
 
-- add schema validation tests
+- add stricter JSON field-level parsing instead of token-based example checks
 - decide whether JSONL should remain the only format or whether a summary JSON mode is needed
 - replace developer FNV-1a64 fingerprints with stronger cryptographic evidence
 - include report generation timing in benchmark/stability work
@@ -242,5 +260,5 @@ It is a structured developer/reviewer evidence report.
 ## One-line summary
 
 ```text
-CMC Auditor Report turns manifest-linked replay evidence into machine-readable JSONL for reviewer inspection.
+CMC Auditor Report turns manifest-linked replay evidence into machine-readable JSONL and executable-verified examples for reviewer inspection.
 ```
