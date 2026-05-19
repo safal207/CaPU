@@ -7,7 +7,7 @@ This document gives reviewers a short path from thesis to executable evidence.
 Goal:
 
 ```text
-verify that causal legitimacy is represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested by executable artifacts
+verify that causal legitimacy is represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested by executable artifacts
 ```
 
 ---
@@ -19,10 +19,11 @@ Start here:
 1. [WHY_CAUSAL_COMPUTATION.md](WHY_CAUSAL_COMPUTATION.md)
 2. [CAUSAL_EXECUTION_ARCHITECTURE.md](CAUSAL_EXECUTION_ARCHITECTURE.md)
 3. [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
-4. [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
-5. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
-6. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
-7. [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
+4. [CMC_CANONICAL_TRACE_ENCODING.md](CMC_CANONICAL_TRACE_ENCODING.md)
+5. [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
+6. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
+7. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
+8. [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
 
 Core claim:
 
@@ -34,7 +35,7 @@ Causal computing verifies transition legitimacy.
 Baseline claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 ---
@@ -74,7 +75,7 @@ result=reviewer_baseline_passed
 Evidence claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, and regression-tested
 ```
 
 ---
@@ -92,6 +93,7 @@ read without cause -> reject
 read with unknown cause/address -> reject
 read after legitimate write -> accept
 trace events -> emitted deterministically
+canonical trace event bytes -> documented
 legacy valid trace -> accepted
 legacy tampered decision -> detected
 SHA-256 generated sealed trace -> accepted
@@ -132,6 +134,29 @@ effect before commit -> reject
 committed cause -> accept effect
 read authorization -> checked
 trace events -> emitted deterministically
+```
+
+### Canonical trace encoding
+
+Read:
+
+```text
+docs/hardware/CMC_CANONICAL_TRACE_ENCODING.md
+```
+
+Expected meaning:
+
+```text
+trace event field order -> documented
+null/number/string encoding -> documented
+hash input bytes -> documented
+current v0 limitations -> explicit
+```
+
+Current v0 field order:
+
+```text
+seq, kind, decision, address, effect_id, cause_id, message
 ```
 
 ### Blocked-transition demo
@@ -183,6 +208,7 @@ The SHA-256 reference path is documented in:
 
 ```text
 docs/hardware/CMC_TRACE_INTEGRITY.md
+docs/hardware/CMC_CANONICAL_TRACE_ENCODING.md
 ```
 
 Primary implementation files:
@@ -360,6 +386,7 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - causal read rejection with unknown cause or unavailable address
 - accepted read after legitimate write
 - deterministic trace emission
+- documented v0 canonical trace encoding
 - replay fixture checking
 - fixture fingerprint stability
 - manifest-linked audit report output
@@ -387,6 +414,7 @@ It does not claim:
 - formal verification
 - complete AI safety coverage
 - production workload performance
+- full JSON canonicalization standard compatibility
 - replacement for sandboxing, access control, or policy design
 
 The current repository is an executable research scaffold.
@@ -400,7 +428,7 @@ The key thing to evaluate is not whether CMC is finished.
 The key thing to evaluate is whether the project has made this claim testable:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested
 ```
 
 That is the current proof point.
@@ -410,5 +438,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
 ```
