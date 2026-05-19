@@ -4,16 +4,20 @@ on:
   push:
     paths:
       - "rust/cmc-core/**"
+      - "scripts/run-cmc-reviewer-demo.mjs"
+      - "package.json"
       - ".github/workflows/cmc-rust.yml"
   pull_request:
     paths:
       - "rust/cmc-core/**"
+      - "scripts/run-cmc-reviewer-demo.mjs"
+      - "package.json"
       - ".github/workflows/cmc-rust.yml"
   workflow_dispatch:
 
 jobs:
   test:
-    name: cargo test + demos + trace integrity + replay checks
+    name: cargo test + demos + trace integrity + replay checks + reviewer demo
     runs-on: ubuntu-latest
 
     defaults:
@@ -27,6 +31,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Cache cargo registry and build artifacts
         uses: actions/cache@v4
         with:
@@ -34,7 +43,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             rust/cmc-core/target
-          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs', 'rust/cmc-core/fixtures/replay/**/*.jsonl') }}
+          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs', 'rust/cmc-core/fixtures/replay/**/*.jsonl', 'scripts/run-cmc-reviewer-demo.mjs', 'package.json') }}
           restore-keys: |
             ${{ runner.os }}-cmc-rust-
 
@@ -61,3 +70,7 @@ jobs:
 
       - name: Verify replay divergence detection
         run: cargo run --bin trace_divergence --locked
+
+      - name: Run one-command CMC reviewer demo
+        working-directory: .
+        run: npm run review:cmc
