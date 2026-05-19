@@ -1,0 +1,1 @@
+{"seq":1,"kind":"EFFECT","decision":"REJECT_MISSING_CAUSE","address":null,"effect_id":100,"cause_id":null,"message":"effect requires a committed parent cause"}
