@@ -123,6 +123,12 @@ Example:
 {"type":"cmc_audit_report_summary","ok":true,"cases":4,"passed":4,"failed":0,"status":"audit_report_valid"}
 ```
 
+Failure example:
+
+```json
+{"type":"cmc_audit_report_summary","ok":false,"cases":4,"passed":3,"failed":1,"status":"audit_report_failed"}
+```
+
 Fields:
 
 | Field | Type | Meaning |
@@ -181,15 +187,33 @@ Current examples:
 
 ---
 
-## Saved example
+## Saved examples
 
-A valid example report is saved at:
+Valid report:
 
 ```text
 examples/audit_reports/cmc_audit_report_valid.jsonl
 ```
 
-It is a static reviewer artifact showing the intended report shape.
+Drift/failure report:
+
+```text
+examples/audit_reports/cmc_audit_report_drift.jsonl
+```
+
+These are static reviewer artifacts showing both expected success and expected failure semantics.
+
+---
+
+## Drift example meaning
+
+The drift example demonstrates the shape of a failed audit case:
+
+```json
+{"type":"cmc_audit_case","scenario_id":"write_missing_cause","invariant_id":"I1","category":"write_authorization","severity":"high","expected_verdict":"blocked_illegitimate_transition","fixture":"fixtures/replay/missing_cause.jsonl","decision":"REJECT_MISSING_CAUSE","expected_events":1,"actual_events":1,"expected_fingerprint":"88fd99689760140e","actual_fingerprint":"0000000000000000","ok":false,"status":"fixture_fingerprint_drift"}
+```
+
+This is an illustrative saved report, not the expected output of the current clean fixture corpus.
 
 ---
 
@@ -208,7 +232,6 @@ It is a structured developer/reviewer evidence report.
 
 ## Next hardening steps
 
-- add negative drift example report
 - add schema validation tests
 - decide whether JSONL should remain the only format or whether a summary JSON mode is needed
 - replace developer FNV-1a64 fingerprints with stronger cryptographic evidence
