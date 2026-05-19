@@ -3,9 +3,12 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const MANIFEST_PATH: &str = "fixtures/replay/MANIFEST.tsv";
+const MANIFEST_HEADER: &str = "scenario_id\tinvariant_id\tpath\tdecision\tevents\tfingerprint";
 
 #[derive(Debug)]
 struct FixtureCheck {
+    scenario_id: String,
+    invariant_id: String,
     path: String,
     expected_decision: String,
     expected_events: usize,
@@ -23,30 +26,32 @@ fn parse_manifest() -> Result<Vec<FixtureCheck>, String> {
             continue;
         }
 
-        if idx == 0 && line == "path\tdecision\tevents\tfingerprint" {
+        if idx == 0 && line == MANIFEST_HEADER {
             continue;
         }
 
         let fields: Vec<&str> = line.split('\t').collect();
-        if fields.len() != 4 {
+        if fields.len() != 6 {
             return Err(format!(
-                "{MANIFEST_PATH}:{} expected 4 tab-separated fields, got {}",
+                "{MANIFEST_PATH}:{} expected 6 tab-separated fields, got {}",
                 idx + 1,
                 fields.len()
             ));
         }
 
-        let expected_events = fields[2].parse::<usize>().map_err(|err| {
+        let expected_events = fields[4].parse::<usize>().map_err(|err| {
             format!(
                 "{MANIFEST_PATH}:{} invalid event count `{}`: {err}",
                 idx + 1,
-                fields[2]
+                fields[4]
             )
         })?;
 
         checks.push(FixtureCheck {
-            path: fields[0].to_string(),
-            expected_decision: fields[1].to_string(),
+            scenario_id: fields[0].to_string(),
+            invariant_id: fields[1].to_string(),
+            path: fields[2].to_string(),
+            expected_decision: fields[3].to_string(),
             expected_events,
         });
     }
@@ -140,8 +145,12 @@ fn main() -> ExitCode {
             Ok(events) => {
                 total_events += events;
                 println!(
-                    "fixture={} decision={} events={} status=ok",
-                    check.path, check.expected_decision, events
+                    "scenario={} invariant={} fixture={} decision={} events={} status=ok",
+                    check.scenario_id,
+                    check.invariant_id,
+                    check.path,
+                    check.expected_decision,
+                    events
                 );
             }
             Err(err) => {
