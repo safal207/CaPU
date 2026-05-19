@@ -25,7 +25,7 @@ Causal computing verifies transition legitimacy.
 Current executable evidence chain:
 
 ```text
-invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> reviewer command -> CI
+invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> saved examples -> field-level example verifier -> trace integrity -> reviewer command -> CI
 ```
 
 ---
@@ -49,8 +49,10 @@ invariant -> scenario -> fixture -> manifest -> verifier -> audit report -> save
 | Replay fixture drift can be detected | `fixtures/replay/MANIFEST.tsv` + `replay_fingerprint_verify.rs` | `cargo run --bin replay_fingerprint_verify --locked` | Yes |
 | Manifest-linked audit evidence can be emitted | `cmc_audit_report.rs` + `fixtures/replay/MANIFEST.tsv` | `cargo run --bin cmc_audit_report --locked` | Yes |
 | Saved audit examples are field-level verified | `examples/audit_reports/*.jsonl` + `audit_report_example_verify.rs` | `cargo run --bin audit_report_example_verify --locked` | Yes |
-| Trace hash chain can validate expected trace | `verify_trace.rs` | `cargo run --bin verify_trace --locked` | Yes |
-| Tampered trace can be detected | `verify_trace_tampered.rs` | `cargo run --bin verify_trace_tampered --locked` | Yes |
+| Legacy trace hash chain can validate expected trace | `verify_trace.rs` | `cargo run --bin verify_trace --locked` | Yes |
+| Legacy tampered trace can be detected | `verify_trace_tampered.rs` | `cargo run --bin verify_trace_tampered --locked` | Yes |
+| SHA-256 trace chain can validate expected trace | `CMC_TRACE_INTEGRITY.md` + `trace_crypto.rs` + `verify_trace_sha256.rs` | `cargo run --bin verify_trace_sha256 --locked` | Yes |
+| SHA-256 tampered trace can be detected | `CMC_TRACE_INTEGRITY.md` + `verify_trace_sha256_tampered.rs` | `cargo run --bin verify_trace_sha256_tampered --locked` | Yes |
 | Diverged replay can be detected | `trace_divergence.rs` | `cargo run --bin trace_divergence --locked` | Yes |
 | Full reviewer baseline can run as one command | `scripts/run-cmc-reviewer-demo.mjs` | `npm run review:cmc` | Yes |
 | Architecture has a coherent conceptual model | `CAUSAL_EXECUTION_ARCHITECTURE.md` | Documentation review | No |
@@ -91,8 +93,31 @@ Current checked scenarios:
 This makes the evidence chain explicit:
 
 ```text
-thesis -> invariant -> scenario -> fixture -> fingerprint -> verifier -> audit report -> saved examples -> field-level example verifier -> CI
+thesis -> invariant -> scenario -> fixture -> fingerprint -> verifier -> audit report -> saved examples -> field-level example verifier -> trace integrity -> CI
 ```
+
+---
+
+## Trace integrity
+
+The trace-integrity path is documented in:
+
+```text
+docs/hardware/CMC_TRACE_INTEGRITY.md
+```
+
+Current integrity coverage:
+
+| Integrity layer | Artifact | Check |
+| --- | --- | --- |
+| Legacy developer hash-chain demo | `verify_trace.rs` | `cargo run --bin verify_trace --locked` |
+| Legacy tamper detection | `verify_trace_tampered.rs` | `cargo run --bin verify_trace_tampered --locked` |
+| SHA-256 reference sealing | `trace_crypto.rs` + `verify_trace_sha256.rs` | `cargo run --bin verify_trace_sha256 --locked` |
+| SHA-256 tamper detection | `verify_trace_sha256_tampered.rs` | `cargo run --bin verify_trace_sha256_tampered --locked` |
+
+The SHA-256 reference path is std-only so that `cargo --locked` remains stable.
+
+This is stronger than the initial developer hash-chain demo, but it is still not a production security certification.
 
 ---
 
@@ -145,22 +170,24 @@ Recommended review order:
 3. CAUSAL_MEMORY_CONTROLLER.md
 4. CMC_REPLAY.md
 5. CMC_HASH_CHAIN.md
-6. CMC_INVARIANTS.md
-7. rust/cmc-core/fixtures/replay/MANIFEST.md
-8. rust/cmc-core/fixtures/replay/MANIFEST.tsv
-9. rust/cmc-core/src/bin/cmc_audit_report.rs
-10. rust/cmc-core/src/bin/audit_report_example_verify.rs
-11. examples/audit_reports/cmc_audit_report_valid.jsonl
-12. examples/audit_reports/cmc_audit_report_drift.jsonl
-13. CMC_AUDITOR_REPORT.md
-14. CMC_EVIDENCE_MAP.md
-15. CMC_REVIEWER_QUICKSTART.md
-16. CMC_BASELINE_STATUS.md
-17. CMC_PHASE_2_ROADMAP.md
-18. rust/cmc-core/README.md
-19. rust/cmc-core/src/lib.rs
-20. scripts/run-cmc-reviewer-demo.mjs
-21. .github/workflows/cmc-rust.yml
+6. CMC_TRACE_INTEGRITY.md
+7. CMC_INVARIANTS.md
+8. rust/cmc-core/fixtures/replay/MANIFEST.md
+9. rust/cmc-core/fixtures/replay/MANIFEST.tsv
+10. rust/cmc-core/src/bin/cmc_audit_report.rs
+11. rust/cmc-core/src/bin/audit_report_example_verify.rs
+12. examples/audit_reports/cmc_audit_report_valid.jsonl
+13. examples/audit_reports/cmc_audit_report_drift.jsonl
+14. CMC_AUDITOR_REPORT.md
+15. CMC_EVIDENCE_MAP.md
+16. CMC_REVIEWER_QUICKSTART.md
+17. CMC_BASELINE_STATUS.md
+18. CMC_PHASE_2_ROADMAP.md
+19. rust/cmc-core/README.md
+20. rust/cmc-core/src/lib.rs
+21. rust/cmc-core/src/trace_crypto.rs
+22. scripts/run-cmc-reviewer-demo.mjs
+23. .github/workflows/cmc-rust.yml
 ```
 
 This path moves from thesis to architecture to invariants to executable validation and auditor-facing output.
@@ -183,6 +210,8 @@ cargo test --all --locked
 cargo run --bin cmc_demo --locked
 cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
+cargo run --bin verify_trace_sha256 --locked
+cargo run --bin verify_trace_sha256_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
@@ -219,6 +248,8 @@ cargo test --all --locked
 cargo run --bin cmc_demo --locked
 cargo run --bin verify_trace --locked
 cargo run --bin verify_trace_tampered --locked
+cargo run --bin verify_trace_sha256 --locked
+cargo run --bin verify_trace_sha256_tampered --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
@@ -249,7 +280,9 @@ Today, the repository demonstrates that a minimal CMC simulator can:
 - emit replayable trace events
 - export trace events as JSONL
 - preserve a golden fixture snapshot
-- detect tampered trace decisions
+- detect tampered trace decisions with the legacy developer hash path
+- seal and verify trace events with a std-only SHA-256 reference path
+- detect tampered trace decisions with the SHA-256 reference path
 - detect replay divergence
 - run the full reviewer baseline through one command
 - enforce these checks in CI
@@ -278,7 +311,7 @@ The strongest claim is not that CMC is finished.
 The strongest claim is:
 
 ```text
-transition legitimacy can be made observable, replayable, testable, reportable, field-level example-verified, one-command verifiable, manifest-linked, and CI-enforced.
+transition legitimacy can be made observable, replayable, testable, reportable, field-level example-verified, SHA-256 sealed, one-command verifiable, manifest-linked, and CI-enforced.
 ```
 
 That is the core research direction.
@@ -288,5 +321,5 @@ That is the core research direction.
 ## One-line summary
 
 ```text
-CMC turns causal legitimacy from prose into 8 manifest-linked replay scenarios, executable evidence, JSONL audit output, and field-level verified audit examples.
+CMC turns causal legitimacy from prose into 8 manifest-linked replay scenarios, executable evidence, JSONL audit output, field-level verified audit examples, and SHA-256 trace-integrity checks.
 ```
