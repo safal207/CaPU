@@ -33,6 +33,7 @@ ASCII fallback:
 - Causal execution architecture: [docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md](docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md)
 - CMC evidence map: [docs/hardware/CMC_EVIDENCE_MAP.md](docs/hardware/CMC_EVIDENCE_MAP.md)
 - CMC reviewer quickstart: [docs/hardware/CMC_REVIEWER_QUICKSTART.md](docs/hardware/CMC_REVIEWER_QUICKSTART.md)
+- CMC baseline status: [docs/hardware/CMC_BASELINE_STATUS.md](docs/hardware/CMC_BASELINE_STATUS.md)
 - Device vision: [docs/DEVICE_VISION.md](docs/DEVICE_VISION.md)
 - Hardware roadmap: [docs/HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
 - Causal Memory Controller thesis: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
@@ -68,6 +69,7 @@ WHY_CAUSAL_COMPUTATION
  -> CMC_HASH_CHAIN
  -> CMC_EVIDENCE_MAP
  -> CMC_REVIEWER_QUICKSTART
+ -> CMC_BASELINE_STATUS
  -> rust/cmc-core
  -> CMC GitHub Actions
 ```
@@ -140,6 +142,7 @@ Current CMC artifacts:
 - Architecture map: [docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md](docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md)
 - Evidence map: [docs/hardware/CMC_EVIDENCE_MAP.md](docs/hardware/CMC_EVIDENCE_MAP.md)
 - Reviewer quickstart: [docs/hardware/CMC_REVIEWER_QUICKSTART.md](docs/hardware/CMC_REVIEWER_QUICKSTART.md)
+- Baseline status: [docs/hardware/CMC_BASELINE_STATUS.md](docs/hardware/CMC_BASELINE_STATUS.md)
 - CMC thesis document: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
 - Replay model: [docs/hardware/CMC_REPLAY.md](docs/hardware/CMC_REPLAY.md)
 - Hash-chain sketch: [docs/hardware/CMC_HASH_CHAIN.md](docs/hardware/CMC_HASH_CHAIN.md)
@@ -261,7 +264,7 @@ Note: this is a spec-led repository that now includes a minimal in-memory refere
 9. Run `npm test` to execute the full local validation pipeline.
 10. Run `npm run report:validation` to regenerate [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md).
 
-For the short CMC reviewer path, see [docs/hardware/CMC_REVIEWER_QUICKSTART.md](docs/hardware/CMC_REVIEWER_QUICKSTART.md).
+For the short CMC reviewer path, see [docs/hardware/CMC_REVIEWER_QUICKSTART.md](docs/hardware/CMC_REVIEWER_QUICKSTART.md). For current baseline status and claim boundaries, see [docs/hardware/CMC_BASELINE_STATUS.md](docs/hardware/CMC_BASELINE_STATUS.md).
 
 CMC simulator:
 
