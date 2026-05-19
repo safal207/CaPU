@@ -1,7 +1,7 @@
 use std::{fs, process::ExitCode};
 
 const MANIFEST_PATH: &str = "fixtures/replay/MANIFEST.tsv";
-const MANIFEST_HEADER: &str = "scenario_id\tinvariant_id\tpath\tdecision\tevents\tfingerprint";
+const MANIFEST_HEADER: &str = "scenario_id\tinvariant_id\tpath\tdecision\tevents\tfingerprint\tcategory\tseverity\texpected_verdict";
 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
 const FNV_PRIME: u64 = 0x100000001b3;
 
@@ -12,6 +12,9 @@ struct Case {
     decision: String,
     events: usize,
     fingerprint: String,
+    category: String,
+    severity: String,
+    expected_verdict: String,
 }
 
 fn parse_manifest() -> Result<Vec<Case>, String> {
@@ -31,9 +34,9 @@ fn parse_manifest() -> Result<Vec<Case>, String> {
         }
 
         let fields: Vec<&str> = line.split('\t').collect();
-        if fields.len() != 6 {
+        if fields.len() != 9 {
             return Err(format!(
-                "{MANIFEST_PATH}:{} expected 6 tab-separated fields, got {}",
+                "{MANIFEST_PATH}:{} expected 9 tab-separated fields, got {}",
                 idx + 1,
                 fields.len()
             ));
@@ -54,6 +57,9 @@ fn parse_manifest() -> Result<Vec<Case>, String> {
             decision: fields[3].to_string(),
             events,
             fingerprint: fields[5].to_string(),
+            category: fields[6].to_string(),
+            severity: fields[7].to_string(),
+            expected_verdict: fields[8].to_string(),
         });
     }
 
@@ -92,22 +98,22 @@ fn main() -> ExitCode {
 
         let actual_fp = fp(&content);
         if actual_fp != case.fingerprint {
-            eprintln!("result=fixture_drift scenario={} invariant={} path={} expected={} actual={}", case.scenario_id, case.invariant_id, case.path, case.fingerprint, actual_fp);
+            eprintln!("result=fixture_drift scenario={} invariant={} category={} severity={} verdict={} path={} expected={} actual={}", case.scenario_id, case.invariant_id, case.category, case.severity, case.expected_verdict, case.path, case.fingerprint, actual_fp);
             return ExitCode::FAILURE;
         }
 
         let events = content.lines().filter(|line| !line.trim().is_empty()).count();
         if events != case.events {
-            eprintln!("result=event_count_drift scenario={} invariant={} path={} expected={} actual={}", case.scenario_id, case.invariant_id, case.path, case.events, events);
+            eprintln!("result=event_count_drift scenario={} invariant={} category={} severity={} verdict={} path={} expected={} actual={}", case.scenario_id, case.invariant_id, case.category, case.severity, case.expected_verdict, case.path, case.events, events);
             return ExitCode::FAILURE;
         }
 
         if !content.contains(&case.decision) {
-            eprintln!("result=decision_drift scenario={} invariant={} path={} expected={}", case.scenario_id, case.invariant_id, case.path, case.decision);
+            eprintln!("result=decision_drift scenario={} invariant={} category={} severity={} verdict={} path={} expected={}", case.scenario_id, case.invariant_id, case.category, case.severity, case.expected_verdict, case.path, case.decision);
             return ExitCode::FAILURE;
         }
 
-        println!("scenario={} invariant={} fixture={} decision={} events={} fingerprint={} status=stable", case.scenario_id, case.invariant_id, case.path, case.decision, events, actual_fp);
+        println!("scenario={} invariant={} category={} severity={} verdict={} fixture={} decision={} events={} fingerprint={} status=stable", case.scenario_id, case.invariant_id, case.category, case.severity, case.expected_verdict, case.path, case.decision, events, actual_fp);
     }
 
     println!("manifest={MANIFEST_PATH}");
