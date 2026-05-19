@@ -24,19 +24,41 @@ A requested transition is not automatically legitimate.
 
 ---
 
+## Replay manifest linkage
+
+The current replay corpus is linked to invariants through:
+
+```text
+rust/cmc-core/fixtures/replay/MANIFEST.tsv
+```
+
+Current manifest shape:
+
+```tsv
+scenario_id	invariant_id	path	decision	events	fingerprint
+```
+
+This means the evidence chain is now explicit:
+
+```text
+invariant -> scenario -> fixture -> verifier -> reviewer command -> CI
+```
+
+---
+
 ## Invariant summary
 
 | ID | Invariant | Current evidence | CI gate |
 | --- | --- | --- | --- |
-| I1 | Write without explicit cause must reject | Rust tests + replay fixture | Yes |
-| I2 | Write with unknown cause must reject | Rust tests | Yes |
-| I3 | Effect before causal commit must reject | Rust tests + demo + replay fixture | Yes |
-| I4 | Committed cause can authorize effect | Rust tests | Yes |
+| I1 | Write without explicit cause must reject | Rust tests + manifest-linked replay fixture | Yes |
+| I2 | Write with unknown cause must reject | Rust tests + manifest-linked replay fixture | Yes |
+| I3 | Effect before causal commit must reject | Rust tests + demo + manifest-linked replay fixture | Yes |
+| I4 | Committed cause can authorize effect | Rust tests + manifest-linked replay fixture | Yes |
 | I5 | Every accepted/rejected decision emits trace evidence | Rust tests + trace APIs | Yes |
 | I6 | Trace decision must match runtime decision | Trace verifier demos | Yes |
 | I7 | Tampered trace decision must be detectable | Tampering demo | Yes |
-| I8 | Replay fixture structure must be stable | Fixture verifier | Yes |
-| I9 | Replay fixture fingerprint drift must be detectable | Fingerprint verifier | Yes |
+| I8 | Replay fixture structure must be stable | Manifest-driven fixture verifier | Yes |
+| I9 | Replay fixture fingerprint drift must be detectable | Manifest-driven fingerprint verifier | Yes |
 | I10 | Replay divergence must be observable | Divergence detector | Yes |
 
 ---
@@ -59,10 +81,18 @@ Expected decision:
 REJECT_MISSING_CAUSE
 ```
 
+Replay scenario:
+
+```text
+scenario_id=write_missing_cause
+invariant_id=I1
+fixture=rust/cmc-core/fixtures/replay/missing_cause.jsonl
+```
+
 Evidence:
 
 - Rust simulator tests
-- replay fixture: `rust/cmc-core/fixtures/replay/missing_cause.jsonl`
+- manifest-linked replay fixture
 - fixture fingerprint verifier
 
 Commands:
@@ -94,21 +124,27 @@ Expected decision:
 REJECT_UNKNOWN_CAUSE
 ```
 
+Replay scenario:
+
+```text
+scenario_id=write_unknown_cause
+invariant_id=I2
+fixture=rust/cmc-core/fixtures/replay/unknown_cause.jsonl
+```
+
 Evidence:
 
 - Rust simulator tests
+- manifest-linked replay fixture
+- fixture fingerprint verifier
 
 Commands:
 
 ```bash
 cd rust/cmc-core
 cargo test --all --locked
-```
-
-Future Phase 2 fixture:
-
-```text
-fixtures/replay/unknown_cause.jsonl
+cargo run --bin replay_fixture_verify --locked
+cargo run --bin replay_fingerprint_verify --locked
 ```
 
 ---
@@ -131,11 +167,19 @@ Expected decision:
 REJECT_EFFECT_BEFORE_COMMIT
 ```
 
+Replay scenario:
+
+```text
+scenario_id=effect_before_commit
+invariant_id=I3
+fixture=rust/cmc-core/fixtures/replay/forbidden_effect_before_commit_fixture.jsonl
+```
+
 Evidence:
 
 - Rust simulator tests
 - executable demo: `cmc_demo`
-- replay fixture: `rust/cmc-core/fixtures/replay/forbidden_effect_before_commit_fixture.jsonl`
+- manifest-linked replay fixture
 - fixture fingerprint verifier
 
 Commands:
@@ -168,9 +212,19 @@ Expected decision:
 ACCEPT_EFFECT
 ```
 
+Replay scenario:
+
+```text
+scenario_id=valid_committed_effect
+invariant_id=I4
+fixture=rust/cmc-core/fixtures/replay/valid_committed_effect.jsonl
+```
+
 Evidence:
 
 - Rust simulator tests
+- manifest-linked replay fixture
+- fixture fingerprint verifier
 - golden fixture path
 
 Commands:
@@ -178,12 +232,8 @@ Commands:
 ```bash
 cd rust/cmc-core
 cargo test --all --locked
-```
-
-Future Phase 2 fixture:
-
-```text
-fixtures/replay/valid_committed_effect.jsonl
+cargo run --bin replay_fixture_verify --locked
+cargo run --bin replay_fingerprint_verify --locked
 ```
 
 ---
@@ -292,7 +342,7 @@ The current implementation is a developer integrity demo, not production cryptog
 Definition:
 
 ```text
-Replay fixtures must preserve expected JSONL structure and decision fields.
+Replay fixtures must preserve expected JSONL structure, event count, decision fields, scenario IDs, and invariant IDs.
 ```
 
 Reason:
@@ -302,6 +352,7 @@ Fixtures are not examples only; they are regression artifacts.
 Evidence:
 
 - `replay_fixture_verify.rs`
+- `rust/cmc-core/fixtures/replay/MANIFEST.tsv`
 
 Command:
 
@@ -327,6 +378,7 @@ Fixture drift can otherwise silently weaken the evidence corpus.
 Evidence:
 
 - `replay_fingerprint_verify.rs`
+- `rust/cmc-core/fixtures/replay/MANIFEST.tsv`
 
 Command:
 
@@ -335,12 +387,14 @@ cd rust/cmc-core
 cargo run --bin replay_fingerprint_verify --locked
 ```
 
-Current fingerprints:
+Current manifest-linked fingerprints:
 
-| Fixture | Fingerprint |
-| --- | --- |
-| `fixtures/replay/missing_cause.jsonl` | `88fd99689760140e` |
-| `fixtures/replay/forbidden_effect_before_commit_fixture.jsonl` | `28bf87f68e4ec6cb` |
+| Scenario | Invariant | Fixture | Fingerprint |
+| --- | --- | --- | --- |
+| `write_missing_cause` | `I1` | `fixtures/replay/missing_cause.jsonl` | `88fd99689760140e` |
+| `write_unknown_cause` | `I2` | `fixtures/replay/unknown_cause.jsonl` | `d8c4983b8a5a0ab0` |
+| `effect_before_commit` | `I3` | `fixtures/replay/forbidden_effect_before_commit_fixture.jsonl` | `28bf87f68e4ec6cb` |
+| `valid_committed_effect` | `I4` | `fixtures/replay/valid_committed_effect.jsonl` | `e3e96ba017e2c235` |
 
 Current limit:
 
@@ -390,6 +444,12 @@ cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin trace_divergence --locked
 ```
 
+From repository root, the reviewer path is:
+
+```bash
+npm run review:cmc
+```
+
 This means the current invariant set is at least partially CI-enforced.
 
 ---
@@ -400,12 +460,11 @@ The following gaps should be closed next:
 
 | Gap | Target artifact |
 | --- | --- |
-| Unknown cause fixture missing | `fixtures/replay/unknown_cause.jsonl` |
-| Valid committed effect fixture missing | `fixtures/replay/valid_committed_effect.jsonl` |
 | Exactly-one trace event invariant not isolated | dedicated Rust test |
+| Fixture corpus still small | at least 8 legitimacy violation classes |
 | Production crypto absent | cryptographic hash-chain module |
 | Auditor report absent | `cmc_audit_report` CLI |
-| Manifest/fingerprint source split | canonical manifest parser |
+| Manifest lacks richer metadata | add categories/severity/expected verdict fields |
 
 ---
 
