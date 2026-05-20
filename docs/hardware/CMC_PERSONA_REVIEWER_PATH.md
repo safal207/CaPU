@@ -35,6 +35,8 @@ manifest-linked
 fixture-verified
 audit-reportable
 saved-example-verified
+SHA-256 sealed
+tamper-evident
 one-command-reviewable
 ```
 
@@ -53,6 +55,9 @@ Read in this order:
 7. `examples/audit_reports/persona_audit_report_valid.jsonl`
 8. `examples/audit_reports/persona_audit_report_drift.jsonl`
 9. `rust/cmc-core/src/bin/persona_audit_report_example_verify.rs`
+10. `rust/cmc-core/fixtures/persona_integrity/sha256_persona_valid.jsonl`
+11. `rust/cmc-core/fixtures/persona_integrity/sha256_persona_tampered.jsonl`
+12. `rust/cmc-core/src/bin/verify_persona_sha256_fixture.rs`
 
 Then run:
 
@@ -61,6 +66,7 @@ cd rust/cmc-core
 cargo run --bin persona_boundary_verify --locked
 cargo run --bin persona_audit_report --locked
 cargo run --bin persona_audit_report_example_verify --locked
+cargo run --bin verify_persona_sha256_fixture --locked
 ```
 
 Expected verifier result:
@@ -87,6 +93,14 @@ Expected persona audit example verifier output includes:
 report=valid path=../../examples/audit_reports/persona_audit_report_valid.jsonl cases=6 status=ok parser=field_level
 report=drift path=../../examples/audit_reports/persona_audit_report_drift.jsonl cases=6 status=ok parser=field_level
 result=persona_audit_report_examples_valid parser=field_level cases=6
+```
+
+Expected SHA-256 persona fixture output includes:
+
+```text
+valid_result=persona_sha256_fixture_valid
+tampered_result=persona_sha256_fixture_tamper_detected seq=3
+result=persona_sha256_fixtures_valid
 ```
 
 ---
@@ -134,6 +148,36 @@ status = decision_drift
 
 ---
 
+## What SHA-256 sealing adds
+
+The persona SHA-256 fixtures add a tamper-evident trace layer:
+
+```text
+persona decision event -> SHA-256 sealed event -> verifier -> tamper detection
+```
+
+Saved sealed fixtures:
+
+```text
+rust/cmc-core/fixtures/persona_integrity/sha256_persona_valid.jsonl
+rust/cmc-core/fixtures/persona_integrity/sha256_persona_tampered.jsonl
+```
+
+The tampered fixture intentionally modifies the P2 unauthorized state-change decision at event 3 while keeping the old hash:
+
+```text
+REJECT_UNAUTHORIZED_PERSONA_STATE_CHANGE
+-> ACCEPT_AUTHORIZED_PERSONA_STATE_CHANGE
+```
+
+Expected detection:
+
+```text
+tampered_result=persona_sha256_fixture_tamper_detected seq=3
+```
+
+---
+
 ## Why this is different from ordinary AI memory
 
 Ordinary AI memory asks:
@@ -157,10 +201,10 @@ That distinction is the safety boundary.
 A reviewer should interpret the current corpus as a narrow executable proof point:
 
 ```text
-persona safety principle -> invariant -> manifest row -> fixture -> verifier -> audit report -> saved examples -> one-command reviewer demo
+persona safety principle -> invariant -> manifest row -> fixture -> verifier -> audit report -> saved examples -> SHA-256 sealed trace -> tamper verifier -> one-command reviewer demo
 ```
 
-The current evidence is intentionally minimal. It does not prove full companion safety. It proves that persona-boundary claims can be expressed as executable, manifest-linked, audit-reportable, saved-example-verified checks.
+The current evidence is intentionally minimal. It does not prove full companion safety. It proves that persona-boundary claims can be expressed as executable, manifest-linked, audit-reportable, saved-example-verified, and tamper-evident checks.
 
 ---
 
@@ -172,6 +216,7 @@ This path does not claim:
 - AI personhood,
 - therapy,
 - production companion architecture,
+- production cryptographic certification,
 - complete alignment,
 - privileged access to the user's inner truth.
 
@@ -180,5 +225,5 @@ This path does not claim:
 ## One-line summary
 
 ```text
-CMC persona evidence verifies and reports that persona memory requires cause, persona state changes require authorization, and introspection must remain hypothesis-labeled.
+CMC persona evidence verifies, reports, and SHA-256 seals the claim that persona memory requires cause, persona state changes require authorization, and introspection must remain hypothesis-labeled.
 ```
