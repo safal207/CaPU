@@ -81,6 +81,13 @@ const steps = [
     proves: 'Persona boundary evidence can be emitted as auditor-facing JSONL.',
   },
   {
+    name: 'persona audit report examples',
+    command: 'cargo',
+    args: ['run', '--bin', 'persona_audit_report_example_verify', '--locked'],
+    cwd: cmcDir,
+    proves: 'Saved valid and drift persona audit report examples preserve expected schema semantics.',
+  },
+  {
     name: 'replay fixture structure',
     command: 'cargo',
     args: ['run', '--bin', 'replay_fixture_verify', '--locked'],
@@ -154,5 +161,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, persona-audit-example-verified, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
