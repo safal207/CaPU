@@ -15,7 +15,7 @@ Future AI personas require causal legitimacy, not only conversational coherence.
 Operational version:
 
 ```text
-A persona may reflect, remember, adapt, or guide only through inspectable and causally legitimate transitions.
+A persona may reflect, remember, adapt, or guide only through inspectable, reportable, and tamper-evident causal transitions.
 ```
 
 P2 state-change boundary:
@@ -38,9 +38,27 @@ The current persona corpus covers three invariants:
 
 | ID | Invariant | Executable status |
 | --- | --- | --- |
-| P1 | Persona memory requires cause | implemented as manifest-linked fixture pair |
-| P2 | Persona state changes require authorization | implemented as manifest-linked fixture pair |
-| P7 | Introspection is hypothesis-labeled | implemented as manifest-linked fixture pair |
+| P1 | Persona memory requires cause | manifest-linked, fixture-verified, audit-reportable, SHA-256 sealed |
+| P2 | Persona state changes require authorization | manifest-linked, fixture-verified, audit-reportable, SHA-256 sealed |
+| P7 | Introspection is hypothesis-labeled | manifest-linked, fixture-verified, audit-reportable, SHA-256 sealed |
+
+---
+
+## Evidence chain
+
+```text
+P1/P2/P7 invariant
+ -> manifest row
+ -> JSONL persona fixture
+ -> persona_boundary_verify
+ -> persona_audit_report JSONL
+ -> saved valid/drift persona audit examples
+ -> persona_audit_report_example_verify
+ -> SHA-256 sealed persona valid/tampered fixtures
+ -> verify_persona_sha256_fixture
+ -> P2 decision tamper detection at event 3
+ -> npm run review:cmc
+```
 
 ---
 
@@ -58,6 +76,12 @@ The current persona corpus covers three invariants:
 | Unlabeled introspection must be rejected as claimed inner truth | `fixtures/persona/unlabeled_introspection_rejected.jsonl` | `cargo run --bin persona_boundary_verify --locked` |
 | Hypothesis-labeled introspection may be accepted as reflection | `fixtures/persona/hypothesis_labeled_introspection_accepted.jsonl` | `cargo run --bin persona_boundary_verify --locked` |
 | Persona boundary corpus is machine-readable | `fixtures/persona/MANIFEST.tsv` | `cargo run --bin persona_boundary_verify --locked` |
+| Persona boundary evidence is audit-reportable | `rust/cmc-core/src/bin/persona_audit_report.rs` | `cargo run --bin persona_audit_report --locked` |
+| Persona audit valid/drift examples are saved | `examples/audit_reports/persona_audit_report_valid.jsonl` + `examples/audit_reports/persona_audit_report_drift.jsonl` | documentation / artifact review |
+| Persona audit examples are field-level verified | `rust/cmc-core/src/bin/persona_audit_report_example_verify.rs` | `cargo run --bin persona_audit_report_example_verify --locked` |
+| Persona decisions are SHA-256 sealed | `fixtures/persona_integrity/sha256_persona_valid.jsonl` | `cargo run --bin verify_persona_sha256_fixture --locked` |
+| Persona decision tampering is detected | `fixtures/persona_integrity/sha256_persona_tampered.jsonl` | `cargo run --bin verify_persona_sha256_fixture --locked` |
+| P2 unauthorized state-change tamper is detected | event 3 in `sha256_persona_tampered.jsonl` | expected `tampered_result=persona_sha256_fixture_tamper_detected seq=3` |
 | Persona boundary semantics are documented | `docs/hardware/CMC_PERSONA_BOUNDARY.md` + `docs/hardware/CMC_PERSONA_P2_STATE_CHANGE.md` | documentation review |
 | Persona boundary is in reviewer path | `docs/hardware/CMC_REVIEWER_QUICKSTART.md` | `npm run review:cmc` |
 | Persona boundary is in baseline status | `docs/hardware/CMC_BASELINE_STATUS.md` | documentation review |
@@ -89,21 +113,18 @@ Current rows:
 
 ---
 
-## Verifier
-
-Verifier:
-
-```text
-rust/cmc-core/src/bin/persona_boundary_verify.rs
-```
+## Verifier commands
 
 Run from `rust/cmc-core`:
 
 ```bash
 cargo run --bin persona_boundary_verify --locked
+cargo run --bin persona_audit_report --locked
+cargo run --bin persona_audit_report_example_verify --locked
+cargo run --bin verify_persona_sha256_fixture --locked
 ```
 
-Expected output includes:
+Expected boundary verifier output includes:
 
 ```text
 CMC-PERSONA-BOUNDARY-MANIFEST v0
@@ -117,15 +138,33 @@ p7_labeled_result=accepted_hypothesis_labeled_reflection
 result=persona_boundary_manifest_valid
 ```
 
+Expected audit example verifier output includes:
+
+```text
+report=valid path=../../examples/audit_reports/persona_audit_report_valid.jsonl cases=6 status=ok parser=field_level
+report=drift path=../../examples/audit_reports/persona_audit_report_drift.jsonl cases=6 status=ok parser=field_level
+result=persona_audit_report_examples_valid parser=field_level cases=6
+```
+
+Expected sealed fixture verifier output includes:
+
+```text
+valid_result=persona_sha256_fixture_valid
+tampered_result=persona_sha256_fixture_tamper_detected seq=3
+result=persona_sha256_fixtures_valid
+```
+
 ---
 
 ## What this proves today
 
-The current persona evidence proves that the repository can express and verify three minimal safety boundaries:
+The current persona evidence proves that the repository can express, verify, report, and seal three minimal safety boundaries:
 
 1. A system must not silently convert inferred preference into persistent persona memory.
 2. A system must not silently change persona role, tone, or long-term behavior without authorization.
 3. A system must not present an interpretation of the user's inner state as final truth.
+4. A persona decision trace can be tamper-checked using saved SHA-256 sealed fixtures.
+5. A P2 unauthorized state-change decision drift can be detected at event 3.
 
 The accepted paths are intentionally narrower:
 
@@ -140,7 +179,7 @@ The accepted paths are intentionally narrower:
 This turns persona safety from prose into executable evidence:
 
 ```text
-persona principle -> invariant -> manifest row -> fixture -> verifier -> reviewer path -> CI
+persona principle -> invariant -> manifest row -> fixture -> verifier -> audit report -> saved examples -> sealed trace -> tamper verifier -> reviewer path -> CI
 ```
 
 It also separates concepts that ordinary companion systems often blur:
@@ -149,6 +188,7 @@ It also separates concepts that ordinary companion systems often blur:
 helpful interpretation != access to inner truth
 remembered preference != authorized persona memory
 adaptive behavior != authorized persona state change
+persona decision report != tamper-evident persona trace
 ```
 
 ---
@@ -163,6 +203,7 @@ This evidence does not claim:
 - mental health treatment,
 - complete alignment,
 - production-ready companion architecture,
+- production cryptographic certification,
 - access to the user's true inner state.
 
 It is a narrow executable scaffold for persona-boundary legitimacy.
@@ -173,16 +214,16 @@ It is a narrow executable scaffold for persona-boundary legitimacy.
 
 Useful next steps:
 
-1. Emit a small JSONL persona audit report.
-2. Connect persona fixtures to SHA-256 sealed trace evidence.
-3. Add P6 fixture pair for action-without-commit rejection.
-4. Add P8 fixture pair for inspect/reject/forget semantics.
-5. Add P3 fixture pair for emotional intervention context requirements.
+1. Add P6 fixture pair for action-without-commit rejection.
+2. Add P8 fixture pair for inspect/reject/forget semantics.
+3. Add P3 fixture pair for emotional intervention context requirements.
+4. Add exact canonical event-line tests.
+5. Add removed-event and reordered-event negative trace-integrity fixtures.
 
 ---
 
 ## One-line summary
 
 ```text
-CMC persona evidence currently verifies that persona memory requires cause, persona state changes require authorization, and introspection must remain hypothesis-labeled.
+CMC persona evidence currently verifies, reports, saves, and SHA-256 seals that persona memory requires cause, persona state changes require authorization, and introspection must remain hypothesis-labeled.
 ```
