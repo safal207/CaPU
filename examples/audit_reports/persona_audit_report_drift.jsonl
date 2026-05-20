@@ -1,0 +1,3 @@
+{"type":"persona_audit_report_start","manifest":"fixtures/persona/MANIFEST.tsv"}
+{"type":"persona_audit_case","scenario_id":"unauthorized_persona_state_change_rejected","invariant_id":"P2","boundary":"persona_state_change_requires_authorization","fixture":"fixtures/persona/unauthorized_persona_state_change_rejected.jsonl","user_confirmation":false,"decision":"ACCEPT_AUTHORIZED_PERSONA_STATE_CHANGE","cause_id":null,"expected_verdict":"blocked_unauthorized_persona_state_change","expected_records":1,"actual_records":1,"ok":false,"status":"decision_drift"}
+{"type":"persona_audit_report_summary","ok":false,"cases":6,"passed":5,"failed":1,"status":"persona_audit_report_failed"}
