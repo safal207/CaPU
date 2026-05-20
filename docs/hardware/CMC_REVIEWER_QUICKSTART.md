@@ -19,12 +19,14 @@ Start here:
 1. [WHY_CAUSAL_COMPUTATION.md](WHY_CAUSAL_COMPUTATION.md)
 2. [CAUSAL_EXECUTION_ARCHITECTURE.md](CAUSAL_EXECUTION_ARCHITECTURE.md)
 3. [CMC_PERSONA_BOUNDARY.md](CMC_PERSONA_BOUNDARY.md)
-4. [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
-5. [CMC_CANONICAL_TRACE_ENCODING.md](CMC_CANONICAL_TRACE_ENCODING.md)
-6. [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
-7. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
-8. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
-9. [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
+4. [CMC_PERSONA_REVIEWER_PATH.md](CMC_PERSONA_REVIEWER_PATH.md)
+5. [CMC_PERSONA_EVIDENCE_MAP.md](CMC_PERSONA_EVIDENCE_MAP.md)
+6. [CMC_INVARIANTS.md](CMC_INVARIANTS.md)
+7. [CMC_CANONICAL_TRACE_ENCODING.md](CMC_CANONICAL_TRACE_ENCODING.md)
+8. [CMC_TRACE_INTEGRITY.md](CMC_TRACE_INTEGRITY.md)
+9. [CMC_EVIDENCE_MAP.md](CMC_EVIDENCE_MAP.md)
+10. [CMC_BASELINE_STATUS.md](CMC_BASELINE_STATUS.md)
+11. [CMC_PHASE_2_ROADMAP.md](CMC_PHASE_2_ROADMAP.md)
 
 Core claim:
 
@@ -110,6 +112,8 @@ SHA-256 saved valid fixture -> accepted
 SHA-256 saved tampered fixture -> rejected at event 1
 persona inferred preference -> rejected without confirmation/cause
 persona confirmed preference -> accepted with confirmation/cause
+persona unauthorized state change -> rejected without authorization/cause
+persona authorized state change -> accepted with authorization/cause
 persona unlabeled introspection -> rejected as claimed inner truth
 persona hypothesis-labeled introspection -> accepted as reflection
 persona boundary manifest -> checked against JSONL fixtures
@@ -123,7 +127,7 @@ expected trace vs diverged trace -> mismatch detected
 Evidence claim:
 
 ```text
-CMC can model memory/read/effect/persona-boundary decisions using explicit causal authorization, hypothesis-label boundaries, and executable replay evidence.
+CMC can model memory/read/effect/persona-boundary decisions using explicit causal authorization, persona state-change authorization, hypothesis-label boundaries, and executable replay evidence.
 ```
 
 ---
@@ -155,6 +159,9 @@ Read:
 
 ```text
 docs/hardware/CMC_PERSONA_BOUNDARY.md
+docs/hardware/CMC_PERSONA_REVIEWER_PATH.md
+docs/hardware/CMC_PERSONA_EVIDENCE_MAP.md
+docs/hardware/CMC_PERSONA_P2_STATE_CHANGE.md
 ```
 
 Expected meaning:
@@ -181,6 +188,8 @@ Expected meaning:
 ```text
 inferred preference without confirmation/cause -> rejected
 confirmed preference with confirmation/cause -> accepted
+unauthorized persona state change -> rejected
+authorized persona state change with cause -> accepted
 unlabeled introspection claiming inner truth -> rejected
 hypothesis-labeled introspection -> accepted as reflection
 persona manifest rows -> match JSONL fixtures
@@ -192,6 +201,8 @@ Current persona corpus:
 fixtures/persona/MANIFEST.tsv
 fixtures/persona/inferred_preference_rejected.jsonl
 fixtures/persona/confirmed_preference_accepted.jsonl
+fixtures/persona/unauthorized_persona_state_change_rejected.jsonl
+fixtures/persona/authorized_persona_state_change_accepted.jsonl
 fixtures/persona/unlabeled_introspection_rejected.jsonl
 fixtures/persona/hypothesis_labeled_introspection_accepted.jsonl
 ```
@@ -200,9 +211,11 @@ Expected output includes:
 
 ```text
 CMC-PERSONA-BOUNDARY-MANIFEST v0
-cases=4
+cases=6
 p1_inferred_result=blocked_unconfirmed_persona_memory
 p1_confirmed_result=accepted_confirmed_persona_memory cause_id=42
+p2_unauthorized_result=blocked_unauthorized_persona_state_change
+p2_authorized_result=accepted_authorized_persona_state_change cause_id=77
 p7_unlabeled_result=blocked_claimed_inner_truth
 p7_labeled_result=accepted_hypothesis_labeled_reflection
 result=persona_boundary_manifest_valid
@@ -462,6 +475,8 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - manifest-linked persona boundary corpus for future companion/persona systems
 - rejected inferred persona memory without confirmation/cause
 - accepted confirmed persona memory with confirmation/cause
+- rejected unauthorized persona state change without authorization/cause
+- accepted authorized persona state change with authorization/cause
 - rejected unlabeled introspection that claims inner truth
 - accepted hypothesis-labeled introspection as reflection
 - documented v0 canonical trace encoding
@@ -518,5 +533,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, manifest-linked persona memory and hypothesis-label boundaries, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, manifest-linked persona memory, state-change, and hypothesis-label boundaries, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
 ```
