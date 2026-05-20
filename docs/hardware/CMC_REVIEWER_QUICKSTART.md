@@ -7,7 +7,7 @@ This document gives reviewers a short path from thesis to executable evidence.
 Goal:
 
 ```text
-verify that causal legitimacy is represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested by executable artifacts
+verify that causal legitimacy is represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, persona-audit-example-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested by executable artifacts
 ```
 
 ---
@@ -44,7 +44,7 @@ Future AI personas require causal legitimacy, not only conversational coherence.
 Baseline claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, persona-audit-example-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 ---
@@ -69,6 +69,8 @@ cargo run --bin verify_trace_sha256 --locked
 cargo run --bin verify_trace_sha256_tampered --locked
 cargo run --bin verify_trace_sha256_fixture --locked
 cargo run --bin persona_boundary_verify --locked
+cargo run --bin persona_audit_report --locked
+cargo run --bin persona_audit_report_example_verify --locked
 cargo run --bin replay_fixture_verify --locked
 cargo run --bin replay_fingerprint_verify --locked
 cargo run --bin cmc_audit_report --locked
@@ -85,7 +87,7 @@ result=reviewer_baseline_passed
 Evidence claim:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, persona-audit-example-verified, canonically encoded, SHA-256 sealed, fixture-verified, and regression-tested
 ```
 
 ---
@@ -117,6 +119,8 @@ persona authorized state change -> accepted with authorization/cause
 persona unlabeled introspection -> rejected as claimed inner truth
 persona hypothesis-labeled introspection -> accepted as reflection
 persona boundary manifest -> checked against JSONL fixtures
+persona audit report -> emitted as JSONL
+persona saved valid/drift audit examples -> field-level verified
 fixture structure -> valid
 fixture fingerprints -> stable
 manifest-linked audit report -> emitted as JSONL
@@ -127,7 +131,7 @@ expected trace vs diverged trace -> mismatch detected
 Evidence claim:
 
 ```text
-CMC can model memory/read/effect/persona-boundary decisions using explicit causal authorization, persona state-change authorization, hypothesis-label boundaries, and executable replay evidence.
+CMC can model memory/read/effect/persona-boundary decisions using explicit causal authorization, persona state-change authorization, hypothesis-label boundaries, auditor-facing JSONL reports, saved valid/drift examples, and executable replay evidence.
 ```
 
 ---
@@ -219,6 +223,43 @@ p2_authorized_result=accepted_authorized_persona_state_change cause_id=77
 p7_unlabeled_result=blocked_claimed_inner_truth
 p7_labeled_result=accepted_hypothesis_labeled_reflection
 result=persona_boundary_manifest_valid
+```
+
+### Persona audit report JSONL
+
+```bash
+cargo run --bin persona_audit_report --locked
+```
+
+Expected meaning:
+
+```text
+manifest-linked persona boundary evidence -> emitted as JSONL
+P1/P2/P7 scenario_id -> included
+boundary/decision/cause_id/expected_verdict -> included
+fixture field drift -> would fail the report
+```
+
+Saved examples:
+
+```text
+examples/audit_reports/persona_audit_report_valid.jsonl
+examples/audit_reports/persona_audit_report_drift.jsonl
+```
+
+### Field-level saved persona audit example verification
+
+```bash
+cargo run --bin persona_audit_report_example_verify --locked
+```
+
+Expected meaning:
+
+```text
+saved persona valid report -> 6 cases, 6 passed, 0 failed
+saved persona drift report -> 6 cases, 5 passed, 1 failed
+required JSONL fields -> checked explicitly
+P2 decision drift -> detected in saved drift example
 ```
 
 ### Canonical trace encoding
@@ -450,6 +491,8 @@ SHA-256 generated trace verification
 SHA-256 generated tamper detection
 SHA-256 sealed fixture verification
 persona boundary fixture verification
+persona audit report emission
+saved persona audit example verification
 audit report emission
 saved audit example verification
 replay divergence detection
@@ -479,6 +522,9 @@ This quickstart demonstrates that CMC currently has executable evidence for:
 - accepted authorized persona state change with authorization/cause
 - rejected unlabeled introspection that claims inner truth
 - accepted hypothesis-labeled introspection as reflection
+- persona audit report JSONL emission
+- saved valid/drift persona audit report examples
+- field-level verification of saved persona audit examples
 - documented v0 canonical trace encoding
 - replay fixture checking
 - fixture fingerprint stability
@@ -523,7 +569,7 @@ The key thing to evaluate is not whether CMC is finished.
 The key thing to evaluate is whether the project has made this claim testable:
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, persona-audit-example-verified, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, manifest-linked, and regression-tested
 ```
 
 That is the current proof point.
@@ -533,5 +579,5 @@ That is the current proof point.
 ## One-line summary
 
 ```text
-Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, manifest-linked persona memory, state-change, and hypothesis-label boundaries, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
+Run npm run review:cmc; it turns the CMC causal legitimacy claim into one executable reviewer check covering replay, audit examples, manifest-linked persona memory, state-change, and hypothesis-label boundaries, persona audit reports, saved persona audit examples, canonical trace encoding, trace integrity, saved SHA-256 fixtures, tamper detection, divergence detection, and CI-compatible validation.
 ```
