@@ -71,7 +71,14 @@ const steps = [
     command: 'cargo',
     args: ['run', '--bin', 'persona_boundary_verify', '--locked'],
     cwd: cmcDir,
-    proves: 'Persona memory requires confirmation/cause: inferred preference is rejected, confirmed preference is accepted.',
+    proves: 'Persona memory, state-change, and introspection boundaries are manifest-linked and fixture-verified.',
+  },
+  {
+    name: 'persona audit report jsonl',
+    command: 'cargo',
+    args: ['run', '--bin', 'persona_audit_report', '--locked'],
+    cwd: cmcDir,
+    proves: 'Persona boundary evidence can be emitted as auditor-facing JSONL.',
   },
   {
     name: 'replay fixture structure',
@@ -147,5 +154,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
