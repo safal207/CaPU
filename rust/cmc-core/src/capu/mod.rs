@@ -5,6 +5,7 @@
 //! executable Rust units without changing the existing CMC reviewer outputs.
 
 pub mod boundary_router;
+pub mod cause_unit;
 pub mod commit_unit;
 pub mod decision_unit;
 pub mod decoder;
