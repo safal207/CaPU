@@ -9,20 +9,32 @@ This document summarizes the current CMC baseline as an executable research scaf
 ## Baseline claim
 
 ```text
-transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
+transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, canonically encoded, SHA-256 sealed, fixture-verified, one-command verified, manifest-linked, and regression-tested
 ```
 
 The repository does not claim production readiness, complete AI safety, AI consciousness, therapy, or certification-grade cryptography.
 
 ---
 
-## Persona boundary baseline
+## Current reviewer entrypoints
 
-Current executable persona scope:
+```text
+docs/hardware/CMC_CURRENT_REVIEWER_PATH.md
+docs/hardware/CMC_PERSONA_ACTION_REVIEWER_PATH.md
+```
+
+These are the current source-of-truth reviewer paths for the P6 persona/action corpus.
+
+---
+
+## Persona/action baseline
+
+Current executable persona/action scope:
 
 ```text
 P1: Persona memory requires cause.
 P2: Persona state changes require authorization.
+P6: External action requires commit.
 P7: Introspection is hypothesis-labeled.
 ```
 
@@ -31,25 +43,26 @@ Operational summary:
 ```text
 AI must not self-remember.
 AI must not self-appoint.
+AI must not act without commit.
 AI must not claim inner truth.
 ```
 
-Current persona evidence chain:
+Current persona/action evidence chain:
 
 ```text
-manifest-linked P1/P2/P7 corpus
- -> 6 JSONL fixtures
+manifest-linked P1/P2/P6/P7 corpus
+ -> 8 JSONL fixtures
  -> persona_boundary_verify
  -> persona_audit_report JSONL
  -> saved valid/drift persona audit examples
  -> persona_audit_report_example_verify
- -> SHA-256 sealed persona valid/tampered fixtures
+ -> SHA-256 sealed persona/action valid/tampered fixtures
  -> verify_persona_sha256_fixture
- -> P2 decision tamper detection at event 3
+ -> P6 action tamper detection at event 5
  -> npm run review:cmc
 ```
 
-Current persona artifacts:
+Current persona/action artifacts:
 
 ```text
 rust/cmc-core/fixtures/persona/MANIFEST.tsv
@@ -57,6 +70,8 @@ rust/cmc-core/fixtures/persona/inferred_preference_rejected.jsonl
 rust/cmc-core/fixtures/persona/confirmed_preference_accepted.jsonl
 rust/cmc-core/fixtures/persona/unauthorized_persona_state_change_rejected.jsonl
 rust/cmc-core/fixtures/persona/authorized_persona_state_change_accepted.jsonl
+rust/cmc-core/fixtures/persona/action_without_commit_rejected.jsonl
+rust/cmc-core/fixtures/persona/action_with_commit_accepted.jsonl
 rust/cmc-core/fixtures/persona/unlabeled_introspection_rejected.jsonl
 rust/cmc-core/fixtures/persona/hypothesis_labeled_introspection_accepted.jsonl
 rust/cmc-core/src/bin/persona_boundary_verify.rs
@@ -79,11 +94,24 @@ cargo run --bin persona_audit_report_example_verify --locked
 cargo run --bin verify_persona_sha256_fixture --locked
 ```
 
-Expected sealed persona fixture output includes:
+Expected outputs include:
+
+```text
+cases=8
+p6_uncommitted_action_result=blocked_action_without_commit
+p6_committed_action_result=accepted_committed_action cause_id=101
+result=persona_boundary_manifest_valid
+```
+
+```text
+report=valid path=../../examples/audit_reports/persona_audit_report_valid.jsonl cases=8 status=ok parser=field_level
+report=drift path=../../examples/audit_reports/persona_audit_report_drift.jsonl cases=8 status=ok parser=field_level
+result=persona_audit_report_examples_valid parser=field_level cases=8
+```
 
 ```text
 valid_result=persona_sha256_fixture_valid
-tampered_result=persona_sha256_fixture_tamper_detected seq=3
+tampered_result=persona_sha256_fixture_tamper_detected seq=5
 result=persona_sha256_fixtures_valid
 ```
 
@@ -143,14 +171,14 @@ Expected final result:
 result=reviewer_baseline_passed
 ```
 
-The one-command demo now includes:
+The one-command demo includes:
 
 ```text
-persona boundary fixture verification
-persona audit report emission
-saved persona audit example verification
-SHA-256 sealed persona fixture verification
-P2 decision tamper detection
+persona/action boundary fixture verification
+persona/action audit report emission
+saved persona/action audit example verification
+SHA-256 sealed persona/action fixture verification
+P6 action tamper detection at event 5
 replay fixture verification
 replay audit report verification
 SHA-256 trace fixture verification
@@ -167,24 +195,17 @@ CMC currently has executable evidence for:
 - accepted confirmed persona memory with confirmation/cause;
 - rejected unauthorized persona state change without authorization/cause;
 - accepted authorized persona state change with authorization/cause;
+- rejected external action without committed cause;
+- accepted external action with committed cause;
 - rejected unlabeled introspection that claims inner truth;
 - accepted hypothesis-labeled introspection as reflection;
-- persona audit report JSONL output;
-- saved valid/drift persona audit report examples for 6 cases;
+- persona/action audit report JSONL output;
+- saved valid/drift persona audit report examples for 8 cases;
 - field-level executable verification of saved persona audit examples;
-- saved SHA-256 sealed persona valid/tampered fixtures;
-- executable verification of saved SHA-256 sealed persona fixtures;
-- P2 unauthorized decision tamper detection at event 3;
-- rejected illegal memory writes without cause;
-- rejected writes with unknown cause;
-- rejected effects before causal commit;
-- accepted legitimate committed effect transition;
-- rejected reads without explicit cause;
-- rejected reads with unknown cause or unavailable address;
-- rejected effects without parent cause;
-- accepted read after legitimate write under known cause;
-- manifest-linked replay fixture structure checks;
-- manifest-linked replay fixture fingerprint drift checks;
+- saved SHA-256 sealed persona/action valid/tampered fixtures;
+- executable verification of saved SHA-256 sealed persona/action fixtures;
+- P6 action decision tamper detection at event 5;
+- replay fixture checks and fingerprint drift checks;
 - manifest-linked replay audit report output;
 - saved valid/drift replay audit report examples for 8 cases;
 - field-level executable verification of replay audit report examples;
@@ -221,16 +242,15 @@ The baseline does not yet provide:
 The next phase should focus on:
 
 1. adding exact canonical event-line tests,
-2. adding P6 action-without-commit persona/action fixture pair,
-3. adding richer manifest validation rules,
-4. adding removed-event and reordered-event negative trace-integrity fixtures,
-5. measuring overhead and stability across repeated runs,
-6. expanding beyond current memory/read/effect/persona-boundary cases into broader workloads.
+2. adding richer manifest validation rules,
+3. adding removed-event and reordered-event negative trace-integrity fixtures,
+4. measuring overhead and stability across repeated runs,
+5. expanding beyond current memory/read/effect/persona/action-boundary cases into broader workloads.
 
 ---
 
 ## One-line status
 
 ```text
-CMC baseline is reviewer-ready as an 8-scenario replay corpus plus a 6-scenario manifest-linked, audit-reportable, saved-example-verified, SHA-256-sealed, tamper-evident persona-boundary corpus, one-command verified, JSONL-reporting, field-level example-verified, canonical-trace-encoded, SHA-256 sealed-fixture-verified, CI-enforced executable research scaffold, not yet production-ready infrastructure.
+CMC baseline is reviewer-ready as an 8-scenario replay corpus plus an 8-scenario manifest-linked, audit-reportable, saved-example-verified, SHA-256-sealed, tamper-evident persona/action corpus with P6 action-commit enforcement and event-5 action tamper detection, one-command verified and CI-compatible, not yet production-ready infrastructure.
 ```
