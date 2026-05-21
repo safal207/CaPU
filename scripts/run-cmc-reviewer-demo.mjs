@@ -22,7 +22,7 @@ const steps = [
     command: 'cargo',
     args: ['test', '--all', '--locked'],
     cwd: cmcDir,
-    proves: 'CMC simulator invariants are enforced by tests.',
+    proves: 'CMC simulator invariants and CaPU reference units are enforced by tests.',
   },
   {
     name: 'blocked-transition demo',
@@ -71,28 +71,35 @@ const steps = [
     command: 'cargo',
     args: ['run', '--bin', 'persona_boundary_verify', '--locked'],
     cwd: cmcDir,
-    proves: 'Persona memory, state-change, and introspection boundaries are manifest-linked and fixture-verified.',
+    proves: 'Persona memory, state-change, action-commit, and introspection boundaries are manifest-linked and fixture-verified.',
   },
   {
     name: 'persona audit report jsonl',
     command: 'cargo',
     args: ['run', '--bin', 'persona_audit_report', '--locked'],
     cwd: cmcDir,
-    proves: 'Persona boundary evidence can be emitted as auditor-facing JSONL.',
+    proves: 'Persona/action boundary evidence can be emitted as auditor-facing JSONL.',
   },
   {
     name: 'persona audit report examples',
     command: 'cargo',
     args: ['run', '--bin', 'persona_audit_report_example_verify', '--locked'],
     cwd: cmcDir,
-    proves: 'Saved valid and drift persona audit report examples preserve expected schema semantics.',
+    proves: 'Saved valid and drift persona/action audit report examples preserve expected schema semantics.',
   },
   {
     name: 'persona sha256 sealed fixture verification',
     command: 'cargo',
     args: ['run', '--bin', 'verify_persona_sha256_fixture', '--locked'],
     cwd: cmcDir,
-    proves: 'Saved SHA-256 sealed persona boundary fixtures are executable-verified, including P2 decision tamper detection.',
+    proves: 'Saved SHA-256 sealed persona/action fixtures are executable-verified, including P6 action tamper detection at event 5.',
+  },
+  {
+    name: 'capu p6 pipeline demo',
+    command: 'cargo',
+    args: ['run', '--bin', 'capu_p6_pipeline_demo', '--locked'],
+    cwd: cmcDir,
+    proves: 'CaPU software reference units execute decode -> boundary route -> decision -> commit check for P6 external actions.',
   },
   {
     name: 'replay fixture structure',
@@ -168,5 +175,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
