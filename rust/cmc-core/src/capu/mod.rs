@@ -6,4 +6,5 @@
 
 pub mod boundary_router;
 pub mod commit_unit;
+pub mod decoder;
 pub mod transition;
