@@ -4,5 +4,6 @@
 //! from the processor model / semantic ISA / microarchitecture documents into
 //! executable Rust units without changing the existing CMC reviewer outputs.
 
+pub mod boundary_router;
 pub mod commit_unit;
 pub mod transition;
