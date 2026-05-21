@@ -36,7 +36,8 @@ fn extract_json_string(line: &str, key: &str) -> Result<String, String> {
     let prefix = format!("\"{}\":\"", key);
     let start = line
         .find(&prefix)
-        .ok_or_else(|| format!("missing field `{key}"`))?  + prefix.len();
+        .ok_or_else(|| format!("missing field `{}`", key))?
+        + prefix.len();
 
     let mut escaped = false;
     let mut end = None;
@@ -55,7 +56,7 @@ fn extract_json_string(line: &str, key: &str) -> Result<String, String> {
         }
     }
 
-    let end = end.ok_or_else(|| format!("unterminated field `{key}`"))?;
+    let end = end.ok_or_else(|| format!("unterminated field `{}`", key))?;
     json_unescape(&line[start..end])
 }
 
@@ -113,7 +114,7 @@ fn require_persona_semantics(sealed: &[SealedTraceEvent]) -> Result<(), String> 
         "\"boundary\":\"action_requires_commit\"",
     ] {
         if !joined.contains(needle) {
-            return Err(format!("missing semantic marker `{needle}"));
+            return Err(format!("missing semantic marker `{}`", needle));
         }
     }
 
