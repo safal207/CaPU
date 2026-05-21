@@ -33,6 +33,7 @@ ASCII fallback:
 - CaPU semantic ISA v0: [docs/hardware/CAPU_PROCESSOR_ISA_V0.md](docs/hardware/CAPU_PROCESSOR_ISA_V0.md)
 - CaPU microarchitecture v0: [docs/hardware/CAPU_MICROARCHITECTURE_V0.md](docs/hardware/CAPU_MICROARCHITECTURE_V0.md)
 - CaPU legitimacy coprocessor brief: [docs/hardware/CAPU_LEGITIMACY_COPROCESSOR_BRIEF.md](docs/hardware/CAPU_LEGITIMACY_COPROCESSOR_BRIEF.md)
+- CaPU software reference units roadmap: [docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_ROADMAP.md](docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_ROADMAP.md)
 - CMC current reviewer path: [docs/hardware/CMC_CURRENT_REVIEWER_PATH.md](docs/hardware/CMC_CURRENT_REVIEWER_PATH.md)
 - CMC persona/action reviewer path: [docs/hardware/CMC_PERSONA_ACTION_REVIEWER_PATH.md](docs/hardware/CMC_PERSONA_ACTION_REVIEWER_PATH.md)
 - Why causal computation: [docs/hardware/WHY_CAUSAL_COMPUTATION.md](docs/hardware/WHY_CAUSAL_COMPUTATION.md)
@@ -74,6 +75,7 @@ CAPU_PROCESSOR_MODEL
  -> CAPU_PROCESSOR_ISA_V0
  -> CAPU_MICROARCHITECTURE_V0
  -> CAPU_LEGITIMACY_COPROCESSOR_BRIEF
+ -> CAPU_SOFTWARE_REFERENCE_UNITS_ROADMAP
  -> CMC_CURRENT_REVIEWER_PATH
  -> CMC_PERSONA_ACTION_REVIEWER_PATH
  -> WHY_CAUSAL_COMPUTATION
