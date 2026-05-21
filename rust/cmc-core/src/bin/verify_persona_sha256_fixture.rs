@@ -3,8 +3,8 @@ use std::{fs, process::ExitCode};
 
 const VALID_FIXTURE: &str = "fixtures/persona_integrity/sha256_persona_valid.jsonl";
 const TAMPERED_FIXTURE: &str = "fixtures/persona_integrity/sha256_persona_tampered.jsonl";
-const EXPECTED_EVENTS: usize = 6;
-const EXPECTED_TAMPER_SEQ: usize = 3;
+const EXPECTED_EVENTS: usize = 8;
+const EXPECTED_TAMPER_SEQ: usize = 5;
 
 fn json_unescape(raw: &str) -> Result<String, String> {
     let mut out = String::new();
@@ -98,11 +98,15 @@ fn require_persona_semantics(sealed: &[SealedTraceEvent]) -> Result<(), String> 
         "\"scenario_id\":\"confirmed_preference_accepted\"",
         "\"scenario_id\":\"unauthorized_persona_state_change_rejected\"",
         "\"scenario_id\":\"authorized_persona_state_change_accepted\"",
+        "\"scenario_id\":\"action_without_commit_rejected\"",
+        "\"scenario_id\":\"action_with_commit_accepted\"",
         "\"scenario_id\":\"unlabeled_introspection_rejected\"",
         "\"scenario_id\":\"hypothesis_labeled_introspection_accepted\"",
         "\"invariant_id\":\"P1\"",
         "\"invariant_id\":\"P2\"",
+        "\"invariant_id\":\"P6\"",
         "\"invariant_id\":\"P7\"",
+        "\"boundary\":\"action_requires_commit\"",
     ] {
         if !joined.contains(needle) {
             return Err(format!("missing semantic marker `{needle}`"));
