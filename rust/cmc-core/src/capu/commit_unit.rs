@@ -1,3 +1,4 @@
+use super::cause_unit::{check_cause_present, CauseCheck};
 use super::transition::{Boundary, DecisionClass, Transition, TransitionType, UnitDecision};
 
 /// Enforce P6: external action requires committed causal authorization.
@@ -30,7 +31,7 @@ pub fn check_external_action_commit(transition: &Transition) -> UnitDecision {
         };
     }
 
-    let Some(cause_id) = transition.cause_id else {
+    let CauseCheck::Present(cause_id) = check_cause_present(transition.cause_id) else {
         return UnitDecision {
             class: DecisionClass::Reject,
             code: "REJECT_ACTION_WITHOUT_CAUSE",
