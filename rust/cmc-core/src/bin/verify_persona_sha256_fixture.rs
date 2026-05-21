@@ -33,11 +33,10 @@ fn json_unescape(raw: &str) -> Result<String, String> {
 }
 
 fn extract_json_string(line: &str, key: &str) -> Result<String, String> {
-    let prefix = format!("\"{key}\":\"");
+    let prefix = format!("\"{}\":\"", key);
     let start = line
         .find(&prefix)
-        .ok_or_else(|| format!("missing field `{key}`"))?
-        + prefix.len();
+        .ok_or_else(|| format!("missing field `{key}"`))?  + prefix.len();
 
     let mut escaped = false;
     let mut end = None;
@@ -61,17 +60,22 @@ fn extract_json_string(line: &str, key: &str) -> Result<String, String> {
 }
 
 fn read_fixture(path: &str) -> Result<Vec<SealedTraceEvent>, String> {
-    let raw = fs::read_to_string(path).map_err(|err| format!("failed to read {path}: {err}"))?;
+    let raw = fs::read_to_string(path)
+        .map_err(|err| format!("failed to read {path}: {err}"))?;
     let mut sealed = Vec::new();
 
-    for (idx, line) in raw.lines().filter(|line| !line.trim().is_empty()).enumerate() {
+    for (idx, line) in raw
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .enumerate()
+    {
         sealed.push(SealedTraceEvent {
             prev_hash: extract_json_string(line, "prev_hash")
-                .map_err(|err| format!("{path}:{} {err}", idx + 1))?,
+                .map_err(|err| format!("{}:{} {}", path, idx + 1, err))?,
             event: extract_json_string(line, "event")
-                .map_err(|err| format!("{path}:{} {err}", idx + 1))?,
+                .map_err(|err| format!("{}:{} {}", path, idx + 1, err))?,
             trace_hash: extract_json_string(line, "trace_hash")
-                .map_err(|err| format!("{path}:{} {err}", idx + 1))?,
+                .map_err(|err| format!("{}:{} {}", path, idx + 1, err))?,
         });
     }
 
@@ -109,7 +113,7 @@ fn require_persona_semantics(sealed: &[SealedTraceEvent]) -> Result<(), String> 
         "\"boundary\":\"action_requires_commit\"",
     ] {
         if !joined.contains(needle) {
-            return Err(format!("missing semantic marker `{needle}`"));
+            return Err(format!("missing semantic marker `{needle}"));
         }
     }
 

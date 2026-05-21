@@ -106,10 +106,15 @@ fn required_field<'a>(
 }
 
 fn read_fixture(path: &str) -> Result<Vec<SealedTraceEvent>, String> {
-    let raw = fs::read_to_string(path).map_err(|err| format!("failed to read {path}: {err}"))?;
+    let raw = fs::read_to_string(path)
+        .map_err(|err| format!("failed to read {path}: {err}"))?;
     let mut sealed = Vec::new();
 
-    for (idx, line) in raw.lines().filter(|line| !line.trim().is_empty()).enumerate() {
+    for (idx, line) in raw
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .enumerate()
+    {
         let line_no = idx + 1;
         let object = parse_flat_string_object(line)
             .map_err(|err| format!("{path}:{line_no}: invalid JSONL object: {err}"))?;
