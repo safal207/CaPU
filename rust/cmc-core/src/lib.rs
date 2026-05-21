@@ -1,3 +1,4 @@
+pub mod capu;
 pub mod trace_crypto;
 
 use std::collections::{HashMap, HashSet};
