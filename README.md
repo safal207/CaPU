@@ -30,6 +30,7 @@ ASCII fallback:
 ## Review links
 
 - CaPU processor model: [docs/hardware/CAPU_PROCESSOR_MODEL.md](docs/hardware/CAPU_PROCESSOR_MODEL.md)
+- CaPU semantic ISA v0: [docs/hardware/CAPU_PROCESSOR_ISA_V0.md](docs/hardware/CAPU_PROCESSOR_ISA_V0.md)
 - CMC current reviewer path: [docs/hardware/CMC_CURRENT_REVIEWER_PATH.md](docs/hardware/CMC_CURRENT_REVIEWER_PATH.md)
 - CMC persona/action reviewer path: [docs/hardware/CMC_PERSONA_ACTION_REVIEWER_PATH.md](docs/hardware/CMC_PERSONA_ACTION_REVIEWER_PATH.md)
 - Why causal computation: [docs/hardware/WHY_CAUSAL_COMPUTATION.md](docs/hardware/WHY_CAUSAL_COMPUTATION.md)
@@ -68,6 +69,7 @@ Recommended reviewer path:
 
 ```text
 CAPU_PROCESSOR_MODEL
+ -> CAPU_PROCESSOR_ISA_V0
  -> CMC_CURRENT_REVIEWER_PATH
  -> CMC_PERSONA_ACTION_REVIEWER_PATH
  -> WHY_CAUSAL_COMPUTATION
