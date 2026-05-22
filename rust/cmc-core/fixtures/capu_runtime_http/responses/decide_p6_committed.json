@@ -1,0 +1,1 @@
+{"route":"/capu/decide","decision_class":"accept","code":"ACCEPT_COMMITTED_ACTION","invariant_id":"P6","boundary":"action_requires_commit","verdict":"accepted_committed_action"}
