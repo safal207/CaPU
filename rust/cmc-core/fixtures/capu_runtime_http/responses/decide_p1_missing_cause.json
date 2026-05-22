@@ -1,0 +1,1 @@
+{"route":"/capu/decide","decision_class":"reject","code":"REJECT_PERSONA_MEMORY_WITHOUT_CAUSE","invariant_id":"P1","boundary":"persona_memory_requires_cause","verdict":"blocked_persona_memory_without_cause"}
