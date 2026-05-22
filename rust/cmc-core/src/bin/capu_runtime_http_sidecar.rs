@@ -296,6 +296,7 @@ fn parse_http_request(request: &str) -> Result<(&str, &str, &str), String> {
 fn write_http_response(mut stream: TcpStream, response: RuntimeResponse) -> Result<(), String> {
     let reason = match response.status_code {
         200 => "OK",
+        400 => "Bad Request",
         404 => "Not Found",
         _ => "Internal Server Error",
     };
@@ -316,8 +317,12 @@ fn handle_stream(mut stream: TcpStream) -> Result<(), String> {
     stream
         .read_to_string(&mut request)
         .map_err(|err| format!("failed to read request: {err}"))?;
-    let (method, path, body) = parse_http_request(&request)?;
-    let response = handle_request(method, path, body);
+
+    let response = match parse_http_request(&request) {
+        Ok((method, path, body)) => handle_request(method, path, body),
+        Err(err) => error_response(400, &format!("bad_request:{err}")),
+    };
+
     write_http_response(stream, response)
 }
 
@@ -343,11 +348,15 @@ fn run_server(addr: &str) -> Result<(), String> {
 }
 
 fn send_http(addr: SocketAddr, method: &str, path: &str, body: &str) -> Result<String, String> {
-    let mut stream = TcpStream::connect(addr).map_err(|err| format!("connect failed: {err}"))?;
     let request = format!(
         "{method} {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
+    send_raw_http(addr, &request)
+}
+
+fn send_raw_http(addr: SocketAddr, request: &str) -> Result<String, String> {
+    let mut stream = TcpStream::connect(addr).map_err(|err| format!("connect failed: {err}"))?;
     stream
         .write_all(request.as_bytes())
         .map_err(|err| format!("write failed: {err}"))?;
@@ -389,7 +398,7 @@ fn run_self_test() -> Result<(), String> {
         .local_addr()
         .map_err(|err| format!("failed to read listener addr: {err}"))?;
 
-    let server = thread::spawn(move || run_listener(listener, Some(4)));
+    let server = thread::spawn(move || run_listener(listener, Some(6)));
 
     let health = send_http(addr, "GET", RuntimeRoute::Health.path(), "")?;
     assert_response(
@@ -424,6 +433,20 @@ fn run_self_test() -> Result<(), String> {
         &format!("{FIXTURE_DIR}/responses/replay_p1_pair.json"),
     )?;
 
+    let unknown_route = send_http(addr, "GET", "/capu/unknown", "")?;
+    assert_response(
+        "unknown_route",
+        &unknown_route,
+        &format!("{FIXTURE_DIR}/responses/unknown_route.json"),
+    )?;
+
+    let malformed_request = send_raw_http(addr, "BROKEN\r\n\r\n")?;
+    assert_response(
+        "malformed_request",
+        &malformed_request,
+        &format!("{FIXTURE_DIR}/responses/malformed_request.json"),
+    )?;
+
     server
         .join()
         .map_err(|_| "self-test server panicked".to_string())??;
@@ -433,6 +456,8 @@ fn run_self_test() -> Result<(), String> {
     println!("route={} case=decide_p1_missing_cause status=ok", RuntimeRoute::Decide.path());
     println!("route={} case=audit_p6_committed status=ok", RuntimeRoute::Audit.path());
     println!("route={} case=replay_p1_pair status=ok", RuntimeRoute::Replay.path());
+    println!("route=/capu/unknown case=unknown_route status=ok");
+    println!("case=malformed_request status=ok");
     println!("fixtures={FIXTURE_DIR}");
     println!("result=capu_runtime_http_sidecar_verified");
 
