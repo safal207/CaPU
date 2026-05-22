@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://capu.local/schemas/runtime-http/response.schema.json",
+  "title": "CaPU Runtime HTTP Response Fixture",
+  "description": "Schema for v0 CaPU runtime HTTP response fixtures.",
+  "type": "object",
+  "oneOf": [
+    {
+      "title": "Health response",
+      "required": ["route", "status", "service"],
+      "properties": {
+        "route": { "const": "/capu/health" },
+        "status": { "const": "ok" },
+        "service": { "const": "capu-runtime-http-sidecar" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "Decision response",
+      "required": ["route", "decision_class", "code", "invariant_id", "boundary", "verdict"],
+      "properties": {
+        "route": { "const": "/capu/decide" },
+        "decision_class": { "enum": ["accept", "reject", "hold"] },
+        "code": { "type": "string", "minLength": 1 },
+        "invariant_id": { "enum": ["P1", "P6", "CAPU"] },
+        "boundary": { "type": "string", "minLength": 1 },
+        "verdict": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "Audit response",
+      "required": ["route", "transition_id", "invariant_id", "boundary", "verdict", "accepted"],
+      "properties": {
+        "route": { "const": "/capu/audit" },
+        "transition_id": { "type": "string", "minLength": 1 },
+        "invariant_id": { "enum": ["P1", "P6", "CAPU"] },
+        "boundary": { "type": "string", "minLength": 1 },
+        "verdict": { "type": "string", "minLength": 1 },
+        "accepted": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "Replay response",
+      "required": ["route", "invariant_id", "result", "events"],
+      "properties": {
+        "route": { "const": "/capu/replay" },
+        "invariant_id": { "enum": ["P1", "P6"] },
+        "result": { "const": "capu_runtime_http_replay_valid" },
+        "events": { "type": "integer", "minimum": 1 },
+        "p1_boundary_events": { "type": "integer", "minimum": 0 },
+        "p6_boundary_events": { "type": "integer", "minimum": 0 },
+        "rejected_without_cause": { "type": "integer", "minimum": 0 },
+        "rejected_without_commit": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
