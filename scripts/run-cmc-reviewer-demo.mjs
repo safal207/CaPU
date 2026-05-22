@@ -137,6 +137,13 @@ const steps = [
     proves: 'P1 persona-memory writes require explicit causal support and emit sealed audit evidence.',
   },
   {
+    name: 'capu p1 fixture verifier',
+    command: 'cargo',
+    args: ['run', '--bin', 'capu_p1_fixture_verify', '--locked'],
+    cwd: cmcDir,
+    proves: 'Saved sealed CaPU P1 persona-memory fixtures can be replay-verified through the reviewer path.',
+  },
+  {
     name: 'replay fixture structure',
     command: 'cargo',
     args: ['run', '--bin', 'replay_fixture_verify', '--locked'],
@@ -210,5 +217,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, CaPU-P6-fixture-verified, CaPU-P6-action-variants-verified, CaPU-manifest-verified, CaPU-P1-persona-memory-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, CaPU-P6-fixture-verified, CaPU-P6-action-variants-verified, CaPU-manifest-verified, CaPU-P1-persona-memory-verified, CaPU-P1-fixture-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
