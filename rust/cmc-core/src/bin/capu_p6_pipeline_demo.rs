@@ -1,6 +1,7 @@
 use cmc_core::capu::audit_bus::emit_audit_record;
 use cmc_core::capu::decision_unit::decide_transition;
 use cmc_core::capu::decoder::{decode_external_action, ExternalActionRequest};
+use cmc_core::capu::replay_unit::replay_p6_audit_chain;
 use cmc_core::capu::seal_unit::{seal_audit_records, verify_sealed_audit_records};
 use cmc_core::capu::transition::DecisionClass;
 
@@ -60,7 +61,18 @@ fn main() {
     assert_eq!(sealed.len(), 2);
     assert!(verify_sealed_audit_records(&sealed).is_ok());
 
+    let replay = replay_p6_audit_chain(&sealed).expect("sealed P6 audit chain must replay");
+    assert!(replay.valid_p6_pair());
+
     println!("sealed_events={}", sealed.len());
     println!("seal_result=capu_p6_audit_seal_valid");
+    println!(
+        "replay_summary events={} p6_boundary_events={} rejected_without_commit={} accepted_committed_action={}",
+        replay.events,
+        replay.p6_boundary_events,
+        replay.rejected_without_commit,
+        replay.accepted_committed_action
+    );
+    println!("replay_result=capu_p6_audit_replay_valid");
     println!("result=capu_p6_pipeline_valid");
 }
