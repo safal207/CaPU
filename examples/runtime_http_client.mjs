@@ -12,6 +12,7 @@ const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
 const cmcDir = path.join(repoRoot, 'rust/cmc-core')
 const fixtureRoot = path.join(cmcDir, 'fixtures/capu_runtime_http')
+const CLIENT_TIMEOUT_MS = 120_000
 
 function readFixture(relativePath) {
   return fs.readFileSync(path.join(fixtureRoot, relativePath), 'utf8').trim()
@@ -41,6 +42,7 @@ function requestJson({ port, method, route, body = '' }) {
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),
         },
+        timeout: 10_000,
       },
       (response) => {
         let data = ''
@@ -54,6 +56,9 @@ function requestJson({ port, method, route, body = '' }) {
       },
     )
 
+    request.on('timeout', () => {
+      request.destroy(new Error(`${method} ${route} timed out`))
+    })
     request.on('error', reject)
     if (body.length > 0) {
       request.write(body)
@@ -105,7 +110,7 @@ function stopSidecar(sidecar) {
   }
 }
 
-async function main() {
+async function runClient() {
   const port = await findFreePort()
   const addr = `127.0.0.1:${port}`
 
@@ -158,6 +163,21 @@ async function main() {
     console.log('result=runtime_http_client_example_verified')
   } finally {
     stopSidecar(sidecar)
+  }
+}
+
+async function main() {
+  let timeoutId
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`client example exceeded ${CLIENT_TIMEOUT_MS}ms`))
+    }, CLIENT_TIMEOUT_MS)
+  })
+
+  try {
+    await Promise.race([runClient(), timeout])
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
