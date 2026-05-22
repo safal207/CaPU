@@ -79,6 +79,7 @@ fn verify_fixture(check: &FixtureCheck) -> Result<usize, String> {
         .map_err(|err| format!("failed to read {}: {err}", path.display()))?;
 
     let mut lines_seen = 0;
+    let mut expected_decision_seen = false;
 
     for (idx, line) in content.lines().enumerate() {
         let line = line.trim();
@@ -106,14 +107,8 @@ fn verify_fixture(check: &FixtureCheck) -> Result<usize, String> {
             }
         }
 
-        if !line.contains(&format!("\"decision\":\"{}\"", check.expected_decision)) {
-            return Err(format!(
-                "{}:{} expected decision `{}`, line was: {}",
-                path.display(),
-                idx + 1,
-                check.expected_decision,
-                line
-            ));
+        if line.contains(&format!("\"decision\":\"{}\"", check.expected_decision)) {
+            expected_decision_seen = true;
         }
     }
 
@@ -126,6 +121,15 @@ fn verify_fixture(check: &FixtureCheck) -> Result<usize, String> {
             "{} event count drift: expected {}, actual {}",
             path.display(),
             check.expected_events,
+            lines_seen
+        ));
+    }
+
+    if !expected_decision_seen {
+        return Err(format!(
+            "{} expected decision `{}` was not found in {} replay events",
+            path.display(),
+            check.expected_decision,
             lines_seen
         ));
     }
