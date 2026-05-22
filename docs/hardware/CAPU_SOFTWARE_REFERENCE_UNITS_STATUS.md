@@ -21,6 +21,9 @@ rust/cmc-core/src/capu/seal_unit.rs
 rust/cmc-core/src/capu/replay_unit.rs
 rust/cmc-core/src/bin/capu_p6_pipeline_demo.rs
 rust/cmc-core/src/bin/capu_p6_replay_verify.rs
+rust/cmc-core/src/bin/capu_p6_fixture_verify.rs
+rust/cmc-core/fixtures/capu/p6_audit_valid.jsonl
+rust/cmc-core/fixtures/capu/p6_audit_tampered.jsonl
 ```
 
 Current module tree:
@@ -111,7 +114,26 @@ replay_summary events=2 p6_boundary_events=2 rejected_without_commit=1 accepted_
 result=capu_p6_replay_verified
 ```
 
-Both commands are included in:
+Saved fixture verifier:
+
+```bash
+cargo run --bin capu_p6_fixture_verify --locked
+```
+
+Expected output includes:
+
+```text
+CAPU-P6-FIXTURE-VERIFY v0
+valid_fixture=fixtures/capu/p6_audit_valid.jsonl
+valid_events=2
+valid_result=capu_p6_fixture_replay_valid
+tampered_fixture=fixtures/capu/p6_audit_tampered.jsonl
+tampered_events=2
+tampered_result=capu_p6_fixture_tamper_detected event=1
+result=capu_p6_fixtures_verified
+```
+
+All three commands are included in:
 
 ```bash
 npm run review:cmc
@@ -139,6 +161,9 @@ Seal unit using existing SHA-256 trace-chain primitives
 Replay unit for sealed P6 audit evidence
 P6 CLI pipeline demo
 Independent P6 replay verifier binary
+Saved valid P6 sealed audit fixture
+Saved tampered P6 sealed audit fixture
+Saved fixture verifier binary
 Reviewer script integration
 ```
 
@@ -154,7 +179,7 @@ This keeps the reference processor honest while more units are extracted.
 
 ## Evidence semantics
 
-The current P6 path now demonstrates four separate evidence layers:
+The current P6 path now demonstrates five separate evidence layers:
 
 ```text
 Decision evidence
@@ -168,6 +193,9 @@ Integrity evidence
 
 Replay evidence
  -> semantic replay summary over sealed audit events
+
+Saved fixture evidence
+ -> valid fixture + tampered fixture + fixture verifier
 ```
 
 Replay currently checks the canonical two-event P6 pair:
@@ -175,6 +203,12 @@ Replay currently checks the canonical two-event P6 pair:
 ```text
 REJECT_ACTION_WITHOUT_COMMIT
 ACCEPT_COMMITTED_ACTION
+```
+
+The tampered fixture intentionally modifies the first saved event while preserving the old hash, so the verifier must fail before semantic replay:
+
+```text
+ReplayError::SealInvalid { event_index: 1 }
 ```
 
 This is intentionally narrow and deterministic. Future replay units can generalize to arbitrary trace classes.
@@ -193,6 +227,7 @@ CAPU_PROCESSOR_MODEL
  -> CAPU_SOFTWARE_REFERENCE_UNITS_STATUS
  -> rust/cmc-core/src/capu
  -> reviewer binaries
+ -> saved fixtures
  -> npm run review:cmc
 ```
 
@@ -203,7 +238,7 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-A P6 external action can be decoded, boundary-routed, decided, cause-checked, audit-emitted, SHA-256 sealed, and semantically replay-verified through a reviewer-visible command path.
+A P6 external action can be decoded, boundary-routed, decided, cause-checked, audit-emitted, SHA-256 sealed, semantically replay-verified, saved as fixture evidence, and tamper-detected through reviewer-visible command paths.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
@@ -215,19 +250,18 @@ The current implementation does not claim a complete CaPU runtime.
 Recommended next step:
 
 ```text
-Create a small fixture file for the P6 sealed audit pair
-Create a capu_p6_fixture_verify.rs verifier
-Keep capu_p6_pipeline_demo and capu_p6_replay_verify markers unchanged
-```
-
-Then:
-
-```text
 Extract broader P6 action variants:
 - delete_file_without_commit_rejected
 - delete_file_with_commit_accepted
 - deploy_code_without_commit_rejected
 - deploy_code_with_commit_accepted
+```
+
+Then:
+
+```text
+Create a fixture manifest for CaPU cases:
+fixtures/capu/MANIFEST.tsv
 ```
 
 Then:
@@ -258,5 +292,5 @@ It is a software reference scaffold.
 ## One-line summary
 
 ```text
-CaPU currently has a first executable software reference evidence path for P6 external actions: decode -> boundary route -> decision -> cause check -> audit -> seal -> replay -> independent verifier.
+CaPU currently has a first executable software reference evidence path for P6 external actions: decode -> boundary route -> decision -> cause check -> audit -> seal -> replay -> saved fixture verification -> reviewer script.
 ```
