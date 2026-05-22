@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://capu.local/schemas/runtime-http/request.schema.json",
+  "title": "CaPU Runtime HTTP Request Fixture",
+  "description": "Schema for v0 CaPU runtime HTTP request fixtures.",
+  "type": "object",
+  "oneOf": [
+    {
+      "title": "Persona memory decision request",
+      "required": ["transition_type", "transition_id", "memory", "cause_id"],
+      "properties": {
+        "transition_type": { "const": "persona_memory" },
+        "transition_id": { "type": "string", "minLength": 1 },
+        "memory": { "type": "string", "minLength": 1 },
+        "cause_id": { "type": ["integer", "null"], "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "External action request",
+      "required": ["transition_type", "transition_id", "action_kind", "cause_id", "commit"],
+      "properties": {
+        "transition_type": { "const": "external_action" },
+        "transition_id": { "type": "string", "minLength": 1 },
+        "action_kind": { "type": "string", "minLength": 1 },
+        "cause_id": { "type": ["integer", "null"], "minimum": 0 },
+        "commit": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "Canonical replay request",
+      "required": ["invariant_id", "replay"],
+      "properties": {
+        "invariant_id": { "enum": ["P1", "P6"] },
+        "replay": { "const": "canonical_pair" }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
