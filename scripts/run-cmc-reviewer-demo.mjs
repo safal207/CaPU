@@ -116,6 +116,13 @@ const steps = [
     proves: 'Saved sealed CaPU P6 audit fixtures can be replay-verified and tamper-detected.',
   },
   {
+    name: 'capu p6 action variants verifier',
+    command: 'cargo',
+    args: ['run', '--bin', 'capu_p6_action_variants_verify', '--locked'],
+    cwd: cmcDir,
+    proves: 'P6 action-commit semantics apply across multiple external action kinds, not only send_email.',
+  },
+  {
     name: 'replay fixture structure',
     command: 'cargo',
     args: ['run', '--bin', 'replay_fixture_verify', '--locked'],
@@ -189,5 +196,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, CaPU-P6-fixture-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, CaPU-P6-fixture-verified, CaPU-P6-action-variants-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
