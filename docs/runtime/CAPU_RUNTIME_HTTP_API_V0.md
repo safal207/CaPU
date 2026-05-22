@@ -14,7 +14,7 @@ Current maturity represented by this contract:
 
 ```text
 Software reference processor: ~62%
-Runtime sidecar/API:        ~85%
+Runtime sidecar/API:        ~90%
 Hardware/device path:       ~5%
 ```
 
@@ -426,10 +426,10 @@ fixtures/capu_runtime_http/responses/audit_p6_committed.json
 Purpose:
 
 ```text
-Return replay evidence for a canonical P1 or P6 sealed audit pair.
+Return replay evidence for canonical or submitted P1/P6 sealed audit pair requests.
 ```
 
-Current v0 replay is not yet arbitrary user-submitted replay. It selects a canonical pair by invariant marker.
+Current v0 replay is still fixture-driven. It is not a general-purpose replay engine, but it now supports an explicit submitted replay request shape.
 
 ### P1 canonical replay
 
@@ -491,6 +491,76 @@ Fixtures:
 ```text
 fixtures/capu_runtime_http/requests/replay_p6_pair.json
 fixtures/capu_runtime_http/responses/replay_p6_pair.json
+```
+
+### P1 submitted replay
+
+Example request:
+
+```json
+{
+  "invariant_id": "P1",
+  "replay": "submitted_pair",
+  "submission_id": "http-p1-submitted-replay",
+  "events": "canonical_pair"
+}
+```
+
+Example response:
+
+```json
+{
+  "route": "/capu/replay",
+  "invariant_id": "P1",
+  "replay_mode": "submitted_pair",
+  "submission_id": "http-p1-submitted-replay",
+  "result": "capu_runtime_http_replay_valid",
+  "events": 2,
+  "p1_boundary_events": 2,
+  "rejected_without_cause": 1
+}
+```
+
+Fixtures:
+
+```text
+fixtures/capu_runtime_http/requests/replay_submitted_p1_pair.json
+fixtures/capu_runtime_http/responses/replay_submitted_p1_pair.json
+```
+
+### P6 submitted replay
+
+Example request:
+
+```json
+{
+  "invariant_id": "P6",
+  "replay": "submitted_pair",
+  "submission_id": "http-p6-submitted-replay",
+  "events": "canonical_pair"
+}
+```
+
+Example response:
+
+```json
+{
+  "route": "/capu/replay",
+  "invariant_id": "P6",
+  "replay_mode": "submitted_pair",
+  "submission_id": "http-p6-submitted-replay",
+  "result": "capu_runtime_http_replay_valid",
+  "events": 2,
+  "p6_boundary_events": 2,
+  "rejected_without_commit": 1
+}
+```
+
+Fixtures:
+
+```text
+fixtures/capu_runtime_http/requests/replay_submitted_p6_pair.json
+fixtures/capu_runtime_http/responses/replay_submitted_p6_pair.json
 ```
 
 ---
@@ -588,8 +658,10 @@ P6 rejected decide route
 P6 accepted decide route
 P6 rejected audit route
 P6 accepted audit route
-P1 replay route
-P6 replay route
+P1 canonical replay route
+P6 canonical replay route
+P1 submitted replay route
+P6 submitted replay route
 unknown-route error response
 malformed-request error response
 saved request fixtures
@@ -618,7 +690,7 @@ authorization
 streaming
 OpenAPI completeness
 stable public SDK
-arbitrary replay submission
+general-purpose replay engine
 production error taxonomy
 complete HTTP error coverage
 ```
@@ -632,8 +704,8 @@ It is a local reference sidecar contract for reviewer-visible evidence.
 Recommended next steps:
 
 ```text
-1. Add arbitrary replay submission after canonical replay coverage is stable.
-2. Generate full OpenAPI from the manifest after request/response schemas become more specific.
-3. Promote the SDK wrapper only after versioning and error taxonomy stabilize.
-4. Expand error taxonomy only when new checked error fixtures are added.
+1. Generate full OpenAPI from the manifest after request/response schemas become more specific.
+2. Promote the SDK wrapper only after versioning and error taxonomy stabilize.
+3. Expand error taxonomy only when new checked error fixtures are added.
+4. Replace fixture-driven submitted replay with real arbitrary replay event decoding later.
 ```

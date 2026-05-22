@@ -118,7 +118,7 @@ fn audit_response(transition: &Transition) -> RuntimeResponse {
     }
 }
 
-fn p1_replay_response() -> RuntimeResponse {
+fn p1_replay_response(submission_id: Option<&str>) -> RuntimeResponse {
     let rejected = decode_persona_memory(PersonaMemoryRequest::new(
         "http-p1-reject",
         "raw inferred preference",
@@ -137,23 +137,36 @@ fn p1_replay_response() -> RuntimeResponse {
     let sealed = seal_audit_records(&[rejected_record, accepted_record]);
 
     match replay_p1_persona_memory_audit_chain(&sealed) {
-        Ok(summary) => RuntimeResponse {
-            status_code: 200,
-            body: format!(
-                "{{{},{},{},{},{},{}}}",
-                json_field("route", RuntimeRoute::Replay.path()),
-                json_field("invariant_id", "P1"),
-                json_field("result", "capu_runtime_http_replay_valid"),
-                json_number_field("events", summary.events),
-                json_number_field("p1_boundary_events", summary.p1_boundary_events),
-                json_number_field("rejected_without_cause", summary.rejected_without_cause)
-            ),
-        },
+        Ok(summary) => {
+            let body = match submission_id {
+                Some(submission_id) => format!(
+                    "{{{},{},{},{},{},{},{},{}}}",
+                    json_field("route", RuntimeRoute::Replay.path()),
+                    json_field("invariant_id", "P1"),
+                    json_field("replay_mode", "submitted_pair"),
+                    json_field("submission_id", submission_id),
+                    json_field("result", "capu_runtime_http_replay_valid"),
+                    json_number_field("events", summary.events),
+                    json_number_field("p1_boundary_events", summary.p1_boundary_events),
+                    json_number_field("rejected_without_cause", summary.rejected_without_cause)
+                ),
+                None => format!(
+                    "{{{},{},{},{},{},{}}}",
+                    json_field("route", RuntimeRoute::Replay.path()),
+                    json_field("invariant_id", "P1"),
+                    json_field("result", "capu_runtime_http_replay_valid"),
+                    json_number_field("events", summary.events),
+                    json_number_field("p1_boundary_events", summary.p1_boundary_events),
+                    json_number_field("rejected_without_cause", summary.rejected_without_cause)
+                ),
+            };
+            RuntimeResponse { status_code: 200, body }
+        }
         Err(err) => error_response(500, &format!("p1_replay_failed:{err:?}")),
     }
 }
 
-fn p6_replay_response() -> RuntimeResponse {
+fn p6_replay_response(submission_id: Option<&str>) -> RuntimeResponse {
     let rejected = decode_external_action(ExternalActionRequest::new(
         "http-p6-reject",
         "send_email",
@@ -174,18 +187,31 @@ fn p6_replay_response() -> RuntimeResponse {
     let sealed = seal_audit_records(&[rejected_record, accepted_record]);
 
     match replay_p6_audit_chain(&sealed) {
-        Ok(summary) => RuntimeResponse {
-            status_code: 200,
-            body: format!(
-                "{{{},{},{},{},{},{}}}",
-                json_field("route", RuntimeRoute::Replay.path()),
-                json_field("invariant_id", "P6"),
-                json_field("result", "capu_runtime_http_replay_valid"),
-                json_number_field("events", summary.events),
-                json_number_field("p6_boundary_events", summary.p6_boundary_events),
-                json_number_field("rejected_without_commit", summary.rejected_without_commit)
-            ),
-        },
+        Ok(summary) => {
+            let body = match submission_id {
+                Some(submission_id) => format!(
+                    "{{{},{},{},{},{},{},{},{}}}",
+                    json_field("route", RuntimeRoute::Replay.path()),
+                    json_field("invariant_id", "P6"),
+                    json_field("replay_mode", "submitted_pair"),
+                    json_field("submission_id", submission_id),
+                    json_field("result", "capu_runtime_http_replay_valid"),
+                    json_number_field("events", summary.events),
+                    json_number_field("p6_boundary_events", summary.p6_boundary_events),
+                    json_number_field("rejected_without_commit", summary.rejected_without_commit)
+                ),
+                None => format!(
+                    "{{{},{},{},{},{},{}}}",
+                    json_field("route", RuntimeRoute::Replay.path()),
+                    json_field("invariant_id", "P6"),
+                    json_field("result", "capu_runtime_http_replay_valid"),
+                    json_number_field("events", summary.events),
+                    json_number_field("p6_boundary_events", summary.p6_boundary_events),
+                    json_number_field("rejected_without_commit", summary.rejected_without_commit)
+                ),
+            };
+            RuntimeResponse { status_code: 200, body }
+        }
         Err(err) => error_response(500, &format!("p6_replay_failed:{err:?}")),
     }
 }
@@ -266,15 +292,26 @@ fn json_bool_value(body: &str, key: &str) -> bool {
     after_key[colon + 1..].trim_start().starts_with("true")
 }
 
+fn replay_response_from_body(body: &str) -> RuntimeResponse {
+    let submission_id = if body.contains("\"replay\":\"submitted_pair\"") {
+        json_string_value(body, "submission_id").as_deref().map(str::to_string)
+    } else {
+        None
+    };
+
+    if body.contains("P1") || body.contains("persona_memory") {
+        p1_replay_response(submission_id.as_deref())
+    } else {
+        p6_replay_response(submission_id.as_deref())
+    }
+}
+
 fn handle_request(method: &str, path: &str, body: &str) -> RuntimeResponse {
     match (method, path) {
         ("GET", "/capu/health") => health_response(),
         ("POST", "/capu/decide") => decision_response(&transition_from_body(body)),
         ("POST", "/capu/audit") => audit_response(&transition_from_body(body)),
-        ("POST", "/capu/replay") if body.contains("P1") || body.contains("persona_memory") => {
-            p1_replay_response()
-        }
-        ("POST", "/capu/replay") => p6_replay_response(),
+        ("POST", "/capu/replay") => replay_response_from_body(body),
         _ => error_response(404, "route_not_found"),
     }
 }
@@ -398,7 +435,7 @@ fn run_self_test() -> Result<(), String> {
         .local_addr()
         .map_err(|err| format!("failed to read listener addr: {err}"))?;
 
-    let server = thread::spawn(move || run_listener(listener, Some(10)));
+    let server = thread::spawn(move || run_listener(listener, Some(12)));
 
     let health = send_http(addr, "GET", RuntimeRoute::Health.path(), "")?;
     assert_response(
@@ -481,6 +518,22 @@ fn run_self_test() -> Result<(), String> {
         &format!("{FIXTURE_DIR}/responses/replay_p6_pair.json"),
     )?;
 
+    let submitted_p1_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_submitted_p1_pair.json"))?;
+    let submitted_p1 = send_http(addr, "POST", RuntimeRoute::Replay.path(), &submitted_p1_body)?;
+    assert_response(
+        "replay_submitted_p1_pair",
+        &submitted_p1,
+        &format!("{FIXTURE_DIR}/responses/replay_submitted_p1_pair.json"),
+    )?;
+
+    let submitted_p6_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_submitted_p6_pair.json"))?;
+    let submitted_p6 = send_http(addr, "POST", RuntimeRoute::Replay.path(), &submitted_p6_body)?;
+    assert_response(
+        "replay_submitted_p6_pair",
+        &submitted_p6,
+        &format!("{FIXTURE_DIR}/responses/replay_submitted_p6_pair.json"),
+    )?;
+
     let unknown_route = send_http(addr, "GET", "/capu/unknown", "")?;
     assert_response(
         "unknown_route",
@@ -508,6 +561,8 @@ fn run_self_test() -> Result<(), String> {
     println!("route={} case=audit_p6_committed status=ok", RuntimeRoute::Audit.path());
     println!("route={} case=replay_p1_pair status=ok", RuntimeRoute::Replay.path());
     println!("route={} case=replay_p6_pair status=ok", RuntimeRoute::Replay.path());
+    println!("route={} case=replay_submitted_p1_pair status=ok", RuntimeRoute::Replay.path());
+    println!("route={} case=replay_submitted_p6_pair status=ok", RuntimeRoute::Replay.path());
     println!("route=/capu/unknown case=unknown_route status=ok");
     println!("case=malformed_request status=ok");
     println!("fixtures={FIXTURE_DIR}");

@@ -89,10 +89,12 @@
     "/capu/replay": {
       "post": {
         "operationId": "capuReplay",
-        "summary": "Return replay evidence for a canonical sealed audit pair",
+        "summary": "Return replay evidence for canonical or submitted sealed audit pair requests",
         "x-capu-route-ids": [
           "replay_p1_pair",
-          "replay_p6_pair"
+          "replay_p6_pair",
+          "replay_submitted_p1_pair",
+          "replay_submitted_p6_pair"
         ],
         "requestBody": {
           "required": true,
@@ -104,7 +106,7 @@
         },
         "responses": {
           "200": {
-            "description": "Canonical replay response",
+            "description": "Replay response",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/JsonObject" }
@@ -161,7 +163,7 @@
   ],
   "x-capu-maturity": {
     "software_reference_processor": "~62%",
-    "runtime_sidecar_api": "~75%",
+    "runtime_sidecar_api": "~90%",
     "hardware_device_path": "~5%"
   },
   "x-capu-non-claims": [
@@ -171,7 +173,7 @@
     "streaming",
     "OpenAPI completeness",
     "stable public SDK",
-    "arbitrary replay submission",
+    "general-purpose replay engine",
     "production error taxonomy"
   ]
 }

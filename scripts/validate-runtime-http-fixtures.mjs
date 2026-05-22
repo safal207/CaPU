@@ -86,6 +86,18 @@ function validateRequest(value, filePath) {
     return
   }
 
+  if (value.replay === 'submitted_pair') {
+    assertOnlyKeys(value, ['invariant_id', 'replay', 'submission_id', 'events'], 'request', filePath)
+    if (!['P1', 'P6'].includes(value.invariant_id)) {
+      fail('request', filePath, 'invariant_id must be P1 or P6')
+    }
+    assertString(value.submission_id, 'submission_id', 'request', filePath)
+    if (value.events !== 'canonical_pair') {
+      fail('request', filePath, 'events must be canonical_pair for submitted_pair v0')
+    }
+    return
+  }
+
   fail('request', filePath, 'unknown request fixture shape')
 }
 
@@ -156,6 +168,8 @@ function validateResponse(value, filePath) {
       [
         'route',
         'invariant_id',
+        'replay_mode',
+        'submission_id',
         'result',
         'events',
         'p1_boundary_events',
@@ -171,6 +185,12 @@ function validateResponse(value, filePath) {
     }
     if (value.result !== 'capu_runtime_http_replay_valid') {
       fail('response', filePath, 'unexpected replay result')
+    }
+    if ('replay_mode' in value && value.replay_mode !== 'submitted_pair') {
+      fail('response', filePath, 'replay_mode must be submitted_pair when present')
+    }
+    if ('submission_id' in value) {
+      assertString(value.submission_id, 'submission_id', 'response', filePath)
     }
     if (!Number.isInteger(value.events) || value.events < 1) {
       fail('response', filePath, 'events must be a positive integer')

@@ -172,6 +172,15 @@ async function runClient() {
     })
     assertFixture('replay_p6_pair', replay, 'responses/replay_p6_pair.json')
 
+    const submittedReplayBody = readFixture('requests/replay_submitted_p6_pair.json')
+    const submittedReplay = await requestJson({
+      port,
+      method: 'POST',
+      route: '/capu/replay',
+      body: submittedReplayBody,
+    })
+    assertFixture('replay_submitted_p6_pair', submittedReplay, 'responses/replay_submitted_p6_pair.json')
+
     const unknown = await requestJson({ port, method: 'GET', route: '/capu/unknown' })
     assertFixture('unknown_route', unknown, 'responses/unknown_route.json')
 

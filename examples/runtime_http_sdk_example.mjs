@@ -31,6 +31,9 @@ async function runSdkExample() {
     const replay = await client.replay(readFixtureJson('requests/replay_p6_pair.json'))
     assertFixture('replay_p6_pair', replay, 'responses/replay_p6_pair.json')
 
+    const submittedReplay = await client.replay(readFixtureJson('requests/replay_submitted_p6_pair.json'))
+    assertFixture('replay_submitted_p6_pair', submittedReplay, 'responses/replay_submitted_p6_pair.json')
+
     const unknown = await client.unknownRoute()
     assertFixture('unknown_route', unknown, 'responses/unknown_route.json')
 
