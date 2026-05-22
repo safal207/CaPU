@@ -14,7 +14,7 @@ Current maturity represented by this contract:
 
 ```text
 Software reference processor: ~62%
-Runtime sidecar/API:        ~52%
+Runtime sidecar/API:        ~58%
 Hardware/device path:       ~5%
 ```
 
@@ -129,7 +129,41 @@ fixtures/capu_runtime_http/requests/decide_p1_missing_cause.json
 fixtures/capu_runtime_http/responses/decide_p1_missing_cause.json
 ```
 
-### External action request
+### External action request: rejected
+
+Example request:
+
+```json
+{
+  "transition_type": "external_action",
+  "transition_id": "http-p6-reject",
+  "action_kind": "send_email",
+  "cause_id": null,
+  "commit": false
+}
+```
+
+Example response:
+
+```json
+{
+  "route": "/capu/decide",
+  "decision_class": "reject",
+  "code": "REJECT_ACTION_WITHOUT_COMMIT",
+  "invariant_id": "P6",
+  "boundary": "action_requires_commit",
+  "verdict": "blocked_action_without_commit"
+}
+```
+
+Fixtures:
+
+```text
+fixtures/capu_runtime_http/requests/decide_p6_uncommitted.json
+fixtures/capu_runtime_http/responses/decide_p6_uncommitted.json
+```
+
+### External action request: accepted
 
 Example request:
 
@@ -143,7 +177,27 @@ Example request:
 }
 ```
 
-Expected decision semantics:
+Example response:
+
+```json
+{
+  "route": "/capu/decide",
+  "decision_class": "accept",
+  "code": "ACCEPT_COMMITTED_ACTION",
+  "invariant_id": "P6",
+  "boundary": "action_requires_commit",
+  "verdict": "accepted_committed_action"
+}
+```
+
+Fixtures:
+
+```text
+fixtures/capu_runtime_http/requests/decide_p6_committed.json
+fixtures/capu_runtime_http/responses/decide_p6_committed.json
+```
+
+Expected P6 decision semantics:
 
 ```text
 commit=false -> REJECT_ACTION_WITHOUT_COMMIT
@@ -159,6 +213,42 @@ Purpose:
 ```text
 Return an audit-shaped decision response for a transition.
 ```
+
+### Rejected P6 audit
+
+Example request:
+
+```json
+{
+  "transition_type": "external_action",
+  "transition_id": "http-p6-reject",
+  "action_kind": "send_email",
+  "cause_id": null,
+  "commit": false
+}
+```
+
+Example response:
+
+```json
+{
+  "route": "/capu/audit",
+  "transition_id": "http-p6-reject",
+  "invariant_id": "P6",
+  "boundary": "action_requires_commit",
+  "verdict": "blocked_action_without_commit",
+  "accepted": false
+}
+```
+
+Fixtures:
+
+```text
+fixtures/capu_runtime_http/requests/audit_p6_uncommitted.json
+fixtures/capu_runtime_http/responses/audit_p6_uncommitted.json
+```
+
+### Accepted P6 audit
 
 Example request:
 
@@ -235,11 +325,42 @@ fixtures/capu_runtime_http/requests/replay_p1_pair.json
 fixtures/capu_runtime_http/responses/replay_p1_pair.json
 ```
 
+### P6 canonical replay
+
+Example request:
+
+```json
+{
+  "invariant_id": "P6",
+  "replay": "canonical_pair"
+}
+```
+
+Example response:
+
+```json
+{
+  "route": "/capu/replay",
+  "invariant_id": "P6",
+  "result": "capu_runtime_http_replay_valid",
+  "events": 2,
+  "p6_boundary_events": 2,
+  "rejected_without_commit": 1
+}
+```
+
+Fixtures:
+
+```text
+fixtures/capu_runtime_http/requests/replay_p6_pair.json
+fixtures/capu_runtime_http/responses/replay_p6_pair.json
+```
+
 ---
 
 ## Error responses
 
-The v0 sidecar now includes controlled error fixtures for basic HTTP boundary failures.
+The v0 sidecar includes controlled error fixtures for basic HTTP boundary failures.
 
 ### Unknown route
 
@@ -307,9 +428,13 @@ The sidecar currently verifies:
 
 ```text
 health route
-P1 decide route
-P6 audit route
+P1 rejected decide route
+P6 rejected decide route
+P6 accepted decide route
+P6 rejected audit route
+P6 accepted audit route
 P1 replay route
+P6 replay route
 unknown-route error response
 malformed-request error response
 saved request fixtures
@@ -346,9 +471,8 @@ It is a local reference sidecar contract for reviewer-visible evidence.
 Recommended next steps:
 
 ```text
-1. Add P6 replay request/response fixture.
-2. Add accepted/rejected decide and audit coverage.
-3. Add OpenAPI-style route summary.
-4. Add a minimal client example.
-5. Add production-grade error taxonomy only after the v0 surface stabilizes.
+1. Add OpenAPI-style route summary.
+2. Add a minimal client example.
+3. Add production-grade error taxonomy only after the v0 surface stabilizes.
+4. Add arbitrary replay submission after canonical replay coverage is stable.
 ```
