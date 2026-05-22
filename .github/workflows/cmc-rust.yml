@@ -4,12 +4,14 @@ on:
   push:
     paths:
       - "rust/cmc-core/**"
+      - "examples/runtime_http_client.mjs"
       - "scripts/run-cmc-reviewer-demo.mjs"
       - "package.json"
       - ".github/workflows/cmc-rust.yml"
   pull_request:
     paths:
       - "rust/cmc-core/**"
+      - "examples/runtime_http_client.mjs"
       - "scripts/run-cmc-reviewer-demo.mjs"
       - "package.json"
       - ".github/workflows/cmc-rust.yml"
@@ -43,7 +45,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             rust/cmc-core/target
-          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs', 'rust/cmc-core/fixtures/replay/**/*.jsonl', 'rust/cmc-core/fixtures/trace_integrity/**/*.jsonl', 'rust/cmc-core/fixtures/persona/**/*.jsonl', 'rust/cmc-core/fixtures/capu/**/*.jsonl', 'rust/cmc-core/fixtures/capu/**/*.tsv', 'scripts/run-cmc-reviewer-demo.mjs', 'package.json') }}
+          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs', 'rust/cmc-core/fixtures/replay/**/*.jsonl', 'rust/cmc-core/fixtures/trace_integrity/**/*.jsonl', 'rust/cmc-core/fixtures/persona/**/*.jsonl', 'rust/cmc-core/fixtures/capu/**/*.jsonl', 'rust/cmc-core/fixtures/capu/**/*.tsv', 'rust/cmc-core/fixtures/capu_runtime_http/**/*.json', 'examples/runtime_http_client.mjs', 'scripts/run-cmc-reviewer-demo.mjs', 'package.json') }}
           restore-keys: |
             ${{ runner.os }}-cmc-rust-
 
@@ -106,6 +108,10 @@ jobs:
 
       - name: Verify CaPU P1 persona memory
         run: cargo run --bin capu_p1_persona_memory_verify --locked
+
+      - name: Run runtime HTTP client example
+        working-directory: .
+        run: npm run example:runtime-http-client
 
       - name: Run one-command CMC reviewer demo
         working-directory: .
