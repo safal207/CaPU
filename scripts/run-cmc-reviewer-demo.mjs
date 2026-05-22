@@ -18,6 +18,13 @@ const steps = [
     proves: 'Rust sources can be normalized consistently before executable checks.',
   },
   {
+    name: 'runtime HTTP fixture schema validation',
+    command: 'npm',
+    args: ['run', 'validate:runtime-http'],
+    cwd: repoRoot,
+    proves: 'Saved runtime HTTP request and response fixtures conform to explicit JSON schemas.',
+  },
+  {
     name: 'simulator tests',
     command: 'cargo',
     args: ['test', '--all', '--locked'],
@@ -231,5 +238,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, CaPU-P6-fixture-verified, CaPU-P6-action-variants-verified, CaPU-manifest-verified, CaPU-P1-persona-memory-verified, CaPU-P1-fixture-verified, CaPU-runtime-sidecar-smoke-verified, CaPU-runtime-http-sidecar-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, CaPU-P6-fixture-verified, CaPU-P6-action-variants-verified, CaPU-manifest-verified, CaPU-P1-persona-memory-verified, CaPU-P1-fixture-verified, CaPU-runtime-sidecar-smoke-verified, CaPU-runtime-http-sidecar-verified, CaPU-runtime-http-schema-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
