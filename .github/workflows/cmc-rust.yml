@@ -104,6 +104,9 @@ jobs:
       - name: Verify CaPU fixture manifest
         run: cargo run --bin capu_manifest_verify --locked
 
+      - name: Verify CaPU P1 persona memory
+        run: cargo run --bin capu_p1_persona_memory_verify --locked
+
       - name: Run one-command CMC reviewer demo
         working-directory: .
         run: npm run review:cmc
