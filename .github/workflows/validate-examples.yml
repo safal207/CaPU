@@ -28,6 +28,11 @@ jobs:
           set -euxo pipefail
           npm run validate:examples
 
+      - name: Validate runtime HTTP OpenAPI-lite contract
+        run: |
+          set -euxo pipefail
+          npm run validate:runtime-http-openapi-lite
+
       - name: Run reference runtime tests
         run: |
           set -euxo pipefail

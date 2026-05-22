@@ -4,12 +4,14 @@
   "implementation": "rust/cmc-core/src/bin/capu_runtime_http_sidecar.rs",
   "maturity": {
     "software_reference_processor": "~62%",
-    "runtime_sidecar_api": "~65%",
+    "runtime_sidecar_api": "~75%",
     "hardware_device_path": "~5%"
   },
   "reviewer_commands": [
     "npm run validate:runtime-http",
     "npm run validate:runtime-http-manifest",
+    "npm run validate:runtime-http-openapi-lite",
+    "npm run example:runtime-http-client",
     "npm run review:cmc"
   ],
   "routes": [

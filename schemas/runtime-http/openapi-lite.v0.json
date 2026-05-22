@@ -1,0 +1,177 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CaPU Runtime HTTP API v0",
+    "version": "0.0.0-reference",
+    "description": "OpenAPI-lite contract generated from the checked CaPU runtime HTTP API manifest. This is reference-grade documentation, not a production API stability claim."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8787",
+      "description": "Local reference sidecar"
+    }
+  ],
+  "paths": {
+    "/capu/health": {
+      "get": {
+        "operationId": "capuHealth",
+        "summary": "Check local sidecar health",
+        "x-capu-route-ids": ["health"],
+        "responses": {
+          "200": {
+            "description": "Sidecar is alive",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonObject" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/capu/decide": {
+      "post": {
+        "operationId": "capuDecide",
+        "summary": "Decode a transition request and return a CaPU decision",
+        "x-capu-route-ids": [
+          "decide_p1_missing_cause",
+          "decide_p6_uncommitted",
+          "decide_p6_committed"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/JsonObject" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonObject" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/capu/audit": {
+      "post": {
+        "operationId": "capuAudit",
+        "summary": "Return an audit-shaped decision response",
+        "x-capu-route-ids": [
+          "audit_p6_uncommitted",
+          "audit_p6_committed"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/JsonObject" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Audit response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonObject" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/capu/replay": {
+      "post": {
+        "operationId": "capuReplay",
+        "summary": "Return replay evidence for a canonical sealed audit pair",
+        "x-capu-route-ids": [
+          "replay_p1_pair",
+          "replay_p6_pair"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/JsonObject" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical replay response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonObject" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/capu/unknown": {
+      "get": {
+        "operationId": "capuUnknownRouteFixture",
+        "summary": "Unknown-route error fixture",
+        "x-capu-route-ids": ["unknown_route"],
+        "responses": {
+          "404": {
+            "description": "Route not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "JsonObject": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["status", "error"],
+        "properties": {
+          "status": { "const": "error" },
+          "error": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "x-capu-source-manifest": "schemas/runtime-http/api-manifest.v0.json",
+  "x-capu-raw-cases": [
+    {
+      "id": "malformed_request",
+      "method": "RAW",
+      "path": "BROKEN",
+      "status_code": 400,
+      "reason": "Malformed request lines are represented outside OpenAPI paths."
+    }
+  ],
+  "x-capu-maturity": {
+    "software_reference_processor": "~62%",
+    "runtime_sidecar_api": "~75%",
+    "hardware_device_path": "~5%"
+  },
+  "x-capu-non-claims": [
+    "production HTTP service",
+    "authentication",
+    "authorization",
+    "streaming",
+    "OpenAPI completeness",
+    "stable public SDK",
+    "arbitrary replay submission",
+    "production error taxonomy"
+  ]
+}
