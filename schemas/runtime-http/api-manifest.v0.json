@@ -1,0 +1,137 @@
+{
+  "contract": "capu-runtime-http-api-v0",
+  "status": "reference",
+  "implementation": "rust/cmc-core/src/bin/capu_runtime_http_sidecar.rs",
+  "maturity": {
+    "software_reference_processor": "~62%",
+    "runtime_sidecar_api": "~65%",
+    "hardware_device_path": "~5%"
+  },
+  "reviewer_commands": [
+    "npm run validate:runtime-http",
+    "npm run validate:runtime-http-manifest",
+    "npm run review:cmc"
+  ],
+  "routes": [
+    {
+      "id": "health",
+      "method": "GET",
+      "path": "/capu/health",
+      "case": "health",
+      "status_code": 200,
+      "invariant_id": null,
+      "boundary": null,
+      "request_fixture": null,
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/health.json"
+    },
+    {
+      "id": "decide_p1_missing_cause",
+      "method": "POST",
+      "path": "/capu/decide",
+      "case": "persona_memory_missing_cause",
+      "status_code": 200,
+      "invariant_id": "P1",
+      "boundary": "persona_memory_requires_cause",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/decide_p1_missing_cause.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/decide_p1_missing_cause.json"
+    },
+    {
+      "id": "decide_p6_uncommitted",
+      "method": "POST",
+      "path": "/capu/decide",
+      "case": "external_action_without_commit",
+      "status_code": 200,
+      "invariant_id": "P6",
+      "boundary": "action_requires_commit",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/decide_p6_uncommitted.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/decide_p6_uncommitted.json"
+    },
+    {
+      "id": "decide_p6_committed",
+      "method": "POST",
+      "path": "/capu/decide",
+      "case": "external_action_with_commit",
+      "status_code": 200,
+      "invariant_id": "P6",
+      "boundary": "action_requires_commit",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/decide_p6_committed.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/decide_p6_committed.json"
+    },
+    {
+      "id": "audit_p6_uncommitted",
+      "method": "POST",
+      "path": "/capu/audit",
+      "case": "external_action_without_commit_audit",
+      "status_code": 200,
+      "invariant_id": "P6",
+      "boundary": "action_requires_commit",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/audit_p6_uncommitted.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/audit_p6_uncommitted.json"
+    },
+    {
+      "id": "audit_p6_committed",
+      "method": "POST",
+      "path": "/capu/audit",
+      "case": "external_action_with_commit_audit",
+      "status_code": 200,
+      "invariant_id": "P6",
+      "boundary": "action_requires_commit",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/audit_p6_committed.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/audit_p6_committed.json"
+    },
+    {
+      "id": "replay_p1_pair",
+      "method": "POST",
+      "path": "/capu/replay",
+      "case": "canonical_p1_pair",
+      "status_code": 200,
+      "invariant_id": "P1",
+      "boundary": "persona_memory_requires_cause",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_p1_pair.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_p1_pair.json"
+    },
+    {
+      "id": "replay_p6_pair",
+      "method": "POST",
+      "path": "/capu/replay",
+      "case": "canonical_p6_pair",
+      "status_code": 200,
+      "invariant_id": "P6",
+      "boundary": "action_requires_commit",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_p6_pair.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_p6_pair.json"
+    },
+    {
+      "id": "unknown_route",
+      "method": "GET",
+      "path": "/capu/unknown",
+      "case": "unknown_route",
+      "status_code": 404,
+      "invariant_id": null,
+      "boundary": "http_route_boundary",
+      "request_fixture": null,
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/unknown_route.json"
+    },
+    {
+      "id": "malformed_request",
+      "method": "RAW",
+      "path": "BROKEN",
+      "case": "malformed_request_line",
+      "status_code": 400,
+      "invariant_id": null,
+      "boundary": "http_parse_boundary",
+      "request_fixture": null,
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/malformed_request.json"
+    }
+  ],
+  "non_claims": [
+    "production HTTP service",
+    "authentication",
+    "authorization",
+    "streaming",
+    "OpenAPI completeness",
+    "stable public SDK",
+    "arbitrary replay submission",
+    "production error taxonomy"
+  ]
+}

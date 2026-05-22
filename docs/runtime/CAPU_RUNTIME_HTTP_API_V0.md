@@ -14,9 +14,27 @@ Current maturity represented by this contract:
 
 ```text
 Software reference processor: ~62%
-Runtime sidecar/API:        ~58%
+Runtime sidecar/API:        ~65%
 Hardware/device path:       ~5%
 ```
+
+---
+
+## Machine-readable API manifest
+
+The current route/case/fixture map is also recorded as a machine-readable manifest:
+
+```text
+schemas/runtime-http/api-manifest.v0.json
+```
+
+It is verified by:
+
+```bash
+npm run validate:runtime-http-manifest
+```
+
+The manifest checks that route cases point to existing request/response fixtures and that response fixtures agree with declared routes, invariants, boundaries, and error shapes.
 
 ---
 
@@ -440,6 +458,7 @@ malformed-request error response
 saved request fixtures
 saved response fixtures
 schema-checked response fixtures
+manifest-checked route/case/fixture map
 real local TCP HTTP round trips in --self-test mode
 ```
 
@@ -471,8 +490,8 @@ It is a local reference sidecar contract for reviewer-visible evidence.
 Recommended next steps:
 
 ```text
-1. Add OpenAPI-style route summary.
-2. Add a minimal client example.
-3. Add production-grade error taxonomy only after the v0 surface stabilizes.
-4. Add arbitrary replay submission after canonical replay coverage is stable.
+1. Add a minimal client example.
+2. Add production-grade error taxonomy only after the v0 surface stabilizes.
+3. Add arbitrary replay submission after canonical replay coverage is stable.
+4. Generate OpenAPI from the manifest after the route surface stabilizes.
 ```
