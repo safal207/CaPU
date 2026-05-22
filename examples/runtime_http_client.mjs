@@ -86,6 +86,25 @@ function assertFixture(label, actual, expectedFixture) {
   console.log(`status=ok client_case=${label} http_status=${actual.statusCode}`)
 }
 
+function stopSidecar(sidecar) {
+  if (sidecar.exitCode !== null) {
+    return
+  }
+
+  if (process.platform === 'win32') {
+    sidecar.kill('SIGTERM')
+    return
+  }
+
+  if (sidecar.pid) {
+    try {
+      process.kill(-sidecar.pid, 'SIGTERM')
+    } catch {
+      sidecar.kill('SIGTERM')
+    }
+  }
+}
+
 async function main() {
   const port = await findFreePort()
   const addr = `127.0.0.1:${port}`
@@ -95,19 +114,11 @@ async function main() {
     ['run', '--bin', 'capu_runtime_http_sidecar', '--locked', '--', '--addr', addr],
     {
       cwd: cmcDir,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: 'ignore',
       detached: process.platform !== 'win32',
     },
   )
-
-  let stdout = ''
-  let stderr = ''
-  sidecar.stdout.on('data', (chunk) => {
-    stdout += chunk.toString()
-  })
-  sidecar.stderr.on('data', (chunk) => {
-    stderr += chunk.toString()
-  })
+  sidecar.unref()
 
   try {
     const health = await waitForSidecar(port)
@@ -146,33 +157,7 @@ async function main() {
     console.log(`sidecar_addr=${addr}`)
     console.log('result=runtime_http_client_example_verified')
   } finally {
-    if (process.platform === 'win32') {
-      sidecar.kill('SIGTERM')
-    } else if (sidecar.pid) {
-      try {
-        process.kill(-sidecar.pid, 'SIGTERM')
-      } catch {
-        sidecar.kill('SIGTERM')
-      }
-    }
-
-    setTimeout(() => {
-      if (!sidecar.killed && sidecar.pid) {
-        try {
-          if (process.platform === 'win32') {
-            sidecar.kill('SIGKILL')
-          } else {
-            process.kill(-sidecar.pid, 'SIGKILL')
-          }
-        } catch {
-          // Process already exited.
-        }
-      }
-    }, 1000).unref()
-  }
-
-  if (sidecar.exitCode && sidecar.exitCode !== 0) {
-    throw new Error(`sidecar exited unexpectedly\nstdout=${stdout}\nstderr=${stderr}`)
+    stopSidecar(sidecar)
   }
 }
 
