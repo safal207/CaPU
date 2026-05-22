@@ -1,0 +1,43 @@
+{
+  "taxonomy": "capu-runtime-http-error-taxonomy-v0",
+  "status": "reference",
+  "source_manifest": "schemas/runtime-http/api-manifest.v0.json",
+  "maturity": {
+    "software_reference_processor": "~62%",
+    "runtime_sidecar_api": "~85%",
+    "hardware_device_path": "~5%"
+  },
+  "errors": [
+    {
+      "id": "route_not_found",
+      "response_error": "route_not_found",
+      "http_status": 404,
+      "category": "routing",
+      "boundary": "http_route_boundary",
+      "manifest_route_id": "unknown_route",
+      "fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/unknown_route.json",
+      "description": "The request path is not recognized by the v0 sidecar route table.",
+      "retryable": false
+    },
+    {
+      "id": "bad_request_missing_path",
+      "response_error": "bad_request:missing path",
+      "http_status": 400,
+      "category": "parse",
+      "boundary": "http_parse_boundary",
+      "manifest_route_id": "malformed_request",
+      "fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/malformed_request.json",
+      "description": "The request line is malformed and does not contain a parseable path.",
+      "retryable": false
+    }
+  ],
+  "non_claims": [
+    "production error taxonomy",
+    "complete HTTP error coverage",
+    "authentication errors",
+    "authorization errors",
+    "rate-limit errors",
+    "streaming errors",
+    "stable public SDK error model"
+  ]
+}
