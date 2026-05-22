@@ -75,6 +75,94 @@ impl PersonaMemoryRequest {
     }
 }
 
+/// Replay invariant selector understood by the v0 replay submission path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayInvariantId {
+    P1,
+    P6,
+}
+
+impl ReplayInvariantId {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::P1 => "P1",
+            Self::P6 => "P6",
+        }
+    }
+}
+
+/// Replay request mode understood by the v0 replay submission path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayRequestMode {
+    CanonicalPair,
+    SubmittedPair,
+}
+
+impl ReplayRequestMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::CanonicalPair => "canonical_pair",
+            Self::SubmittedPair => "submitted_pair",
+        }
+    }
+}
+
+/// Minimal decoded request shape for replay submissions.
+///
+/// `submitted_pair` is intentionally still fixture-driven in v0: submitted
+/// requests must explicitly declare that their event body is the canonical pair.
+/// This makes the submission path auditable without claiming a general-purpose
+/// replay engine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplaySubmissionRequest {
+    pub invariant_id: String,
+    pub replay: String,
+    pub submission_id: Option<String>,
+    pub events: Option<String>,
+}
+
+impl ReplaySubmissionRequest {
+    pub fn canonical_pair(invariant_id: impl Into<String>) -> Self {
+        Self {
+            invariant_id: invariant_id.into(),
+            replay: "canonical_pair".to_string(),
+            submission_id: None,
+            events: None,
+        }
+    }
+
+    pub fn submitted_pair(
+        invariant_id: impl Into<String>,
+        submission_id: impl Into<String>,
+        events: impl Into<String>,
+    ) -> Self {
+        Self {
+            invariant_id: invariant_id.into(),
+            replay: "submitted_pair".to_string(),
+            submission_id: Some(submission_id.into()),
+            events: Some(events.into()),
+        }
+    }
+}
+
+/// Typed replay submission selected by the decoder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedReplaySubmission {
+    pub invariant_id: ReplayInvariantId,
+    pub mode: ReplayRequestMode,
+    pub submission_id: Option<String>,
+    pub events: String,
+}
+
+/// Decode failure for v0 replay submissions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReplaySubmissionDecodeError {
+    UnsupportedInvariantId { invariant_id: String },
+    UnsupportedReplayMode { replay: String },
+    MissingSubmissionId,
+    UnsupportedEvents { events: String },
+}
+
 /// Decode an external action request into a typed CaPU transition.
 ///
 /// The boundary is not hard-coded here; it is routed through the Boundary Router
@@ -111,6 +199,56 @@ pub fn decode_persona_memory(request: PersonaMemoryRequest) -> Transition {
         authorization: None,
         commit: None,
         boundary: route_boundary(transition_type),
+    }
+}
+
+/// Decode a replay request into typed v0 replay-submission semantics.
+pub fn decode_replay_submission(
+    request: ReplaySubmissionRequest,
+) -> Result<DecodedReplaySubmission, ReplaySubmissionDecodeError> {
+    let invariant_id = match request.invariant_id.as_str() {
+        "P1" => ReplayInvariantId::P1,
+        "P6" => ReplayInvariantId::P6,
+        other => {
+            return Err(ReplaySubmissionDecodeError::UnsupportedInvariantId {
+                invariant_id: other.to_string(),
+            })
+        }
+    };
+
+    let mode = match request.replay.as_str() {
+        "canonical_pair" => ReplayRequestMode::CanonicalPair,
+        "submitted_pair" => ReplayRequestMode::SubmittedPair,
+        other => {
+            return Err(ReplaySubmissionDecodeError::UnsupportedReplayMode {
+                replay: other.to_string(),
+            })
+        }
+    };
+
+    match mode {
+        ReplayRequestMode::CanonicalPair => Ok(DecodedReplaySubmission {
+            invariant_id,
+            mode,
+            submission_id: None,
+            events: "canonical_pair".to_string(),
+        }),
+        ReplayRequestMode::SubmittedPair => {
+            let submission_id = request
+                .submission_id
+                .filter(|value| !value.is_empty())
+                .ok_or(ReplaySubmissionDecodeError::MissingSubmissionId)?;
+            let events = request.events.unwrap_or_default();
+            if events != "canonical_pair" {
+                return Err(ReplaySubmissionDecodeError::UnsupportedEvents { events });
+            }
+            Ok(DecodedReplaySubmission {
+                invariant_id,
+                mode,
+                submission_id: Some(submission_id),
+                events,
+            })
+        }
     }
 }
 
@@ -212,5 +350,78 @@ mod tests {
         assert_eq!(decision.code, "ACCEPT_PERSONA_MEMORY_WITH_CAUSE");
         assert_eq!(decision.verdict, "accepted_persona_memory_with_cause");
         assert_eq!(decision.cause_id, Some(42));
+    }
+
+    #[test]
+    fn decodes_canonical_replay_submission_for_p6() {
+        let decoded = decode_replay_submission(ReplaySubmissionRequest::canonical_pair("P6"))
+            .expect("canonical P6 replay should decode");
+
+        assert_eq!(decoded.invariant_id, ReplayInvariantId::P6);
+        assert_eq!(decoded.invariant_id.as_str(), "P6");
+        assert_eq!(decoded.mode, ReplayRequestMode::CanonicalPair);
+        assert_eq!(decoded.mode.as_str(), "canonical_pair");
+        assert_eq!(decoded.submission_id, None);
+        assert_eq!(decoded.events, "canonical_pair");
+    }
+
+    #[test]
+    fn decodes_submitted_replay_submission_for_p1() {
+        let decoded = decode_replay_submission(ReplaySubmissionRequest::submitted_pair(
+            "P1",
+            "http-p1-submitted-replay",
+            "canonical_pair",
+        ))
+        .expect("submitted P1 replay should decode");
+
+        assert_eq!(decoded.invariant_id, ReplayInvariantId::P1);
+        assert_eq!(decoded.invariant_id.as_str(), "P1");
+        assert_eq!(decoded.mode, ReplayRequestMode::SubmittedPair);
+        assert_eq!(decoded.mode.as_str(), "submitted_pair");
+        assert_eq!(decoded.submission_id.as_deref(), Some("http-p1-submitted-replay"));
+        assert_eq!(decoded.events, "canonical_pair");
+    }
+
+    #[test]
+    fn submitted_replay_requires_submission_id() {
+        let request = ReplaySubmissionRequest {
+            invariant_id: "P6".to_string(),
+            replay: "submitted_pair".to_string(),
+            submission_id: None,
+            events: Some("canonical_pair".to_string()),
+        };
+
+        assert_eq!(
+            decode_replay_submission(request),
+            Err(ReplaySubmissionDecodeError::MissingSubmissionId)
+        );
+    }
+
+    #[test]
+    fn submitted_replay_rejects_unsupported_events() {
+        let request = ReplaySubmissionRequest::submitted_pair(
+            "P6",
+            "http-p6-submitted-replay",
+            "inline_trace_v1",
+        );
+
+        assert_eq!(
+            decode_replay_submission(request),
+            Err(ReplaySubmissionDecodeError::UnsupportedEvents {
+                events: "inline_trace_v1".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn replay_submission_rejects_unknown_invariant() {
+        let request = ReplaySubmissionRequest::canonical_pair("PX");
+
+        assert_eq!(
+            decode_replay_submission(request),
+            Err(ReplaySubmissionDecodeError::UnsupportedInvariantId {
+                invariant_id: "PX".to_string()
+            })
+        );
     }
 }
