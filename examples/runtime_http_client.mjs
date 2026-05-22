@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs'
-import http from 'node:http'
 import net from 'node:net'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -32,38 +31,55 @@ function findFreePort() {
 
 function requestJson({ port, method, route, body = '' }) {
   return new Promise((resolve, reject) => {
-    const request = http.request(
-      {
-        hostname: '127.0.0.1',
-        port,
-        path: route,
-        method,
-        headers: {
-          'content-type': 'application/json',
-          'content-length': Buffer.byteLength(body),
-        },
-        timeout: 10_000,
-      },
-      (response) => {
-        let data = ''
-        response.setEncoding('utf8')
-        response.on('data', (chunk) => {
-          data += chunk
-        })
-        response.on('end', () => {
-          resolve({ statusCode: response.statusCode, body: data.trim() })
-        })
-      },
-    )
+    const socket = net.createConnection({ host: '127.0.0.1', port })
+    let response = ''
+    let settled = false
 
-    request.on('timeout', () => {
-      request.destroy(new Error(`${method} ${route} timed out`))
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        socket.destroy()
+        reject(new Error(`${method} ${route} timed out`))
+      }
+    }, 10_000)
+
+    socket.setEncoding('utf8')
+    socket.on('connect', () => {
+      const request = [
+        `${method} ${route} HTTP/1.1`,
+        `Host: 127.0.0.1:${port}`,
+        'Content-Type: application/json',
+        `Content-Length: ${Buffer.byteLength(body)}`,
+        'Connection: close',
+        '',
+        body,
+      ].join('\r\n')
+      socket.end(request)
     })
-    request.on('error', reject)
-    if (body.length > 0) {
-      request.write(body)
-    }
-    request.end()
+
+    socket.on('data', (chunk) => {
+      response += chunk
+    })
+
+    socket.on('error', (error) => {
+      if (!settled) {
+        settled = true
+        clearTimeout(timeout)
+        reject(error)
+      }
+    })
+
+    socket.on('end', () => {
+      if (settled) {
+        return
+      }
+      settled = true
+      clearTimeout(timeout)
+      const [head = '', rawBody = response] = response.split('\r\n\r\n')
+      const statusLine = head.split('\r\n')[0] ?? ''
+      const statusCode = Number(statusLine.split(' ')[1] ?? 0)
+      resolve({ statusCode, body: rawBody.trim() })
+    })
   })
 }
 
