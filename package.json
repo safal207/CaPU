@@ -9,6 +9,7 @@
     "validate:runtime-http-manifest": "node scripts/validate-runtime-http-manifest.mjs",
     "validate:runtime-http-openapi-lite": "node scripts/validate-runtime-http-openapi-lite.mjs",
     "example:runtime-http-client": "node examples/runtime_http_client.mjs",
+    "example:runtime-http-sdk": "node examples/runtime_http_sdk_example.mjs",
     "demo:reference": "node scripts/run-reference-demo.mjs",
     "demo:cmc": "node scripts/run-cmc-demo.mjs",
     "review:cmc": "node scripts/run-cmc-reviewer-demo.mjs",

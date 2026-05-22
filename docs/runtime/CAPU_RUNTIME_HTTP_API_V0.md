@@ -14,7 +14,7 @@ Current maturity represented by this contract:
 
 ```text
 Software reference processor: ~62%
-Runtime sidecar/API:        ~75%
+Runtime sidecar/API:        ~80%
 Hardware/device path:       ~5%
 ```
 
@@ -87,6 +87,46 @@ POST /capu/audit
 POST /capu/replay
 GET  /capu/unknown
 ```
+
+---
+
+## Tiny SDK wrapper example
+
+A tiny reference SDK wrapper exposes the same v0 surface as reusable methods:
+
+```text
+examples/runtime_http_sdk.mjs
+```
+
+Executable SDK example:
+
+```text
+examples/runtime_http_sdk_example.mjs
+```
+
+Run it from the repository root:
+
+```bash
+npm run example:runtime-http-sdk
+```
+
+Expected marker:
+
+```text
+result=runtime_http_sdk_example_verified
+```
+
+The wrapper currently exposes:
+
+```text
+client.health()
+client.decide(payload)
+client.audit(payload)
+client.replay(payload)
+client.unknownRoute()
+```
+
+This is a reviewer-visible wrapper, not a stable public SDK package.
 
 ---
 
@@ -513,10 +553,11 @@ schema-checked response fixtures
 manifest-checked route/case/fixture map
 OpenAPI-lite checked against manifest
 external client example over local HTTP
+tiny SDK wrapper example over local HTTP
 real local TCP HTTP round trips in --self-test mode
 ```
 
-The self-test and client example use ephemeral local addresses and send real HTTP requests through local TCP/HTTP.
+The self-test, client example, and SDK example use ephemeral local addresses and send real HTTP requests through local TCP/HTTP.
 
 ---
 
@@ -546,6 +587,6 @@ Recommended next steps:
 ```text
 1. Add production-grade error taxonomy only after the v0 surface stabilizes.
 2. Add arbitrary replay submission after canonical replay coverage is stable.
-3. Add a tiny SDK wrapper only after the client example stabilizes.
-4. Generate full OpenAPI from the manifest after request/response schemas become more specific.
+3. Generate full OpenAPI from the manifest after request/response schemas become more specific.
+4. Promote the SDK wrapper only after versioning and error taxonomy stabilize.
 ```
