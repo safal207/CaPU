@@ -17,7 +17,7 @@ on:
 
 jobs:
   test:
-    name: cargo test + demos + SHA-256 trace + sealed fixtures + persona + replay + audit checks + reviewer demo
+    name: cargo test + demos + SHA-256 trace + sealed fixtures + persona + replay + audit + CaPU + reviewer demo
     runs-on: ubuntu-latest
 
     defaults:
@@ -43,7 +43,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             rust/cmc-core/target
-          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs', 'rust/cmc-core/fixtures/replay/**/*.jsonl', 'rust/cmc-core/fixtures/trace_integrity/**/*.jsonl', 'rust/cmc-core/fixtures/persona/**/*.jsonl', 'scripts/run-cmc-reviewer-demo.mjs', 'package.json') }}
+          key: ${{ runner.os }}-cmc-rust-${{ hashFiles('rust/cmc-core/Cargo.toml', 'rust/cmc-core/Cargo.lock', 'rust/cmc-core/src/**/*.rs', 'rust/cmc-core/fixtures/replay/**/*.jsonl', 'rust/cmc-core/fixtures/trace_integrity/**/*.jsonl', 'rust/cmc-core/fixtures/persona/**/*.jsonl', 'rust/cmc-core/fixtures/capu/**/*.jsonl', 'rust/cmc-core/fixtures/capu/**/*.tsv', 'scripts/run-cmc-reviewer-demo.mjs', 'package.json') }}
           restore-keys: |
             ${{ runner.os }}-cmc-rust-
 
@@ -88,6 +88,21 @@ jobs:
 
       - name: Verify replay divergence detection
         run: cargo run --bin trace_divergence --locked
+
+      - name: Verify CaPU P6 pipeline
+        run: cargo run --bin capu_p6_pipeline_demo --locked
+
+      - name: Verify CaPU P6 replay
+        run: cargo run --bin capu_p6_replay_verify --locked
+
+      - name: Verify CaPU P6 fixtures
+        run: cargo run --bin capu_p6_fixture_verify --locked
+
+      - name: Verify CaPU P6 action variants
+        run: cargo run --bin capu_p6_action_variants_verify --locked
+
+      - name: Verify CaPU fixture manifest
+        run: cargo run --bin capu_manifest_verify --locked
 
       - name: Run one-command CMC reviewer demo
         working-directory: .
