@@ -5,7 +5,7 @@ Status: current implementation snapshot for CaPU software reference units.
 Progress estimate:
 
 ```text
-Software reference processor: ~66%
+Software reference processor: ~70%
 Runtime sidecar/API:        ~90%
 Hardware/device path:       ~5%
 ```
@@ -28,6 +28,7 @@ rust/cmc-core/src/capu/decision_unit.rs
 rust/cmc-core/src/capu/audit_bus.rs
 rust/cmc-core/src/capu/seal_unit.rs
 rust/cmc-core/src/capu/replay_unit.rs
+rust/cmc-core/src/capu/replay_submission_unit.rs
 rust/cmc-core/src/bin/capu_p6_pipeline_demo.rs
 rust/cmc-core/src/bin/capu_p6_replay_verify.rs
 rust/cmc-core/src/bin/capu_p6_fixture_verify.rs
@@ -52,6 +53,7 @@ pub mod commit_unit;
 pub mod decision_unit;
 pub mod decoder;
 pub mod persona_memory_unit;
+pub mod replay_submission_unit;
 pub mod replay_unit;
 pub mod seal_unit;
 pub mod transition;
@@ -182,6 +184,36 @@ unsupported replay mode     -> UnsupportedReplayMode
 ```
 
 This keeps submitted replay honest: v0 supports an explicit submitted request envelope, but does not yet claim arbitrary inline replay event decoding.
+
+---
+
+## Current replay submission unit semantics
+
+The software reference processor now has a dedicated replay submission execution decision unit:
+
+```text
+DecodedReplaySubmission
+ -> decide_replay_submission
+ -> ReplaySubmissionDecision
+```
+
+Current replay submission unit outcomes:
+
+```text
+canonical_pair
+ -> ACCEPT_CANONICAL_REPLAY_PAIR
+ -> accepted_canonical_replay_pair
+
+submitted_pair + events=canonical_pair
+ -> ACCEPT_SUBMITTED_REPLAY_PAIR
+ -> accepted_submitted_replay_pair
+
+submitted_pair + unsupported events
+ -> HOLD_UNSUPPORTED_REPLAY_EVENTS
+ -> held_unsupported_replay_events
+```
+
+The `HOLD_UNSUPPORTED_REPLAY_EVENTS` branch preserves the non-claim: CaPU still does not claim arbitrary inline replay event decoding.
 
 ---
 
@@ -323,9 +355,12 @@ PersonaMemoryRequest
 ReplaySubmissionRequest
 DecodedReplaySubmission
 ReplaySubmissionDecodeError
+ReplaySubmissionDecision
+ReplaySubmissionDecisionClass
 P6 external action decoder
 P1 persona-memory decoder
 Replay submission decoder
+Replay submission execution unit
 Boundary router
 Cause unit
 P6 commit unit
@@ -361,7 +396,7 @@ This keeps the reference processor honest while more units are extracted.
 
 ## Evidence semantics
 
-The current CaPU path now demonstrates eight separate evidence layers:
+The current CaPU path now demonstrates nine separate evidence layers:
 
 ```text
 Decision evidence
@@ -376,8 +411,11 @@ Integrity evidence
 Replay evidence
  -> semantic replay summary over sealed P6/P1 audit events
 
-Replay submission evidence
+Replay submission decode evidence
  -> typed canonical/submitted replay request decoding with explicit failure modes
+
+Replay submission execution evidence
+ -> ACCEPT/HOLD decision over decoded replay submission envelopes
 
 Saved fixture evidence
  -> valid P6/P1 fixtures + tampered/missing-cause fixture checks
@@ -439,7 +477,7 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-CaPU can execute reviewer-visible legitimacy checks for P6 external actions, P1 persona-memory writes, and replay submission request envelopes: decoded requests are boundary-routed or replay-decoded, decided, cause/commit-checked, audit-emitted, SHA-256 sealed, and verified through direct CLI commands, reviewer script integration, and CI steps.
+CaPU can execute reviewer-visible legitimacy checks for P6 external actions, P1 persona-memory writes, and replay submission request envelopes: decoded requests are boundary-routed or replay-decoded, replay submission envelopes receive explicit ACCEPT/HOLD execution decisions, and the processor path is verified through direct CLI commands, reviewer script integration, and CI steps.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
@@ -451,16 +489,16 @@ The current implementation does not claim a complete CaPU runtime.
 Recommended next step:
 
 ```text
-Add a dedicated replay_submission_unit.rs that turns DecodedReplaySubmission into replay execution decisions.
+Add explicit unsupported replay submission HTTP error fixtures:
+- unsupported invariant_id
+- missing submission_id
+- unsupported events
 ```
 
 Then:
 
 ```text
-Add explicit unsupported replay submission HTTP error fixtures:
-- unsupported invariant_id
-- missing submission_id
-- unsupported events
+Add a small runtime adapter path that uses decode_replay_submission + decide_replay_submission before calling canonical replay.
 ```
 
 Then:
@@ -491,5 +529,5 @@ It is a software reference scaffold.
 ## One-line summary
 
 ```text
-CaPU currently has an executable software reference evidence path for P6 external actions, P1 persona-memory writes, and typed replay submission envelopes: decode -> boundary/replay route -> decision -> cause/commit check -> audit -> seal -> replay/fixture/manifest verification -> reviewer script -> CI step.
+CaPU currently has an executable software reference evidence path for P6 external actions, P1 persona-memory writes, and typed replay submission envelopes: decode -> boundary/replay route -> replay submission decision -> cause/commit check -> audit -> seal -> replay/fixture/manifest verification -> reviewer script -> CI step.
 ```

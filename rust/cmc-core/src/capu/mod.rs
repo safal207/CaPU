@@ -11,6 +11,7 @@ pub mod commit_unit;
 pub mod decision_unit;
 pub mod decoder;
 pub mod persona_memory_unit;
+pub mod replay_submission_unit;
 pub mod replay_unit;
 pub mod seal_unit;
 pub mod transition;
