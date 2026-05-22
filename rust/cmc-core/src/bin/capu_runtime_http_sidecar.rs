@@ -7,9 +7,13 @@ use std::thread;
 
 use cmc_core::capu::audit_bus::emit_audit_record;
 use cmc_core::capu::decoder::{
-    decode_external_action, decode_persona_memory, ExternalActionRequest, PersonaMemoryRequest,
+    decode_external_action, decode_persona_memory, decode_replay_submission, ExternalActionRequest,
+    PersonaMemoryRequest, ReplaySubmissionDecodeError, ReplaySubmissionRequest,
 };
 use cmc_core::capu::decision_unit::decide_transition;
+use cmc_core::capu::replay_submission_unit::{
+    decide_replay_submission, ReplaySubmissionDecisionClass,
+};
 use cmc_core::capu::replay_unit::{replay_p1_persona_memory_audit_chain, replay_p6_audit_chain};
 use cmc_core::capu::seal_unit::seal_audit_records;
 use cmc_core::capu::transition::{DecisionClass, Transition};
@@ -292,17 +296,49 @@ fn json_bool_value(body: &str, key: &str) -> bool {
     after_key[colon + 1..].trim_start().starts_with("true")
 }
 
+fn replay_submission_from_body(body: &str) -> ReplaySubmissionRequest {
+    ReplaySubmissionRequest {
+        invariant_id: json_string_value(body, "invariant_id").unwrap_or_else(|| {
+            if body.contains("P1") || body.contains("persona_memory") {
+                "P1".to_string()
+            } else {
+                "P6".to_string()
+            }
+        }),
+        replay: json_string_value(body, "replay").unwrap_or_else(|| "canonical_pair".to_string()),
+        submission_id: json_string_value(body, "submission_id"),
+        events: json_string_value(body, "events"),
+    }
+}
+
+fn replay_decode_error_response(error: ReplaySubmissionDecodeError) -> RuntimeResponse {
+    let error = match error {
+        ReplaySubmissionDecodeError::UnsupportedInvariantId { .. } => {
+            "unsupported_replay_invariant_id"
+        }
+        ReplaySubmissionDecodeError::UnsupportedReplayMode { .. } => "unsupported_replay_mode",
+        ReplaySubmissionDecodeError::MissingSubmissionId => "missing_replay_submission_id",
+        ReplaySubmissionDecodeError::UnsupportedEvents { .. } => "unsupported_replay_events",
+    };
+    error_response(400, error)
+}
+
 fn replay_response_from_body(body: &str) -> RuntimeResponse {
-    let submission_id = if body.contains("\"replay\":\"submitted_pair\"") {
-        json_string_value(body, "submission_id").as_deref().map(str::to_string)
-    } else {
-        None
+    let request = replay_submission_from_body(body);
+    let submission = match decode_replay_submission(request) {
+        Ok(submission) => submission,
+        Err(error) => return replay_decode_error_response(error),
     };
 
-    if body.contains("P1") || body.contains("persona_memory") {
-        p1_replay_response(submission_id.as_deref())
-    } else {
-        p6_replay_response(submission_id.as_deref())
+    let decision = decide_replay_submission(&submission);
+    if decision.class == ReplaySubmissionDecisionClass::Hold {
+        return error_response(400, decision.code);
+    }
+
+    match submission.invariant_id.as_str() {
+        "P1" => p1_replay_response(submission.submission_id.as_deref()),
+        "P6" => p6_replay_response(submission.submission_id.as_deref()),
+        _ => error_response(400, "unsupported_replay_invariant_id"),
     }
 }
 
