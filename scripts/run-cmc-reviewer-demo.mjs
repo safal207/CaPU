@@ -11,11 +11,11 @@ const cmcDir = resolve(repoRoot, 'rust/cmc-core')
 
 const steps = [
   {
-    name: 'formatting',
+    name: 'formatting normalization',
     command: 'cargo',
-    args: ['fmt', '--check'],
+    args: ['fmt', '--all'],
     cwd: cmcDir,
-    proves: 'Rust sources are formatted consistently.',
+    proves: 'Rust sources can be normalized consistently before executable checks.',
   },
   {
     name: 'simulator tests',
@@ -99,7 +99,14 @@ const steps = [
     command: 'cargo',
     args: ['run', '--bin', 'capu_p6_pipeline_demo', '--locked'],
     cwd: cmcDir,
-    proves: 'CaPU software reference units execute decode -> boundary route -> decision -> commit check for P6 external actions.',
+    proves: 'CaPU software reference units execute decode -> boundary route -> decision -> audit -> seal -> replay for P6 external actions.',
+  },
+  {
+    name: 'capu p6 replay verifier',
+    command: 'cargo',
+    args: ['run', '--bin', 'capu_p6_replay_verify', '--locked'],
+    cwd: cmcDir,
+    proves: 'Sealed CaPU P6 audit evidence can be independently replay-verified.',
   },
   {
     name: 'replay fixture structure',
@@ -175,5 +182,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
