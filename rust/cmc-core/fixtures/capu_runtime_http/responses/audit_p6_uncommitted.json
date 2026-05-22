@@ -1,0 +1,1 @@
+{"route":"/capu/audit","transition_id":"http-p6-reject","invariant_id":"P6","boundary":"action_requires_commit","verdict":"blocked_action_without_commit","accepted":false}

@@ -1,0 +1,1 @@
+{"route":"/capu/decide","decision_class":"reject","code":"REJECT_ACTION_WITHOUT_COMMIT","invariant_id":"P6","boundary":"action_requires_commit","verdict":"blocked_action_without_commit"}

@@ -398,7 +398,7 @@ fn run_self_test() -> Result<(), String> {
         .local_addr()
         .map_err(|err| format!("failed to read listener addr: {err}"))?;
 
-    let server = thread::spawn(move || run_listener(listener, Some(6)));
+    let server = thread::spawn(move || run_listener(listener, Some(10)));
 
     let health = send_http(addr, "GET", RuntimeRoute::Health.path(), "")?;
     assert_response(
@@ -407,30 +407,78 @@ fn run_self_test() -> Result<(), String> {
         &format!("{FIXTURE_DIR}/responses/health.json"),
     )?;
 
-    let decide_body = read_fixture(&format!(
+    let decide_p1_body = read_fixture(&format!(
         "{FIXTURE_DIR}/requests/decide_p1_missing_cause.json"
     ))?;
-    let decide = send_http(addr, "POST", RuntimeRoute::Decide.path(), &decide_body)?;
+    let decide_p1 = send_http(addr, "POST", RuntimeRoute::Decide.path(), &decide_p1_body)?;
     assert_response(
         "decide_p1_missing_cause",
-        &decide,
+        &decide_p1,
         &format!("{FIXTURE_DIR}/responses/decide_p1_missing_cause.json"),
     )?;
 
-    let audit_body = read_fixture(&format!("{FIXTURE_DIR}/requests/audit_p6_committed.json"))?;
-    let audit = send_http(addr, "POST", RuntimeRoute::Audit.path(), &audit_body)?;
+    let decide_p6_reject_body = read_fixture(&format!(
+        "{FIXTURE_DIR}/requests/decide_p6_uncommitted.json"
+    ))?;
+    let decide_p6_reject = send_http(
+        addr,
+        "POST",
+        RuntimeRoute::Decide.path(),
+        &decide_p6_reject_body,
+    )?;
+    assert_response(
+        "decide_p6_uncommitted",
+        &decide_p6_reject,
+        &format!("{FIXTURE_DIR}/responses/decide_p6_uncommitted.json"),
+    )?;
+
+    let decide_p6_accept_body = read_fixture(&format!(
+        "{FIXTURE_DIR}/requests/decide_p6_committed.json"
+    ))?;
+    let decide_p6_accept = send_http(
+        addr,
+        "POST",
+        RuntimeRoute::Decide.path(),
+        &decide_p6_accept_body,
+    )?;
+    assert_response(
+        "decide_p6_committed",
+        &decide_p6_accept,
+        &format!("{FIXTURE_DIR}/responses/decide_p6_committed.json"),
+    )?;
+
+    let audit_reject_body = read_fixture(&format!(
+        "{FIXTURE_DIR}/requests/audit_p6_uncommitted.json"
+    ))?;
+    let audit_reject = send_http(addr, "POST", RuntimeRoute::Audit.path(), &audit_reject_body)?;
+    assert_response(
+        "audit_p6_uncommitted",
+        &audit_reject,
+        &format!("{FIXTURE_DIR}/responses/audit_p6_uncommitted.json"),
+    )?;
+
+    let audit_accept_body = read_fixture(&format!("{FIXTURE_DIR}/requests/audit_p6_committed.json"))?;
+    let audit_accept = send_http(addr, "POST", RuntimeRoute::Audit.path(), &audit_accept_body)?;
     assert_response(
         "audit_p6_committed",
-        &audit,
+        &audit_accept,
         &format!("{FIXTURE_DIR}/responses/audit_p6_committed.json"),
     )?;
 
-    let replay_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_p1_pair.json"))?;
-    let replay = send_http(addr, "POST", RuntimeRoute::Replay.path(), &replay_body)?;
+    let replay_p1_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_p1_pair.json"))?;
+    let replay_p1 = send_http(addr, "POST", RuntimeRoute::Replay.path(), &replay_p1_body)?;
     assert_response(
         "replay_p1_pair",
-        &replay,
+        &replay_p1,
         &format!("{FIXTURE_DIR}/responses/replay_p1_pair.json"),
+    )?;
+
+    let replay_p6_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_p6_pair.json"))?;
+    let replay_p6 = send_http(addr, "POST", RuntimeRoute::Replay.path(), &replay_p6_body)?;
+    assert_response(
+        "replay_p6_pair",
+        &replay_p6,
+        &format!("{FIXTURE_DIR}/responses/replay_p6_pair.json"),
     )?;
 
     let unknown_route = send_http(addr, "GET", "/capu/unknown", "")?;
@@ -454,8 +502,12 @@ fn run_self_test() -> Result<(), String> {
     println!("CAPU-RUNTIME-HTTP-SIDECAR-SELF-TEST v0");
     println!("route={} status=ok", RuntimeRoute::Health.path());
     println!("route={} case=decide_p1_missing_cause status=ok", RuntimeRoute::Decide.path());
+    println!("route={} case=decide_p6_uncommitted status=ok", RuntimeRoute::Decide.path());
+    println!("route={} case=decide_p6_committed status=ok", RuntimeRoute::Decide.path());
+    println!("route={} case=audit_p6_uncommitted status=ok", RuntimeRoute::Audit.path());
     println!("route={} case=audit_p6_committed status=ok", RuntimeRoute::Audit.path());
     println!("route={} case=replay_p1_pair status=ok", RuntimeRoute::Replay.path());
+    println!("route={} case=replay_p6_pair status=ok", RuntimeRoute::Replay.path());
     println!("route=/capu/unknown case=unknown_route status=ok");
     println!("case=malformed_request status=ok");
     println!("fixtures={FIXTURE_DIR}");
