@@ -92,10 +92,10 @@ fn audit_response(transition: &Transition) -> RuntimeResponse {
             "{{{},{},{},{},{},{}}}",
             json_field("route", RuntimeRoute::Audit.path()),
             json_field("transition_id", &record.transition_id),
-            json_field("invariant_id", record.decision.invariant_id),
-            json_field("boundary", record.decision.boundary.as_str()),
-            json_field("verdict", record.decision.verdict),
-            json_bool_field("accepted", record.decision.accepted())
+            json_field("invariant_id", record.invariant_id),
+            json_field("boundary", record.boundary),
+            json_field("verdict", record.verdict),
+            json_bool_field("accepted", record.decision_class == "accept")
         ),
     }
 }
