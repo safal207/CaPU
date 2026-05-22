@@ -10,5 +10,6 @@ pub mod cause_unit;
 pub mod commit_unit;
 pub mod decision_unit;
 pub mod decoder;
+pub mod replay_unit;
 pub mod seal_unit;
 pub mod transition;
