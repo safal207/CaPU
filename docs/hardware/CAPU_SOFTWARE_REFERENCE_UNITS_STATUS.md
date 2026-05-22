@@ -5,8 +5,8 @@ Status: current implementation snapshot for CaPU software reference units.
 Progress estimate:
 
 ```text
-Software reference processor: ~70%
-Runtime sidecar/API:        ~90%
+Software reference processor: ~72%
+Runtime sidecar/API:        ~93%
 Hardware/device path:       ~5%
 ```
 
@@ -217,6 +217,40 @@ The `HOLD_UNSUPPORTED_REPLAY_EVENTS` branch preserves the non-claim: CaPU still 
 
 ---
 
+## Current runtime replay adapter path
+
+The runtime HTTP sidecar now routes `/capu/replay` through the core replay submission semantics before emitting replay evidence:
+
+```text
+HTTP POST /capu/replay
+ -> replay_submission_from_body
+ -> decode_replay_submission
+ -> decide_replay_submission
+ -> p1_replay_response | p6_replay_response | HOLD/error response
+```
+
+This replaces the previous direct body-sniffing path for replay dispatch with a typed core adapter while preserving the existing successful fixture outputs.
+
+Current runtime replay adapter behavior:
+
+```text
+canonical_pair P1/P6
+ -> core decode
+ -> core ACCEPT_CANONICAL_REPLAY_PAIR
+ -> replay response
+
+submitted_pair P1/P6 + events=canonical_pair
+ -> core decode
+ -> core ACCEPT_SUBMITTED_REPLAY_PAIR
+ -> submitted replay response
+
+unsupported replay envelope
+ -> core decode/unit error or HOLD
+ -> HTTP 400 error response
+```
+
+---
+
 ## Reviewer commands
 
 Run from `rust/cmc-core`.
@@ -331,6 +365,23 @@ seal_result=capu_p1_persona_memory_seal_valid
 result=capu_p1_persona_memory_verified
 ```
 
+Runtime HTTP sidecar self-test:
+
+```bash
+cd rust/cmc-core
+cargo run --bin capu_runtime_http_sidecar --locked -- --self-test
+```
+
+Expected output includes:
+
+```text
+route=/capu/replay case=replay_p1_pair status=ok
+route=/capu/replay case=replay_p6_pair status=ok
+route=/capu/replay case=replay_submitted_p1_pair status=ok
+route=/capu/replay case=replay_submitted_p6_pair status=ok
+result=capu_runtime_http_sidecar_verified
+```
+
 All commands are included in:
 
 ```bash
@@ -361,6 +412,7 @@ P6 external action decoder
 P1 persona-memory decoder
 Replay submission decoder
 Replay submission execution unit
+Runtime replay submission adapter
 Boundary router
 Cause unit
 P6 commit unit
@@ -396,7 +448,7 @@ This keeps the reference processor honest while more units are extracted.
 
 ## Evidence semantics
 
-The current CaPU path now demonstrates nine separate evidence layers:
+The current CaPU path now demonstrates ten separate evidence layers:
 
 ```text
 Decision evidence
@@ -416,6 +468,9 @@ Replay submission decode evidence
 
 Replay submission execution evidence
  -> ACCEPT/HOLD decision over decoded replay submission envelopes
+
+Runtime adapter evidence
+ -> HTTP replay path now passes through core replay submission semantics
 
 Saved fixture evidence
  -> valid P6/P1 fixtures + tampered/missing-cause fixture checks
@@ -477,7 +532,7 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-CaPU can execute reviewer-visible legitimacy checks for P6 external actions, P1 persona-memory writes, and replay submission request envelopes: decoded requests are boundary-routed or replay-decoded, replay submission envelopes receive explicit ACCEPT/HOLD execution decisions, and the processor path is verified through direct CLI commands, reviewer script integration, and CI steps.
+CaPU can execute reviewer-visible legitimacy checks for P6 external actions, P1 persona-memory writes, and replay submission request envelopes: decoded requests are boundary-routed or replay-decoded, replay submission envelopes receive explicit ACCEPT/HOLD execution decisions, and `/capu/replay` now passes through those core semantics before returning runtime replay evidence.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
@@ -498,7 +553,7 @@ Add explicit unsupported replay submission HTTP error fixtures:
 Then:
 
 ```text
-Add a small runtime adapter path that uses decode_replay_submission + decide_replay_submission before calling canonical replay.
+Promote the replay adapter markers into the runtime API manifest/OpenAPI-lite contract.
 ```
 
 Then:
@@ -529,5 +584,5 @@ It is a software reference scaffold.
 ## One-line summary
 
 ```text
-CaPU currently has an executable software reference evidence path for P6 external actions, P1 persona-memory writes, and typed replay submission envelopes: decode -> boundary/replay route -> replay submission decision -> cause/commit check -> audit -> seal -> replay/fixture/manifest verification -> reviewer script -> CI step.
+CaPU currently has an executable software reference evidence path for P6 external actions, P1 persona-memory writes, and typed replay submission envelopes: decode -> boundary/replay route -> replay submission decision -> cause/commit check -> audit -> seal -> replay/fixture/manifest verification -> runtime adapter -> reviewer script -> CI step.
 ```
