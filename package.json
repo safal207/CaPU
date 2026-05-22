@@ -8,6 +8,7 @@
     "validate:runtime-http": "node scripts/validate-runtime-http-fixtures.mjs",
     "validate:runtime-http-manifest": "node scripts/validate-runtime-http-manifest.mjs",
     "validate:runtime-http-openapi-lite": "node scripts/validate-runtime-http-openapi-lite.mjs",
+    "validate:runtime-http-error-taxonomy": "node scripts/validate-runtime-http-error-taxonomy.mjs",
     "example:runtime-http-client": "node examples/runtime_http_client.mjs",
     "example:runtime-http-sdk": "node examples/runtime_http_sdk_example.mjs",
     "demo:reference": "node scripts/run-reference-demo.mjs",

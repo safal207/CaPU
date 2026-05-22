@@ -14,7 +14,7 @@ Current maturity represented by this contract:
 
 ```text
 Software reference processor: ~62%
-Runtime sidecar/API:        ~80%
+Runtime sidecar/API:        ~85%
 Hardware/device path:       ~5%
 ```
 
@@ -55,6 +55,33 @@ npm run validate:runtime-http-openapi-lite
 The OpenAPI-lite validator checks that every HTTP route case in the API manifest is represented by an OpenAPI path operation and that raw malformed request cases are explicitly represented outside normal OpenAPI paths.
 
 This is intentionally OpenAPI-lite, not a full production OpenAPI contract.
+
+---
+
+## Error taxonomy v0
+
+A reference error taxonomy records the currently verified HTTP boundary errors:
+
+```text
+schemas/runtime-http/error-taxonomy.v0.json
+```
+
+It is verified by:
+
+```bash
+npm run validate:runtime-http-error-taxonomy
+```
+
+Current taxonomy cases:
+
+```text
+route_not_found          -> 404 / http_route_boundary
+bad_request:missing path -> 400 / http_parse_boundary
+```
+
+The validator checks that each taxonomy case is synchronized with the API manifest route id, HTTP status code, boundary, response fixture path, and actual fixture response body.
+
+This is intentionally a reference taxonomy for verified boundary errors, not a complete production error taxonomy.
 
 ---
 
@@ -486,6 +513,15 @@ Expected status:
 404 Not Found
 ```
 
+Taxonomy case:
+
+```text
+id=route_not_found
+category=routing
+boundary=http_route_boundary
+retryable=false
+```
+
 Example response:
 
 ```json
@@ -513,6 +549,15 @@ Expected status:
 
 ```text
 400 Bad Request
+```
+
+Taxonomy case:
+
+```text
+id=bad_request_missing_path
+category=parse
+boundary=http_parse_boundary
+retryable=false
 ```
 
 Example response:
@@ -552,6 +597,7 @@ saved response fixtures
 schema-checked response fixtures
 manifest-checked route/case/fixture map
 OpenAPI-lite checked against manifest
+error taxonomy checked against manifest and fixtures
 external client example over local HTTP
 tiny SDK wrapper example over local HTTP
 real local TCP HTTP round trips in --self-test mode
@@ -574,6 +620,7 @@ OpenAPI completeness
 stable public SDK
 arbitrary replay submission
 production error taxonomy
+complete HTTP error coverage
 ```
 
 It is a local reference sidecar contract for reviewer-visible evidence.
@@ -585,8 +632,8 @@ It is a local reference sidecar contract for reviewer-visible evidence.
 Recommended next steps:
 
 ```text
-1. Add production-grade error taxonomy only after the v0 surface stabilizes.
-2. Add arbitrary replay submission after canonical replay coverage is stable.
-3. Generate full OpenAPI from the manifest after request/response schemas become more specific.
-4. Promote the SDK wrapper only after versioning and error taxonomy stabilize.
+1. Add arbitrary replay submission after canonical replay coverage is stable.
+2. Generate full OpenAPI from the manifest after request/response schemas become more specific.
+3. Promote the SDK wrapper only after versioning and error taxonomy stabilize.
+4. Expand error taxonomy only when new checked error fixtures are added.
 ```
