@@ -4,7 +4,7 @@
   "implementation": "rust/cmc-core/src/bin/capu_runtime_http_sidecar.rs",
   "maturity": {
     "software_reference_processor": "~62%",
-    "runtime_sidecar_api": "~85%",
+    "runtime_sidecar_api": "~90%",
     "hardware_device_path": "~5%"
   },
   "reviewer_commands": [
@@ -106,6 +106,28 @@
       "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_p6_pair.json"
     },
     {
+      "id": "replay_submitted_p1_pair",
+      "method": "POST",
+      "path": "/capu/replay",
+      "case": "submitted_p1_pair",
+      "status_code": 200,
+      "invariant_id": "P1",
+      "boundary": "persona_memory_requires_cause",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_submitted_p1_pair.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_submitted_p1_pair.json"
+    },
+    {
+      "id": "replay_submitted_p6_pair",
+      "method": "POST",
+      "path": "/capu/replay",
+      "case": "submitted_p6_pair",
+      "status_code": 200,
+      "invariant_id": "P6",
+      "boundary": "action_requires_commit",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_submitted_p6_pair.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_submitted_p6_pair.json"
+    },
+    {
       "id": "unknown_route",
       "method": "GET",
       "path": "/capu/unknown",
@@ -135,7 +157,7 @@
     "streaming",
     "OpenAPI completeness",
     "stable public SDK",
-    "arbitrary replay submission",
+    "general-purpose replay engine",
     "production error taxonomy"
   ]
 }
