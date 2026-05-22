@@ -7,6 +7,7 @@
     "validate:examples": "node scripts/validate-examples.mjs",
     "validate:runtime-http": "node scripts/validate-runtime-http-fixtures.mjs",
     "validate:runtime-http-manifest": "node scripts/validate-runtime-http-manifest.mjs",
+    "example:runtime-http-client": "node examples/runtime_http_client.mjs",
     "demo:reference": "node scripts/run-reference-demo.mjs",
     "demo:cmc": "node scripts/run-cmc-demo.mjs",
     "review:cmc": "node scripts/run-cmc-reviewer-demo.mjs",
