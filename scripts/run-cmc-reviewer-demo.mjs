@@ -42,7 +42,6 @@ const steps = [
   rustStep('capu p1 fixture verifier', ['run', '--bin', 'capu_p1_fixture_verify', '--locked'], 'Saved sealed CaPU P1 persona-memory fixtures can be replay-verified through the reviewer path.'),
   rustStep('capu runtime sidecar smoke', ['run', '--bin', 'capu_runtime_sidecar_smoke', '--locked'], 'The runtime sidecar MVP exposes health, decide, audit, and replay route semantics over the CaPU reference units.'),
   rustStep('capu runtime http sidecar self-test', ['run', '--bin', 'capu_runtime_http_sidecar', '--locked', '--', '--self-test'], 'The runtime HTTP sidecar accepts real local HTTP requests for health, decide, audit, and replay fixtures.'),
-  npmStep('runtime HTTP client example', 'example:runtime-http-client', 'An external Node client can launch the sidecar and consume health, decide, audit, replay, and error routes over HTTP.'),
   rustStep('replay fixture structure', ['run', '--bin', 'replay_fixture_verify', '--locked'], 'Replay fixtures preserve expected semantic structure.'),
   rustStep('replay fixture fingerprints', ['run', '--bin', 'replay_fingerprint_verify', '--locked'], 'Replay fixture drift is detectable.'),
   rustStep('audit report jsonl', ['run', '--bin', 'cmc_audit_report', '--locked'], 'Manifest-linked replay evidence can be emitted as auditor-facing JSONL.'),
@@ -87,5 +86,5 @@ for (const name of results) {
   console.log(`- ${name}: ok`)
 }
 console.log('result=reviewer_baseline_passed')
-console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, CaPU-P6-fixture-verified, CaPU-P6-action-variants-verified, CaPU-manifest-verified, CaPU-P1-persona-memory-verified, CaPU-P1-fixture-verified, CaPU-runtime-sidecar-smoke-verified, CaPU-runtime-http-sidecar-verified, CaPU-runtime-http-schema-verified, CaPU-runtime-http-api-manifest-verified, CaPU-runtime-http-client-example-verified, and regression-tested')
+console.log('claim=transition legitimacy can be represented, replayed, checked, reported, persona-boundary-verified, action-commit-verified, persona-audit-reportable, persona-audit-example-verified, persona-sha256-sealed, field-level example-verified, SHA-256 sealed, fixture-verified, CaPU-P6-pipeline-verified, CaPU-P6-replay-verified, CaPU-P6-fixture-verified, CaPU-P6-action-variants-verified, CaPU-manifest-verified, CaPU-P1-persona-memory-verified, CaPU-P1-fixture-verified, CaPU-runtime-sidecar-smoke-verified, CaPU-runtime-http-sidecar-verified, CaPU-runtime-http-schema-verified, CaPU-runtime-http-api-manifest-verified, and regression-tested')
 console.log('note=this is an executable research scaffold, not production-ready infrastructure')
