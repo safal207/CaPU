@@ -1,6 +1,7 @@
 use cmc_core::capu::audit_bus::emit_audit_record;
 use cmc_core::capu::decision_unit::decide_transition;
 use cmc_core::capu::decoder::{decode_external_action, ExternalActionRequest};
+use cmc_core::capu::seal_unit::{seal_audit_records, verify_sealed_audit_records};
 use cmc_core::capu::transition::DecisionClass;
 
 fn main() {
@@ -55,5 +56,11 @@ fn main() {
     );
     println!("audit_jsonl={}", committed_audit.to_json_line());
 
+    let sealed = seal_audit_records(&[uncommitted_audit, committed_audit]);
+    assert_eq!(sealed.len(), 2);
+    assert!(verify_sealed_audit_records(&sealed).is_ok());
+
+    println!("sealed_events={}", sealed.len());
+    println!("seal_result=capu_p6_audit_seal_valid");
     println!("result=capu_p6_pipeline_valid");
 }
