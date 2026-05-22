@@ -20,11 +20,43 @@ impl ReplaySummary {
     }
 }
 
+/// Minimal semantic replay summary for the CaPU P1 persona-memory audit pipeline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct P1ReplaySummary {
+    pub events: usize,
+    pub p1_boundary_events: usize,
+    pub rejected_without_cause: usize,
+    pub accepted_with_cause: usize,
+}
+
+impl P1ReplaySummary {
+    pub fn valid_p1_pair(&self) -> bool {
+        self.events == 2
+            && self.p1_boundary_events == 2
+            && self.rejected_without_cause == 1
+            && self.accepted_with_cause == 1
+    }
+
+    pub fn valid_p1_reject_only(&self) -> bool {
+        self.events == 1
+            && self.p1_boundary_events == 1
+            && self.rejected_without_cause == 1
+            && self.accepted_with_cause == 0
+    }
+}
+
 /// Replay failure class for sealed CaPU audit evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplayError {
     SealInvalid { event_index: usize },
     SemanticMismatch { summary: ReplaySummary },
+}
+
+/// Replay failure class for sealed CaPU P1 persona-memory audit evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum P1ReplayError {
+    SealInvalid { event_index: usize },
+    SemanticMismatch { summary: P1ReplaySummary },
 }
 
 /// Verify and semantically replay a sealed P6 audit chain.
@@ -48,6 +80,45 @@ pub fn replay_p6_audit_chain(sealed: &[SealedTraceEvent]) -> Result<ReplaySummar
         Ok(summary)
     } else {
         Err(ReplayError::SemanticMismatch { summary })
+    }
+}
+
+/// Verify and semantically replay a sealed P1 persona-memory audit chain.
+///
+/// The canonical fixture pair is:
+///
+/// ```text
+/// REJECT_PERSONA_MEMORY_WITHOUT_CAUSE
+/// ACCEPT_PERSONA_MEMORY_WITH_CAUSE
+/// ```
+pub fn replay_p1_persona_memory_audit_chain(
+    sealed: &[SealedTraceEvent],
+) -> Result<P1ReplaySummary, P1ReplayError> {
+    verify_sealed_audit_records(sealed)
+        .map_err(|event_index| P1ReplayError::SealInvalid { event_index })?;
+
+    let summary = summarize_p1_persona_memory_audit_chain(sealed);
+
+    if summary.valid_p1_pair() {
+        Ok(summary)
+    } else {
+        Err(P1ReplayError::SemanticMismatch { summary })
+    }
+}
+
+/// Verify a saved P1 rejected-without-cause fixture.
+pub fn replay_p1_persona_memory_reject_only(
+    sealed: &[SealedTraceEvent],
+) -> Result<P1ReplaySummary, P1ReplayError> {
+    verify_sealed_audit_records(sealed)
+        .map_err(|event_index| P1ReplayError::SealInvalid { event_index })?;
+
+    let summary = summarize_p1_persona_memory_audit_chain(sealed);
+
+    if summary.valid_p1_reject_only() {
+        Ok(summary)
+    } else {
+        Err(P1ReplayError::SemanticMismatch { summary })
     }
 }
 
@@ -86,12 +157,55 @@ fn summarize_p6_audit_chain(sealed: &[SealedTraceEvent]) -> ReplaySummary {
     summary
 }
 
+fn summarize_p1_persona_memory_audit_chain(sealed: &[SealedTraceEvent]) -> P1ReplaySummary {
+    let mut summary = P1ReplaySummary {
+        events: sealed.len(),
+        p1_boundary_events: 0,
+        rejected_without_cause: 0,
+        accepted_with_cause: 0,
+    };
+
+    for event in sealed {
+        if event.event.contains("\"invariant_id\":\"P1\"")
+            && event
+                .event
+                .contains("\"boundary\":\"persona_memory_requires_cause\"")
+        {
+            summary.p1_boundary_events += 1;
+        }
+
+        if event
+            .event
+            .contains("\"code\":\"REJECT_PERSONA_MEMORY_WITHOUT_CAUSE\"")
+            && event
+                .event
+                .contains("\"verdict\":\"blocked_persona_memory_without_cause\"")
+        {
+            summary.rejected_without_cause += 1;
+        }
+
+        if event
+            .event
+            .contains("\"code\":\"ACCEPT_PERSONA_MEMORY_WITH_CAUSE\"")
+            && event
+                .event
+                .contains("\"verdict\":\"accepted_persona_memory_with_cause\"")
+        {
+            summary.accepted_with_cause += 1;
+        }
+    }
+
+    summary
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::capu::audit_bus::emit_audit_record;
     use crate::capu::decision_unit::decide_transition;
-    use crate::capu::decoder::{decode_external_action, ExternalActionRequest};
+    use crate::capu::decoder::{
+        decode_external_action, decode_persona_memory, ExternalActionRequest, PersonaMemoryRequest,
+    };
     use crate::capu::seal_unit::seal_audit_records;
 
     fn sealed_p6_pair() -> Vec<SealedTraceEvent> {
@@ -114,6 +228,26 @@ mod tests {
         let committed_audit = emit_audit_record(&committed, &committed_decision);
 
         seal_audit_records(&[uncommitted_audit, committed_audit])
+    }
+
+    fn sealed_p1_pair() -> Vec<SealedTraceEvent> {
+        let unconfirmed = decode_persona_memory(PersonaMemoryRequest::new(
+            "p1-unconfirmed-memory",
+            "prefers concise technical summaries",
+            None,
+        ));
+        let unconfirmed_decision = decide_transition(&unconfirmed);
+        let unconfirmed_audit = emit_audit_record(&unconfirmed, &unconfirmed_decision);
+
+        let confirmed = decode_persona_memory(PersonaMemoryRequest::new(
+            "p1-confirmed-memory",
+            "prefers concise technical summaries",
+            Some(42),
+        ));
+        let confirmed_decision = decide_transition(&confirmed);
+        let confirmed_audit = emit_audit_record(&confirmed, &confirmed_decision);
+
+        seal_audit_records(&[unconfirmed_audit, confirmed_audit])
     }
 
     #[test]
@@ -159,5 +293,40 @@ mod tests {
             replay_p6_audit_chain(&sealed),
             Err(ReplayError::SemanticMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn replay_unit_accepts_valid_sealed_p1_pair() {
+        let sealed = sealed_p1_pair();
+
+        let summary = replay_p1_persona_memory_audit_chain(&sealed)
+            .expect("valid P1 persona-memory chain should replay");
+
+        assert_eq!(summary.events, 2);
+        assert_eq!(summary.p1_boundary_events, 2);
+        assert_eq!(summary.rejected_without_cause, 1);
+        assert_eq!(summary.accepted_with_cause, 1);
+        assert!(summary.valid_p1_pair());
+    }
+
+    #[test]
+    fn replay_unit_accepts_p1_reject_only_fixture_shape() {
+        let unconfirmed = decode_persona_memory(PersonaMemoryRequest::new(
+            "p1-unconfirmed-memory",
+            "prefers concise technical summaries",
+            None,
+        ));
+        let decision = decide_transition(&unconfirmed);
+        let audit = emit_audit_record(&unconfirmed, &decision);
+        let sealed = seal_audit_records(&[audit]);
+
+        let summary = replay_p1_persona_memory_reject_only(&sealed)
+            .expect("P1 rejected-without-cause fixture should replay");
+
+        assert_eq!(summary.events, 1);
+        assert_eq!(summary.p1_boundary_events, 1);
+        assert_eq!(summary.rejected_without_cause, 1);
+        assert_eq!(summary.accepted_with_cause, 0);
+        assert!(summary.valid_p1_reject_only());
     }
 }
