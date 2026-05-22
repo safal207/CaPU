@@ -2,6 +2,14 @@
 
 Status: current implementation snapshot for CaPU software reference units.
 
+Progress estimate:
+
+```text
+Software reference processor: ~50%
+Runtime sidecar/API:        ~15%
+Hardware/device path:       ~5%
+```
+
 This document is the current short status source for the Rust-side CaPU reference pipeline.
 
 ---
@@ -22,6 +30,9 @@ rust/cmc-core/src/capu/replay_unit.rs
 rust/cmc-core/src/bin/capu_p6_pipeline_demo.rs
 rust/cmc-core/src/bin/capu_p6_replay_verify.rs
 rust/cmc-core/src/bin/capu_p6_fixture_verify.rs
+rust/cmc-core/src/bin/capu_p6_action_variants_verify.rs
+rust/cmc-core/src/bin/capu_manifest_verify.rs
+rust/cmc-core/fixtures/capu/MANIFEST.tsv
 rust/cmc-core/fixtures/capu/p6_audit_valid.jsonl
 rust/cmc-core/fixtures/capu/p6_audit_tampered.jsonl
 ```
@@ -57,6 +68,8 @@ ExternalActionRequest
  -> emit_audit_record
  -> seal_audit_records
  -> replay_p6_audit_chain
+ -> saved fixture verification
+ -> manifest verification
  -> reviewer-visible result marker
 ```
 
@@ -74,6 +87,15 @@ commit=true + cause_id=101
 commit=true + missing cause
  -> REJECT_ACTION_WITHOUT_CAUSE
  -> blocked_action_without_cause
+```
+
+Current broader P6 action variants:
+
+```text
+delete_file without commit -> REJECT_ACTION_WITHOUT_COMMIT
+delete_file with commit    -> ACCEPT_COMMITTED_ACTION
+deploy_code without commit -> REJECT_ACTION_WITHOUT_COMMIT
+deploy_code with commit    -> ACCEPT_COMMITTED_ACTION
 ```
 
 ---
@@ -133,7 +155,44 @@ tampered_result=capu_p6_fixture_tamper_detected event=1
 result=capu_p6_fixtures_verified
 ```
 
-All three commands are included in:
+Action variants verifier:
+
+```bash
+cargo run --bin capu_p6_action_variants_verify --locked
+```
+
+Expected output includes:
+
+```text
+CAPU-P6-ACTION-VARIANTS-VERIFY v0
+variant_cases=4
+variant_rejected=2
+variant_accepted=2
+sealed_events=4
+seal_result=capu_p6_action_variants_seal_valid
+result=capu_p6_action_variants_verified
+```
+
+Manifest verifier:
+
+```bash
+cargo run --bin capu_manifest_verify --locked
+```
+
+Expected output includes:
+
+```text
+CAPU-MANIFEST-VERIFY v0
+case=p6_audit_valid role=valid events=2 result=capu_p6_fixture_replay_valid
+case=p6_audit_tampered role=tampered events=2 result=capu_p6_fixture_tamper_detected
+manifest=fixtures/capu/MANIFEST.tsv
+manifest_cases=2
+manifest_valid=1
+manifest_tampered=1
+result=capu_manifest_verified
+```
+
+All commands are included in:
 
 ```bash
 npm run review:cmc
@@ -164,6 +223,9 @@ Independent P6 replay verifier binary
 Saved valid P6 sealed audit fixture
 Saved tampered P6 sealed audit fixture
 Saved fixture verifier binary
+P6 action variants verifier binary
+CaPU fixture manifest
+CaPU manifest verifier binary
 Reviewer script integration
 ```
 
@@ -179,7 +241,7 @@ This keeps the reference processor honest while more units are extracted.
 
 ## Evidence semantics
 
-The current P6 path now demonstrates five separate evidence layers:
+The current P6 path now demonstrates six separate evidence layers:
 
 ```text
 Decision evidence
@@ -196,6 +258,9 @@ Replay evidence
 
 Saved fixture evidence
  -> valid fixture + tampered fixture + fixture verifier
+
+Manifest-linked evidence
+ -> MANIFEST.tsv + manifest verifier
 ```
 
 Replay currently checks the canonical two-event P6 pair:
@@ -210,6 +275,8 @@ The tampered fixture intentionally modifies the first saved event while preservi
 ```text
 ReplayError::SealInvalid { event_index: 1 }
 ```
+
+The action variants verifier demonstrates that P6 is not tied to `send_email` only; the same action-commit boundary applies to `delete_file` and `deploy_code` cases.
 
 This is intentionally narrow and deterministic. Future replay units can generalize to arbitrary trace classes.
 
@@ -228,6 +295,7 @@ CAPU_PROCESSOR_MODEL
  -> rust/cmc-core/src/capu
  -> reviewer binaries
  -> saved fixtures
+ -> fixture manifest
  -> npm run review:cmc
 ```
 
@@ -238,7 +306,7 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-A P6 external action can be decoded, boundary-routed, decided, cause-checked, audit-emitted, SHA-256 sealed, semantically replay-verified, saved as fixture evidence, and tamper-detected through reviewer-visible command paths.
+A P6 external action can be decoded, boundary-routed, decided, cause-checked, audit-emitted, SHA-256 sealed, semantically replay-verified, saved as fixture evidence, tamper-detected, tested across multiple action kinds, and manifest-verified through reviewer-visible command paths.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
@@ -250,24 +318,24 @@ The current implementation does not claim a complete CaPU runtime.
 Recommended next step:
 
 ```text
-Extract broader P6 action variants:
-- delete_file_without_commit_rejected
-- delete_file_with_commit_accepted
-- deploy_code_without_commit_rejected
-- deploy_code_with_commit_accepted
+Get a fresh green CI / reviewer baseline on current main.
 ```
 
 Then:
 
 ```text
-Create a fixture manifest for CaPU cases:
-fixtures/capu/MANIFEST.tsv
+If CI fails, fix only the failing layer:
+- compile error
+- fixture hash mismatch
+- manifest parsing mismatch
+- reviewer script mismatch
 ```
 
 Then:
 
 ```text
-Start P1 cause/persona-memory unit extraction using the same pipeline pattern.
+Start P1 cause/persona-memory unit extraction using the same pipeline pattern:
+decode -> boundary route -> cause check -> decision -> audit -> seal -> replay -> fixture -> manifest
 ```
 
 ---
@@ -292,5 +360,5 @@ It is a software reference scaffold.
 ## One-line summary
 
 ```text
-CaPU currently has a first executable software reference evidence path for P6 external actions: decode -> boundary route -> decision -> cause check -> audit -> seal -> replay -> saved fixture verification -> reviewer script.
+CaPU currently has a manifest-linked executable software reference evidence path for P6 external actions: decode -> boundary route -> decision -> cause check -> audit -> seal -> replay -> saved fixture verification -> action variants -> manifest verification -> reviewer script.
 ```
