@@ -33,6 +33,11 @@ jobs:
           set -euxo pipefail
           npm run validate:runtime-http-openapi-lite
 
+      - name: Validate runtime HTTP error taxonomy
+        run: |
+          set -euxo pipefail
+          npm run validate:runtime-http-error-taxonomy
+
       - name: Run reference runtime tests
         run: |
           set -euxo pipefail
