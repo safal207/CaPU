@@ -1,3 +1,4 @@
+use cmc_core::capu::audit_bus::emit_audit_record;
 use cmc_core::capu::decision_unit::decide_transition;
 use cmc_core::capu::decoder::{decode_external_action, ExternalActionRequest};
 use cmc_core::capu::transition::DecisionClass;
@@ -12,6 +13,7 @@ fn main() {
         false,
     ));
     let uncommitted_decision = decide_transition(&uncommitted);
+    let uncommitted_audit = emit_audit_record(&uncommitted, &uncommitted_decision);
 
     assert_eq!(uncommitted_decision.class, DecisionClass::Reject);
     assert_eq!(uncommitted_decision.code, "REJECT_ACTION_WITHOUT_COMMIT");
@@ -27,6 +29,7 @@ fn main() {
         uncommitted_decision.boundary.as_str(),
         uncommitted_decision.accepted()
     );
+    println!("audit_jsonl={}", uncommitted_audit.to_json_line());
 
     let committed = decode_external_action(ExternalActionRequest::new(
         "p6-committed-demo",
@@ -35,6 +38,7 @@ fn main() {
         true,
     ));
     let committed_decision = decide_transition(&committed);
+    let committed_audit = emit_audit_record(&committed, &committed_decision);
 
     assert_eq!(committed_decision.class, DecisionClass::Accept);
     assert_eq!(committed_decision.code, "ACCEPT_COMMITTED_ACTION");
@@ -49,6 +53,7 @@ fn main() {
         committed_decision.cause_id.unwrap_or_default(),
         committed_decision.accepted()
     );
+    println!("audit_jsonl={}", committed_audit.to_json_line());
 
     println!("result=capu_p6_pipeline_valid");
 }
