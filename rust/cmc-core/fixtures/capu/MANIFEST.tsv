@@ -1,3 +1,5 @@
 scenario_id	invariant_id	fixture_path	fixture_role	expected_events	expected_result
 p6_audit_valid	P6	fixtures/capu/p6_audit_valid.jsonl	valid	2	capu_p6_fixture_replay_valid
 p6_audit_tampered	P6	fixtures/capu/p6_audit_tampered.jsonl	tampered	2	capu_p6_fixture_tamper_detected
+p1_persona_memory_valid	P1	fixtures/capu/p1_persona_memory_valid.jsonl	valid	2	capu_p1_fixture_replay_valid
+p1_persona_memory_missing_cause	P1	fixtures/capu/p1_persona_memory_missing_cause.jsonl	missing_cause	1	capu_p1_fixture_missing_cause

@@ -1,28 +1,27 @@
-use super::cause_unit::check_cause_present;
+use super::cause_unit::{check_cause_present, CauseCheck};
 use super::transition::{Boundary, DecisionClass, Transition, UnitDecision};
 
 /// Check P1: persona memory writes require explicit causal support.
 pub fn check_persona_memory_cause(transition: &Transition) -> UnitDecision {
     let cause_check = check_cause_present(transition.cause_id);
 
-    if !cause_check.present {
-        return UnitDecision {
+    match cause_check {
+        CauseCheck::Missing => UnitDecision {
             class: DecisionClass::Reject,
             code: "REJECT_PERSONA_MEMORY_WITHOUT_CAUSE",
             invariant_id: "P1",
             boundary: Boundary::PersonaMemoryRequiresCause,
             verdict: "blocked_persona_memory_without_cause",
             cause_id: None,
-        };
-    }
-
-    UnitDecision {
-        class: DecisionClass::Accept,
-        code: "ACCEPT_PERSONA_MEMORY_WITH_CAUSE",
-        invariant_id: "P1",
-        boundary: Boundary::PersonaMemoryRequiresCause,
-        verdict: "accepted_persona_memory_with_cause",
-        cause_id: cause_check.cause_id,
+        },
+        CauseCheck::Present(_) => UnitDecision {
+            class: DecisionClass::Accept,
+            code: "ACCEPT_PERSONA_MEMORY_WITH_CAUSE",
+            invariant_id: "P1",
+            boundary: Boundary::PersonaMemoryRequiresCause,
+            verdict: "accepted_persona_memory_with_cause",
+            cause_id: cause_check.cause_id(),
+        },
     }
 }
 
