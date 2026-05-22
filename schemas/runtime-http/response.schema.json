@@ -55,6 +55,15 @@
         "rejected_without_commit": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
+    },
+    {
+      "title": "Error response",
+      "required": ["status", "error"],
+      "properties": {
+        "status": { "const": "error" },
+        "error": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
     }
   ]
 }
