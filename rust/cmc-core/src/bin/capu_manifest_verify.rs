@@ -1,6 +1,9 @@
 use std::{collections::BTreeMap, fs, process::ExitCode};
 
-use cmc_core::capu::replay_unit::{replay_p6_audit_chain, ReplayError};
+use cmc_core::capu::replay_unit::{
+    replay_p1_persona_memory_audit_chain, replay_p1_persona_memory_reject_only,
+    replay_p6_audit_chain, P1ReplayError, ReplayError,
+};
 use cmc_core::trace_crypto::SealedTraceEvent;
 
 const MANIFEST: &str = "fixtures/capu/MANIFEST.tsv";
@@ -183,14 +186,7 @@ fn read_fixture(path: &str) -> Result<Vec<SealedTraceEvent>, String> {
     Ok(sealed)
 }
 
-fn verify_case(case: &ManifestCase) -> Result<&'static str, String> {
-    if case.invariant_id != "P6" {
-        return Err(format!(
-            "{}: expected invariant_id=P6, got {}",
-            case.scenario_id, case.invariant_id
-        ));
-    }
-
+fn read_expected_fixture(case: &ManifestCase) -> Result<Vec<SealedTraceEvent>, String> {
     let sealed = read_fixture(&case.fixture_path)?;
     if sealed.len() != case.expected_events {
         return Err(format!(
@@ -200,12 +196,28 @@ fn verify_case(case: &ManifestCase) -> Result<&'static str, String> {
             sealed.len()
         ));
     }
+    Ok(sealed)
+}
+
+fn verify_case(case: &ManifestCase) -> Result<&'static str, String> {
+    match case.invariant_id.as_str() {
+        "P6" => verify_p6_case(case),
+        "P1" => verify_p1_case(case),
+        other => Err(format!(
+            "{}: unknown invariant_id `{other}`",
+            case.scenario_id
+        )),
+    }
+}
+
+fn verify_p6_case(case: &ManifestCase) -> Result<&'static str, String> {
+    let sealed = read_expected_fixture(case)?;
 
     match case.fixture_role.as_str() {
         "valid" => {
             replay_p6_audit_chain(&sealed).map_err(|err| {
                 format!(
-                    "{}: expected valid replay, got error {err:?}",
+                    "{}: expected valid P6 replay, got error {err:?}",
                     case.scenario_id
                 )
             })?;
@@ -237,7 +249,52 @@ fn verify_case(case: &ManifestCase) -> Result<&'static str, String> {
             )),
         },
         other => Err(format!(
-            "{}: unknown fixture_role `{other}`",
+            "{}: unknown P6 fixture_role `{other}`",
+            case.scenario_id
+        )),
+    }
+}
+
+fn verify_p1_case(case: &ManifestCase) -> Result<&'static str, String> {
+    let sealed = read_expected_fixture(case)?;
+
+    match case.fixture_role.as_str() {
+        "valid" => {
+            replay_p1_persona_memory_audit_chain(&sealed).map_err(|err| {
+                format!(
+                    "{}: expected valid P1 replay, got error {err:?}",
+                    case.scenario_id
+                )
+            })?;
+            if case.expected_result != "capu_p1_fixture_replay_valid" {
+                return Err(format!(
+                    "{}: unexpected expected_result {}",
+                    case.scenario_id, case.expected_result
+                ));
+            }
+            Ok("capu_p1_fixture_replay_valid")
+        }
+        "missing_cause" => match replay_p1_persona_memory_reject_only(&sealed) {
+            Ok(_) => {
+                if case.expected_result != "capu_p1_fixture_missing_cause" {
+                    return Err(format!(
+                        "{}: unexpected expected_result {}",
+                        case.scenario_id, case.expected_result
+                    ));
+                }
+                Ok("capu_p1_fixture_missing_cause")
+            }
+            Err(P1ReplayError::SealInvalid { event_index }) => Err(format!(
+                "{}: P1 missing-cause fixture seal failed at event {event_index}",
+                case.scenario_id
+            )),
+            Err(err) => Err(format!(
+                "{}: unexpected P1 missing-cause verification error {err:?}",
+                case.scenario_id
+            )),
+        },
+        other => Err(format!(
+            "{}: unknown P1 fixture_role `{other}`",
             case.scenario_id
         )),
     }
@@ -249,24 +306,36 @@ fn run() -> Result<(), String> {
     let cases = parse_manifest()?;
     let mut valid = 0usize;
     let mut tampered = 0usize;
+    let mut missing_cause = 0usize;
+    let mut p1_cases = 0usize;
+    let mut p6_cases = 0usize;
 
     for case in &cases {
         let result = verify_case(case)?;
+        match case.invariant_id.as_str() {
+            "P1" => p1_cases += 1,
+            "P6" => p6_cases += 1,
+            _ => {}
+        }
         match case.fixture_role.as_str() {
             "valid" => valid += 1,
             "tampered" => tampered += 1,
+            "missing_cause" => missing_cause += 1,
             _ => {}
         }
         println!(
-            "case={} role={} events={} result={}",
-            case.scenario_id, case.fixture_role, case.expected_events, result
+            "case={} invariant={} role={} events={} result={}",
+            case.scenario_id, case.invariant_id, case.fixture_role, case.expected_events, result
         );
     }
 
     println!("manifest={MANIFEST}");
     println!("manifest_cases={}", cases.len());
+    println!("manifest_p1_cases={p1_cases}");
+    println!("manifest_p6_cases={p6_cases}");
     println!("manifest_valid={valid}");
     println!("manifest_tampered={tampered}");
+    println!("manifest_missing_cause={missing_cause}");
     println!("result=capu_manifest_verified");
 
     Ok(())
