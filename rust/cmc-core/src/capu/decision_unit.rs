@@ -1,12 +1,14 @@
 use super::boundary_router::boundary_matches_route;
 use super::commit_unit::check_external_action_commit;
+use super::persona_memory_unit::check_persona_memory_cause;
 use super::transition::{Boundary, DecisionClass, Transition, TransitionType, UnitDecision};
 
 /// Evaluate a typed transition through the CaPU software reference pipeline.
 ///
-/// v0 only fully executes P6 external-action decisions. Other boundaries return
-/// HOLD so they can be implemented incrementally without pretending they are
-/// rejected or accepted by a unit that does not exist yet.
+/// v0 fully executes P6 external-action decisions and P1 persona-memory cause
+/// decisions. Other boundaries return HOLD so they can be implemented
+/// incrementally without pretending they are rejected or accepted by a unit that
+/// does not exist yet.
 pub fn decide_transition(transition: &Transition) -> UnitDecision {
     if !boundary_matches_route(transition) {
         return UnitDecision {
@@ -21,6 +23,7 @@ pub fn decide_transition(transition: &Transition) -> UnitDecision {
 
     match transition.transition_type {
         TransitionType::ExternalAction => check_external_action_commit(transition),
+        TransitionType::PersonaMemory => check_persona_memory_cause(transition),
         _ => hold_unimplemented_boundary(transition),
     }
 }
@@ -56,7 +59,9 @@ fn test_transition(transition_type: TransitionType, boundary: Boundary) -> Trans
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::capu::decoder::{decode_external_action, ExternalActionRequest};
+    use crate::capu::decoder::{
+        decode_external_action, decode_persona_memory, ExternalActionRequest, PersonaMemoryRequest,
+    };
 
     #[test]
     fn decision_unit_rejects_p6_uncommitted_external_action() {
@@ -96,10 +101,45 @@ mod tests {
     }
 
     #[test]
+    fn decision_unit_rejects_p1_persona_memory_without_cause() {
+        let transition = decode_persona_memory(PersonaMemoryRequest::new(
+            "tx-p1-reject",
+            "raw inferred preference",
+            None,
+        ));
+
+        let decision = decide_transition(&transition);
+
+        assert_eq!(decision.class, DecisionClass::Reject);
+        assert_eq!(decision.code, "REJECT_PERSONA_MEMORY_WITHOUT_CAUSE");
+        assert_eq!(decision.invariant_id, "P1");
+        assert_eq!(decision.boundary, Boundary::PersonaMemoryRequiresCause);
+        assert_eq!(decision.verdict, "blocked_persona_memory_without_cause");
+    }
+
+    #[test]
+    fn decision_unit_accepts_p1_persona_memory_with_cause() {
+        let transition = decode_persona_memory(PersonaMemoryRequest::new(
+            "tx-p1-accept",
+            "confirmed preference",
+            Some(42),
+        ));
+
+        let decision = decide_transition(&transition);
+
+        assert_eq!(decision.class, DecisionClass::Accept);
+        assert_eq!(decision.code, "ACCEPT_PERSONA_MEMORY_WITH_CAUSE");
+        assert_eq!(decision.invariant_id, "P1");
+        assert_eq!(decision.boundary, Boundary::PersonaMemoryRequiresCause);
+        assert_eq!(decision.verdict, "accepted_persona_memory_with_cause");
+        assert_eq!(decision.cause_id, Some(42));
+    }
+
+    #[test]
     fn decision_unit_holds_boundaries_not_implemented_yet() {
         let transition = test_transition(
-            TransitionType::PersonaMemory,
-            Boundary::PersonaMemoryRequiresCause,
+            TransitionType::PersonaStateChange,
+            Boundary::PersonaStateChangeRequiresAuthorization,
         );
 
         let decision = decide_transition(&transition);
@@ -107,7 +147,7 @@ mod tests {
         assert_eq!(decision.class, DecisionClass::Hold);
         assert_eq!(decision.code, "HOLD_UNIMPLEMENTED_BOUNDARY");
         assert_eq!(decision.invariant_id, "CAPU");
-        assert_eq!(decision.boundary, Boundary::PersonaMemoryRequiresCause);
+        assert_eq!(decision.boundary, Boundary::PersonaStateChangeRequiresAuthorization);
         assert_eq!(decision.verdict, "hold_unimplemented_boundary");
     }
 
