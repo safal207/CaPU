@@ -89,7 +89,20 @@ function validateRequest(value, filePath) {
   fail('request', filePath, 'unknown request fixture shape')
 }
 
+function validateErrorResponse(value, filePath) {
+  assertOnlyKeys(value, ['status', 'error'], 'response', filePath)
+  if (value.status !== 'error') {
+    fail('response', filePath, 'error response status must be error')
+  }
+  assertString(value.error, 'error', 'response', filePath)
+}
+
 function validateResponse(value, filePath) {
+  if (value.status === 'error') {
+    validateErrorResponse(value, filePath)
+    return
+  }
+
   if (value.route === '/capu/health') {
     assertOnlyKeys(value, ['route', 'status', 'service'], 'response', filePath)
     if (value.status !== 'ok') fail('response', filePath, 'health status must be ok')

@@ -10,11 +10,11 @@ rust/cmc-core/src/bin/capu_runtime_http_sidecar.rs
 
 The implementation is intentionally std-only and reference-grade. It is not a production HTTP framework and not yet an OpenAPI-backed public API.
 
-Current maturity movement represented by this contract:
+Current maturity represented by this contract:
 
 ```text
 Software reference processor: ~62%
-Runtime sidecar/API:        ~30%
+Runtime sidecar/API:        ~52%
 Hardware/device path:       ~5%
 ```
 
@@ -237,6 +237,70 @@ fixtures/capu_runtime_http/responses/replay_p1_pair.json
 
 ---
 
+## Error responses
+
+The v0 sidecar now includes controlled error fixtures for basic HTTP boundary failures.
+
+### Unknown route
+
+Example request:
+
+```http
+GET /capu/unknown HTTP/1.1
+```
+
+Expected status:
+
+```text
+404 Not Found
+```
+
+Example response:
+
+```json
+{
+  "status": "error",
+  "error": "route_not_found"
+}
+```
+
+Fixture:
+
+```text
+fixtures/capu_runtime_http/responses/unknown_route.json
+```
+
+### Malformed request
+
+Example malformed request:
+
+```text
+BROKEN
+```
+
+Expected status:
+
+```text
+400 Bad Request
+```
+
+Example response:
+
+```json
+{
+  "status": "error",
+  "error": "bad_request:missing path"
+}
+```
+
+Fixture:
+
+```text
+fixtures/capu_runtime_http/responses/malformed_request.json
+```
+
+---
+
 ## Current verified evidence
 
 The sidecar currently verifies:
@@ -246,9 +310,12 @@ health route
 P1 decide route
 P6 audit route
 P1 replay route
+unknown-route error response
+malformed-request error response
 saved request fixtures
 saved response fixtures
-real local TCP HTTP round trip in --self-test mode
+schema-checked response fixtures
+real local TCP HTTP round trips in --self-test mode
 ```
 
 The self-test uses an ephemeral local address and sends real HTTP requests through `TcpStream`.
@@ -279,9 +346,9 @@ It is a local reference sidecar contract for reviewer-visible evidence.
 Recommended next steps:
 
 ```text
-1. Add JSON schema files for request and response fixtures.
-2. Add OpenAPI-style route summary.
-3. Add P6 replay request/response fixture.
-4. Add error fixtures for unknown route and malformed request.
-5. Add a minimal client example.
+1. Add P6 replay request/response fixture.
+2. Add accepted/rejected decide and audit coverage.
+3. Add OpenAPI-style route summary.
+4. Add a minimal client example.
+5. Add production-grade error taxonomy only after the v0 surface stabilizes.
 ```
