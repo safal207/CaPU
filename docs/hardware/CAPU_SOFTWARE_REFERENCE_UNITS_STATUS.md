@@ -5,7 +5,7 @@ Status: current implementation snapshot for CaPU software reference units.
 Progress estimate:
 
 ```text
-Software reference processor: ~50%
+Software reference processor: ~55%
 Runtime sidecar/API:        ~15%
 Hardware/device path:       ~5%
 ```
@@ -23,6 +23,7 @@ rust/cmc-core/src/capu/decoder.rs
 rust/cmc-core/src/capu/boundary_router.rs
 rust/cmc-core/src/capu/cause_unit.rs
 rust/cmc-core/src/capu/commit_unit.rs
+rust/cmc-core/src/capu/persona_memory_unit.rs
 rust/cmc-core/src/capu/decision_unit.rs
 rust/cmc-core/src/capu/audit_bus.rs
 rust/cmc-core/src/capu/seal_unit.rs
@@ -32,6 +33,7 @@ rust/cmc-core/src/bin/capu_p6_replay_verify.rs
 rust/cmc-core/src/bin/capu_p6_fixture_verify.rs
 rust/cmc-core/src/bin/capu_p6_action_variants_verify.rs
 rust/cmc-core/src/bin/capu_manifest_verify.rs
+rust/cmc-core/src/bin/capu_p1_persona_memory_verify.rs
 rust/cmc-core/fixtures/capu/MANIFEST.tsv
 rust/cmc-core/fixtures/capu/p6_audit_valid.jsonl
 rust/cmc-core/fixtures/capu/p6_audit_tampered.jsonl
@@ -46,6 +48,7 @@ pub mod cause_unit;
 pub mod commit_unit;
 pub mod decision_unit;
 pub mod decoder;
+pub mod persona_memory_unit;
 pub mod replay_unit;
 pub mod seal_unit;
 pub mod transition;
@@ -73,7 +76,7 @@ ExternalActionRequest
  -> reviewer-visible result marker
 ```
 
-Current outcomes:
+Current P6 outcomes:
 
 ```text
 commit=false
@@ -100,9 +103,41 @@ deploy_code with commit    -> ACCEPT_COMMITTED_ACTION
 
 ---
 
+## Current executable P1 pipeline
+
+The current software reference pipeline now also implements P1 persona-memory causal legitimacy:
+
+```text
+PersonaMemoryRequest
+ -> decode_persona_memory
+ -> route_boundary(TransitionType::PersonaMemory)
+ -> Boundary::PersonaMemoryRequiresCause
+ -> decide_transition
+ -> check_persona_memory_cause
+ -> emit_audit_record
+ -> seal_audit_records
+ -> reviewer-visible result marker
+```
+
+Current P1 outcomes:
+
+```text
+cause_id=None
+ -> REJECT_PERSONA_MEMORY_WITHOUT_CAUSE
+ -> blocked_persona_memory_without_cause
+
+cause_id=42
+ -> ACCEPT_PERSONA_MEMORY_WITH_CAUSE
+ -> accepted_persona_memory_with_cause
+```
+
+---
+
 ## Reviewer commands
 
-Run from `rust/cmc-core`:
+Run from `rust/cmc-core`.
+
+P6 pipeline demo:
 
 ```bash
 cargo run --bin capu_p6_pipeline_demo --locked
@@ -121,7 +156,7 @@ replay_result=capu_p6_audit_replay_valid
 result=capu_p6_pipeline_valid
 ```
 
-Independent replay verifier:
+P6 independent replay verifier:
 
 ```bash
 cargo run --bin capu_p6_replay_verify --locked
@@ -136,7 +171,7 @@ replay_summary events=2 p6_boundary_events=2 rejected_without_commit=1 accepted_
 result=capu_p6_replay_verified
 ```
 
-Saved fixture verifier:
+P6 saved fixture verifier:
 
 ```bash
 cargo run --bin capu_p6_fixture_verify --locked
@@ -155,7 +190,7 @@ tampered_result=capu_p6_fixture_tamper_detected event=1
 result=capu_p6_fixtures_verified
 ```
 
-Action variants verifier:
+P6 action variants verifier:
 
 ```bash
 cargo run --bin capu_p6_action_variants_verify --locked
@@ -173,7 +208,7 @@ seal_result=capu_p6_action_variants_seal_valid
 result=capu_p6_action_variants_verified
 ```
 
-Manifest verifier:
+CaPU manifest verifier:
 
 ```bash
 cargo run --bin capu_manifest_verify --locked
@@ -192,10 +227,33 @@ manifest_tampered=1
 result=capu_manifest_verified
 ```
 
+P1 persona-memory verifier:
+
+```bash
+cargo run --bin capu_p1_persona_memory_verify --locked
+```
+
+Expected output includes:
+
+```text
+CAPU-P1-PERSONA-MEMORY-VERIFY v0
+unconfirmed_result=blocked_persona_memory_without_cause code=REJECT_PERSONA_MEMORY_WITHOUT_CAUSE boundary=persona_memory_requires_cause accepted=false
+confirmed_result=accepted_persona_memory_with_cause code=ACCEPT_PERSONA_MEMORY_WITH_CAUSE boundary=persona_memory_requires_cause cause_id=42 accepted=true
+sealed_events=2
+seal_result=capu_p1_persona_memory_seal_valid
+result=capu_p1_persona_memory_verified
+```
+
 All commands are included in:
 
 ```bash
 npm run review:cmc
+```
+
+The CI workflow also runs the P1 verifier directly:
+
+```bash
+cargo run --bin capu_p1_persona_memory_verify --locked
 ```
 
 ---
@@ -210,10 +268,13 @@ Boundary enum
 DecisionClass enum
 UnitDecision struct
 ExternalActionRequest
+PersonaMemoryRequest
 P6 external action decoder
+P1 persona-memory decoder
 Boundary router
 Cause unit
 P6 commit unit
+P1 persona memory unit
 Decision unit with route-mismatch rejection
 Audit bus with JSONL-shaped records
 Seal unit using existing SHA-256 trace-chain primitives
@@ -226,7 +287,9 @@ Saved fixture verifier binary
 P6 action variants verifier binary
 CaPU fixture manifest
 CaPU manifest verifier binary
+P1 persona-memory verifier binary
 Reviewer script integration
+CI integration for CaPU P6 and P1 verifiers
 ```
 
 Boundaries not yet implemented by dedicated units intentionally return:
@@ -241,7 +304,7 @@ This keeps the reference processor honest while more units are extracted.
 
 ## Evidence semantics
 
-The current P6 path now demonstrates six separate evidence layers:
+The current CaPU path now demonstrates seven separate evidence layers:
 
 ```text
 Decision evidence
@@ -254,31 +317,39 @@ Integrity evidence
  -> SHA-256 sealed trace chain
 
 Replay evidence
- -> semantic replay summary over sealed audit events
+ -> semantic replay summary over sealed P6 audit events
 
 Saved fixture evidence
- -> valid fixture + tampered fixture + fixture verifier
+ -> valid P6 fixture + tampered P6 fixture + fixture verifier
 
 Manifest-linked evidence
  -> MANIFEST.tsv + manifest verifier
+
+Cross-invariant evidence
+ -> P6 external actions + P1 persona-memory writes
 ```
 
-Replay currently checks the canonical two-event P6 pair:
+P6 currently checks the canonical two-event pair:
 
 ```text
 REJECT_ACTION_WITHOUT_COMMIT
 ACCEPT_COMMITTED_ACTION
 ```
 
-The tampered fixture intentionally modifies the first saved event while preserving the old hash, so the verifier must fail before semantic replay:
+P1 currently checks the canonical two-event pair:
+
+```text
+REJECT_PERSONA_MEMORY_WITHOUT_CAUSE
+ACCEPT_PERSONA_MEMORY_WITH_CAUSE
+```
+
+The tampered P6 fixture intentionally modifies the first saved event while preserving the old hash, so the verifier must fail before semantic replay:
 
 ```text
 ReplayError::SealInvalid { event_index: 1 }
 ```
 
-The action variants verifier demonstrates that P6 is not tied to `send_email` only; the same action-commit boundary applies to `delete_file` and `deploy_code` cases.
-
-This is intentionally narrow and deterministic. Future replay units can generalize to arbitrary trace classes.
+This is intentionally narrow and deterministic. Future replay units can generalize to arbitrary trace classes and multiple invariants.
 
 ---
 
@@ -297,6 +368,7 @@ CAPU_PROCESSOR_MODEL
  -> saved fixtures
  -> fixture manifest
  -> npm run review:cmc
+ -> GitHub Actions verifier steps
 ```
 
 ---
@@ -306,7 +378,7 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-A P6 external action can be decoded, boundary-routed, decided, cause-checked, audit-emitted, SHA-256 sealed, semantically replay-verified, saved as fixture evidence, tamper-detected, tested across multiple action kinds, and manifest-verified through reviewer-visible command paths.
+CaPU can execute reviewer-visible legitimacy checks for P6 external actions and P1 persona-memory writes: decoded requests are boundary-routed, decided, cause/commit-checked, audit-emitted, SHA-256 sealed, and verified through direct CLI commands, reviewer script integration, and CI steps.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
@@ -318,24 +390,29 @@ The current implementation does not claim a complete CaPU runtime.
 Recommended next step:
 
 ```text
+Create saved P1 fixture evidence and add P1 rows to fixtures/capu/MANIFEST.tsv.
+```
+
+Then:
+
+```text
+Add a manifest verifier path for P1 cases:
+- p1_persona_memory_valid
+- p1_persona_memory_rejected_without_cause
+```
+
+Then:
+
+```text
 Get a fresh green CI / reviewer baseline on current main.
 ```
 
 Then:
 
 ```text
-If CI fails, fix only the failing layer:
-- compile error
-- fixture hash mismatch
-- manifest parsing mismatch
-- reviewer script mismatch
-```
-
-Then:
-
-```text
-Start P1 cause/persona-memory unit extraction using the same pipeline pattern:
-decode -> boundary route -> cause check -> decision -> audit -> seal -> replay -> fixture -> manifest
+Start runtime sidecar/API design:
+POST /capu/check-transition
+capu check-transition input.json
 ```
 
 ---
@@ -360,5 +437,5 @@ It is a software reference scaffold.
 ## One-line summary
 
 ```text
-CaPU currently has a manifest-linked executable software reference evidence path for P6 external actions: decode -> boundary route -> decision -> cause check -> audit -> seal -> replay -> saved fixture verification -> action variants -> manifest verification -> reviewer script.
+CaPU currently has an executable software reference evidence path for P6 external actions and P1 persona-memory writes: decode -> boundary route -> decision -> cause/commit check -> audit -> seal -> replay/fixture/manifest verification -> reviewer script -> CI step.
 ```
