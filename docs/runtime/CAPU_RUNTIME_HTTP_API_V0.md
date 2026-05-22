@@ -8,13 +8,13 @@ This document describes the current local HTTP sidecar contract implemented by:
 rust/cmc-core/src/bin/capu_runtime_http_sidecar.rs
 ```
 
-The implementation is intentionally std-only and reference-grade. It is not a production HTTP framework and not yet an OpenAPI-backed public API.
+The implementation is intentionally std-only and reference-grade. It is not a production HTTP framework and not yet a full OpenAPI-backed public API.
 
 Current maturity represented by this contract:
 
 ```text
 Software reference processor: ~62%
-Runtime sidecar/API:        ~70%
+Runtime sidecar/API:        ~75%
 Hardware/device path:       ~5%
 ```
 
@@ -22,7 +22,7 @@ Hardware/device path:       ~5%
 
 ## Machine-readable API manifest
 
-The current route/case/fixture map is also recorded as a machine-readable manifest:
+The current route/case/fixture map is recorded as a machine-readable manifest:
 
 ```text
 schemas/runtime-http/api-manifest.v0.json
@@ -35,6 +35,26 @@ npm run validate:runtime-http-manifest
 ```
 
 The manifest checks that route cases point to existing request/response fixtures and that response fixtures agree with declared routes, invariants, boundaries, and error shapes.
+
+---
+
+## OpenAPI-lite contract
+
+A reference OpenAPI-lite document is derived from the checked API manifest:
+
+```text
+schemas/runtime-http/openapi-lite.v0.json
+```
+
+It is verified by:
+
+```bash
+npm run validate:runtime-http-openapi-lite
+```
+
+The OpenAPI-lite validator checks that every HTTP route case in the API manifest is represented by an OpenAPI path operation and that raw malformed request cases are explicitly represented outside normal OpenAPI paths.
+
+This is intentionally OpenAPI-lite, not a full production OpenAPI contract.
 
 ---
 
@@ -491,6 +511,7 @@ saved request fixtures
 saved response fixtures
 schema-checked response fixtures
 manifest-checked route/case/fixture map
+OpenAPI-lite checked against manifest
 external client example over local HTTP
 real local TCP HTTP round trips in --self-test mode
 ```
@@ -525,6 +546,6 @@ Recommended next steps:
 ```text
 1. Add production-grade error taxonomy only after the v0 surface stabilizes.
 2. Add arbitrary replay submission after canonical replay coverage is stable.
-3. Generate OpenAPI from the manifest after the route surface stabilizes.
-4. Add a tiny SDK wrapper only after the client example stabilizes.
+3. Add a tiny SDK wrapper only after the client example stabilizes.
+4. Generate full OpenAPI from the manifest after request/response schemas become more specific.
 ```
