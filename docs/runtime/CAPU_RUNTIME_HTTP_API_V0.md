@@ -14,7 +14,7 @@ Current maturity represented by this contract:
 
 ```text
 Software reference processor: ~62%
-Runtime sidecar/API:        ~65%
+Runtime sidecar/API:        ~70%
 Hardware/device path:       ~5%
 ```
 
@@ -35,6 +35,38 @@ npm run validate:runtime-http-manifest
 ```
 
 The manifest checks that route cases point to existing request/response fixtures and that response fixtures agree with declared routes, invariants, boundaries, and error shapes.
+
+---
+
+## Minimal client example
+
+A std-only Node client example demonstrates how an external consumer can launch the sidecar and call the v0 HTTP routes:
+
+```text
+examples/runtime_http_client.mjs
+```
+
+Run it from the repository root:
+
+```bash
+npm run example:runtime-http-client
+```
+
+Expected marker:
+
+```text
+result=runtime_http_client_example_verified
+```
+
+The client example verifies these routes over real local HTTP calls:
+
+```text
+GET  /capu/health
+POST /capu/decide
+POST /capu/audit
+POST /capu/replay
+GET  /capu/unknown
+```
 
 ---
 
@@ -459,10 +491,11 @@ saved request fixtures
 saved response fixtures
 schema-checked response fixtures
 manifest-checked route/case/fixture map
+external client example over local HTTP
 real local TCP HTTP round trips in --self-test mode
 ```
 
-The self-test uses an ephemeral local address and sends real HTTP requests through `TcpStream`.
+The self-test and client example use ephemeral local addresses and send real HTTP requests through local TCP/HTTP.
 
 ---
 
@@ -490,8 +523,8 @@ It is a local reference sidecar contract for reviewer-visible evidence.
 Recommended next steps:
 
 ```text
-1. Add a minimal client example.
-2. Add production-grade error taxonomy only after the v0 surface stabilizes.
-3. Add arbitrary replay submission after canonical replay coverage is stable.
-4. Generate OpenAPI from the manifest after the route surface stabilizes.
+1. Add production-grade error taxonomy only after the v0 surface stabilizes.
+2. Add arbitrary replay submission after canonical replay coverage is stable.
+3. Generate OpenAPI from the manifest after the route surface stabilizes.
+4. Add a tiny SDK wrapper only after the client example stabilizes.
 ```
