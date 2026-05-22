@@ -5,9 +5,7 @@ use cmc_core::capu::decoder::{
     decode_external_action, decode_persona_memory, ExternalActionRequest, PersonaMemoryRequest,
 };
 use cmc_core::capu::decision_unit::decide_transition;
-use cmc_core::capu::replay_unit::{
-    replay_p1_persona_memory_audit_chain, replay_p6_audit_chain, P1ReplayError, ReplayError,
-};
+use cmc_core::capu::replay_unit::{replay_p1_persona_memory_audit_chain, replay_p6_audit_chain};
 use cmc_core::capu::seal_unit::seal_audit_records;
 use cmc_core::capu::transition::{DecisionClass, Transition};
 
@@ -102,88 +100,65 @@ fn audit_response(transition: &Transition) -> RuntimeResponse {
     }
 }
 
-fn p1_replay_result(transition: &Transition) -> Result<String, P1ReplayError> {
-    let decision = decide_transition(transition);
-    let record = emit_audit_record(transition, &decision);
-    let sealed = seal_audit_records(&[record]);
-    let summary = replay_p1_persona_memory_audit_chain(&sealed)?;
+fn p1_replay_response(reject: &Transition, accept: &Transition) -> RuntimeResponse {
+    let reject_decision = decide_transition(reject);
+    let accept_decision = decide_transition(accept);
+    let reject_record = emit_audit_record(reject, &reject_decision);
+    let accept_record = emit_audit_record(accept, &accept_decision);
+    let sealed = seal_audit_records(&[reject_record, accept_record]);
 
-    Ok(format!(
-        "{{{},{},{},{}}}",
-        json_field("route", RuntimeRoute::Replay.path()),
-        json_field("result", "capu_runtime_replay_valid"),
-        json_number_field("events", summary.events),
-        json_number_field("p1_boundary_events", summary.p1_boundary_events)
-    ))
-}
-
-fn p6_replay_result(transition: &Transition) -> Result<String, ReplayError> {
-    let decision = decide_transition(transition);
-    let record = emit_audit_record(transition, &decision);
-    let sealed = seal_audit_records(&[record]);
-    let summary = replay_p6_audit_chain(&sealed)?;
-
-    Ok(format!(
-        "{{{},{},{},{}}}",
-        json_field("route", RuntimeRoute::Replay.path()),
-        json_field("result", "capu_runtime_replay_valid"),
-        json_number_field("events", summary.events),
-        json_number_field("p6_boundary_events", summary.p6_boundary_events)
-    ))
-}
-
-fn replay_response(transition: &Transition) -> RuntimeResponse {
-    match transition.invariant_hint() {
-        "P1" => match p1_replay_result(transition) {
-            Ok(body) => RuntimeResponse {
-                status_code: 200,
-                body,
-            },
-            Err(err) => RuntimeResponse {
-                status_code: 500,
-                body: format!(
-                    "{{{},{}}}",
-                    json_field("route", RuntimeRoute::Replay.path()),
-                    json_field("error", &format!("{:?}", err))
-                ),
-            },
+    match replay_p1_persona_memory_audit_chain(&sealed) {
+        Ok(summary) => RuntimeResponse {
+            status_code: 200,
+            body: format!(
+                "{{{},{},{},{},{},{}}}",
+                json_field("route", RuntimeRoute::Replay.path()),
+                json_field("invariant_id", "P1"),
+                json_field("result", "capu_runtime_replay_valid"),
+                json_number_field("events", summary.events),
+                json_number_field("p1_boundary_events", summary.p1_boundary_events),
+                json_number_field("rejected_without_cause", summary.rejected_without_cause)
+            ),
         },
-        "P6" => match p6_replay_result(transition) {
-            Ok(body) => RuntimeResponse {
-                status_code: 200,
-                body,
-            },
-            Err(err) => RuntimeResponse {
-                status_code: 500,
-                body: format!(
-                    "{{{},{}}}",
-                    json_field("route", RuntimeRoute::Replay.path()),
-                    json_field("error", &format!("{:?}", err))
-                ),
-            },
-        },
-        _ => RuntimeResponse {
-            status_code: 400,
+        Err(err) => RuntimeResponse {
+            status_code: 500,
             body: format!(
                 "{{{},{}}}",
                 json_field("route", RuntimeRoute::Replay.path()),
-                json_field("error", "unsupported_runtime_replay_boundary")
+                json_field("error", &format!("{:?}", err))
             ),
         },
     }
 }
 
-trait RuntimeInvariantHint {
-    fn invariant_hint(&self) -> &'static str;
-}
+fn p6_replay_response(reject: &Transition, accept: &Transition) -> RuntimeResponse {
+    let reject_decision = decide_transition(reject);
+    let accept_decision = decide_transition(accept);
+    let reject_record = emit_audit_record(reject, &reject_decision);
+    let accept_record = emit_audit_record(accept, &accept_decision);
+    let sealed = seal_audit_records(&[reject_record, accept_record]);
 
-impl RuntimeInvariantHint for Transition {
-    fn invariant_hint(&self) -> &'static str {
-        match self.transition_type {
-            cmc_core::capu::transition::TransitionType::PersonaMemory => "P1",
-            cmc_core::capu::transition::TransitionType::ExternalAction => "P6",
-            _ => "CAPU",
-        }
+    match replay_p6_audit_chain(&sealed) {
+        Ok(summary) => RuntimeResponse {
+            status_code: 200,
+            body: format!(
+                "{{{},{},{},{},{},{}}}",
+                json_field("route", RuntimeRoute::Replay.path()),
+                json_field("invariant_id", "P6"),
+                json_field("result", "capu_runtime_replay_valid"),
+                json_number_field("events", summary.events),
+                json_number_field("p6_boundary_events", summary.p6_boundary_events),
+                json_number_field("rejected_without_commit", summary.rejected_without_commit)
+            ),
+        },
+        Err(err) => RuntimeResponse {
+            status_code: 500,
+            body: format!(
+                "{{{},{}}}",
+                json_field("route", RuntimeRoute::Replay.path()),
+                json_field("error", &format!("{:?}", err))
+            ),
+        },
     }
 }
 
@@ -250,11 +225,11 @@ fn run_smoke() -> Result<(), String> {
     assert_body_contains(&p6_audit, RuntimeRoute::Audit.path())?;
     assert_body_contains(&p6_audit, "accepted_committed_action")?;
 
-    let p1_replay = replay_response(&p1_reject);
+    let p1_replay = p1_replay_response(&p1_reject, &p1_accept);
     assert_body_contains(&p1_replay, "capu_runtime_replay_valid")?;
     assert_body_contains(&p1_replay, "p1_boundary_events")?;
 
-    let p6_replay = replay_response(&p6_reject);
+    let p6_replay = p6_replay_response(&p6_reject, &p6_accept);
     assert_body_contains(&p6_replay, "capu_runtime_replay_valid")?;
     assert_body_contains(&p6_replay, "p6_boundary_events")?;
 
