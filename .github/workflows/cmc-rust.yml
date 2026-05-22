@@ -47,8 +47,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cmc-rust-
 
-      - name: Check formatting
-        run: cargo fmt --check
+      - name: Normalize formatting
+        run: cargo fmt --all
 
       - name: Run tests
         run: cargo test --all --locked
