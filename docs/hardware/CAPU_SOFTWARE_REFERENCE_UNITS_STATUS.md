@@ -5,8 +5,8 @@ Status: current implementation snapshot for CaPU software reference units.
 Progress estimate:
 
 ```text
-Software reference processor: ~55%
-Runtime sidecar/API:        ~15%
+Software reference processor: ~66%
+Runtime sidecar/API:        ~90%
 Hardware/device path:       ~5%
 ```
 
@@ -34,9 +34,12 @@ rust/cmc-core/src/bin/capu_p6_fixture_verify.rs
 rust/cmc-core/src/bin/capu_p6_action_variants_verify.rs
 rust/cmc-core/src/bin/capu_manifest_verify.rs
 rust/cmc-core/src/bin/capu_p1_persona_memory_verify.rs
+rust/cmc-core/src/bin/capu_runtime_http_sidecar.rs
 rust/cmc-core/fixtures/capu/MANIFEST.tsv
 rust/cmc-core/fixtures/capu/p6_audit_valid.jsonl
 rust/cmc-core/fixtures/capu/p6_audit_tampered.jsonl
+rust/cmc-core/fixtures/capu_runtime_http/requests/replay_submitted_p1_pair.json
+rust/cmc-core/fixtures/capu_runtime_http/requests/replay_submitted_p6_pair.json
 ```
 
 Current module tree:
@@ -133,6 +136,55 @@ cause_id=42
 
 ---
 
+## Current replay submission decoder semantics
+
+The core decoder now has typed replay submission semantics for the runtime replay path:
+
+```text
+ReplaySubmissionRequest
+ -> decode_replay_submission
+ -> DecodedReplaySubmission
+```
+
+Supported v0 selectors:
+
+```text
+invariant_id = P1 | P6
+replay       = canonical_pair | submitted_pair
+```
+
+Canonical replay decoding:
+
+```text
+ReplaySubmissionRequest::canonical_pair("P6")
+ -> invariant_id=P6
+ -> mode=canonical_pair
+ -> events=canonical_pair
+```
+
+Submitted replay decoding:
+
+```text
+ReplaySubmissionRequest::submitted_pair("P1", "http-p1-submitted-replay", "canonical_pair")
+ -> invariant_id=P1
+ -> mode=submitted_pair
+ -> submission_id=http-p1-submitted-replay
+ -> events=canonical_pair
+```
+
+Current negative decode cases:
+
+```text
+missing submission_id       -> MissingSubmissionId
+unsupported events          -> UnsupportedEvents
+unsupported invariant_id    -> UnsupportedInvariantId
+unsupported replay mode     -> UnsupportedReplayMode
+```
+
+This keeps submitted replay honest: v0 supports an explicit submitted request envelope, but does not yet claim arbitrary inline replay event decoding.
+
+---
+
 ## Reviewer commands
 
 Run from `rust/cmc-core`.
@@ -220,10 +272,13 @@ Expected output includes:
 CAPU-MANIFEST-VERIFY v0
 case=p6_audit_valid role=valid events=2 result=capu_p6_fixture_replay_valid
 case=p6_audit_tampered role=tampered events=2 result=capu_p6_fixture_tamper_detected
+case=p1_persona_memory_valid role=valid events=2 result=capu_p1_fixture_replay_valid
+case=p1_persona_memory_missing_cause role=missing_cause events=1 result=capu_p1_fixture_missing_cause
 manifest=fixtures/capu/MANIFEST.tsv
-manifest_cases=2
-manifest_valid=1
+manifest_cases=4
+manifest_valid=2
 manifest_tampered=1
+manifest_missing_cause=1
 result=capu_manifest_verified
 ```
 
@@ -250,11 +305,7 @@ All commands are included in:
 npm run review:cmc
 ```
 
-The CI workflow also runs the P1 verifier directly:
-
-```bash
-cargo run --bin capu_p1_persona_memory_verify --locked
-```
+The CI workflow also runs the P1 verifier and runtime HTTP examples directly.
 
 ---
 
@@ -269,8 +320,12 @@ DecisionClass enum
 UnitDecision struct
 ExternalActionRequest
 PersonaMemoryRequest
+ReplaySubmissionRequest
+DecodedReplaySubmission
+ReplaySubmissionDecodeError
 P6 external action decoder
 P1 persona-memory decoder
+Replay submission decoder
 Boundary router
 Cause unit
 P6 commit unit
@@ -279,6 +334,7 @@ Decision unit with route-mismatch rejection
 Audit bus with JSONL-shaped records
 Seal unit using existing SHA-256 trace-chain primitives
 Replay unit for sealed P6 audit evidence
+Replay unit for sealed P1 audit evidence
 P6 CLI pipeline demo
 Independent P6 replay verifier binary
 Saved valid P6 sealed audit fixture
@@ -288,8 +344,9 @@ P6 action variants verifier binary
 CaPU fixture manifest
 CaPU manifest verifier binary
 P1 persona-memory verifier binary
+Runtime HTTP sidecar reference path
 Reviewer script integration
-CI integration for CaPU P6 and P1 verifiers
+CI integration for CaPU verifiers and runtime HTTP examples
 ```
 
 Boundaries not yet implemented by dedicated units intentionally return:
@@ -304,7 +361,7 @@ This keeps the reference processor honest while more units are extracted.
 
 ## Evidence semantics
 
-The current CaPU path now demonstrates seven separate evidence layers:
+The current CaPU path now demonstrates eight separate evidence layers:
 
 ```text
 Decision evidence
@@ -317,10 +374,13 @@ Integrity evidence
  -> SHA-256 sealed trace chain
 
 Replay evidence
- -> semantic replay summary over sealed P6 audit events
+ -> semantic replay summary over sealed P6/P1 audit events
+
+Replay submission evidence
+ -> typed canonical/submitted replay request decoding with explicit failure modes
 
 Saved fixture evidence
- -> valid P6 fixture + tampered P6 fixture + fixture verifier
+ -> valid P6/P1 fixtures + tampered/missing-cause fixture checks
 
 Manifest-linked evidence
  -> MANIFEST.tsv + manifest verifier
@@ -367,6 +427,7 @@ CAPU_PROCESSOR_MODEL
  -> reviewer binaries
  -> saved fixtures
  -> fixture manifest
+ -> runtime HTTP evidence
  -> npm run review:cmc
  -> GitHub Actions verifier steps
 ```
@@ -378,7 +439,7 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-CaPU can execute reviewer-visible legitimacy checks for P6 external actions and P1 persona-memory writes: decoded requests are boundary-routed, decided, cause/commit-checked, audit-emitted, SHA-256 sealed, and verified through direct CLI commands, reviewer script integration, and CI steps.
+CaPU can execute reviewer-visible legitimacy checks for P6 external actions, P1 persona-memory writes, and replay submission request envelopes: decoded requests are boundary-routed or replay-decoded, decided, cause/commit-checked, audit-emitted, SHA-256 sealed, and verified through direct CLI commands, reviewer script integration, and CI steps.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
@@ -390,29 +451,22 @@ The current implementation does not claim a complete CaPU runtime.
 Recommended next step:
 
 ```text
-Create saved P1 fixture evidence and add P1 rows to fixtures/capu/MANIFEST.tsv.
+Add a dedicated replay_submission_unit.rs that turns DecodedReplaySubmission into replay execution decisions.
 ```
 
 Then:
 
 ```text
-Add a manifest verifier path for P1 cases:
-- p1_persona_memory_valid
-- p1_persona_memory_rejected_without_cause
+Add explicit unsupported replay submission HTTP error fixtures:
+- unsupported invariant_id
+- missing submission_id
+- unsupported events
 ```
 
 Then:
 
 ```text
 Get a fresh green CI / reviewer baseline on current main.
-```
-
-Then:
-
-```text
-Start runtime sidecar/API design:
-POST /capu/check-transition
-capu check-transition input.json
 ```
 
 ---
@@ -437,5 +491,5 @@ It is a software reference scaffold.
 ## One-line summary
 
 ```text
-CaPU currently has an executable software reference evidence path for P6 external actions and P1 persona-memory writes: decode -> boundary route -> decision -> cause/commit check -> audit -> seal -> replay/fixture/manifest verification -> reviewer script -> CI step.
+CaPU currently has an executable software reference evidence path for P6 external actions, P1 persona-memory writes, and typed replay submission envelopes: decode -> boundary/replay route -> decision -> cause/commit check -> audit -> seal -> replay/fixture/manifest verification -> reviewer script -> CI step.
 ```
