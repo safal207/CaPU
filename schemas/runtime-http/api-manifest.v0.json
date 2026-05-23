@@ -3,8 +3,8 @@
   "status": "reference",
   "implementation": "rust/cmc-core/src/bin/capu_runtime_http_sidecar.rs",
   "maturity": {
-    "software_reference_processor": "~62%",
-    "runtime_sidecar_api": "~90%",
+    "software_reference_processor": "~72%",
+    "runtime_sidecar_api": "~95%",
     "hardware_device_path": "~5%"
   },
   "reviewer_commands": [
@@ -126,6 +126,50 @@
       "boundary": "action_requires_commit",
       "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_submitted_p6_pair.json",
       "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_submitted_p6_pair.json"
+    },
+    {
+      "id": "replay_unsupported_invariant_id",
+      "method": "POST",
+      "path": "/capu/replay",
+      "case": "unsupported_invariant_id",
+      "status_code": 400,
+      "invariant_id": null,
+      "boundary": "replay_submission_boundary",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_unsupported_invariant_id.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_unsupported_invariant_id.json"
+    },
+    {
+      "id": "replay_missing_submission_id",
+      "method": "POST",
+      "path": "/capu/replay",
+      "case": "missing_submission_id",
+      "status_code": 400,
+      "invariant_id": "P6",
+      "boundary": "replay_submission_boundary",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_missing_submission_id.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_missing_submission_id.json"
+    },
+    {
+      "id": "replay_unsupported_events",
+      "method": "POST",
+      "path": "/capu/replay",
+      "case": "unsupported_events",
+      "status_code": 400,
+      "invariant_id": "P6",
+      "boundary": "replay_submission_boundary",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_unsupported_events.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_unsupported_events.json"
+    },
+    {
+      "id": "replay_unsupported_mode",
+      "method": "POST",
+      "path": "/capu/replay",
+      "case": "unsupported_replay_mode",
+      "status_code": 400,
+      "invariant_id": "P6",
+      "boundary": "replay_submission_boundary",
+      "request_fixture": "rust/cmc-core/fixtures/capu_runtime_http/requests/replay_unsupported_mode.json",
+      "response_fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_unsupported_mode.json"
     },
     {
       "id": "unknown_route",
