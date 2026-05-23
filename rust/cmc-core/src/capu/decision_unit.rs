@@ -1,3 +1,4 @@
+use super::authorization_unit::check_persona_state_change_authorization;
 use super::boundary_router::boundary_matches_route;
 use super::commit_unit::check_external_action_commit;
 use super::persona_memory_unit::check_persona_memory_cause;
@@ -5,10 +6,10 @@ use super::transition::{Boundary, DecisionClass, Transition, TransitionType, Uni
 
 /// Evaluate a typed transition through the CaPU software reference pipeline.
 ///
-/// v0 fully executes P6 external-action decisions and P1 persona-memory cause
-/// decisions. Other boundaries return HOLD so they can be implemented
-/// incrementally without pretending they are rejected or accepted by a unit that
-/// does not exist yet.
+/// v0 fully executes P6 external-action decisions, P1 persona-memory cause
+/// decisions, and P2 persona-state authorization decisions. Other boundaries
+/// return HOLD so they can be implemented incrementally without pretending they
+/// are rejected or accepted by a unit that does not exist yet.
 pub fn decide_transition(transition: &Transition) -> UnitDecision {
     if !boundary_matches_route(transition) {
         return UnitDecision {
@@ -24,6 +25,7 @@ pub fn decide_transition(transition: &Transition) -> UnitDecision {
     match transition.transition_type {
         TransitionType::ExternalAction => check_external_action_commit(transition),
         TransitionType::PersonaMemory => check_persona_memory_cause(transition),
+        TransitionType::PersonaStateChange => check_persona_state_change_authorization(transition),
         _ => hold_unimplemented_boundary(transition),
     }
 }
@@ -136,7 +138,26 @@ mod tests {
     }
 
     #[test]
-    fn decision_unit_holds_boundaries_not_implemented_yet() {
+    fn decision_unit_accepts_p2_persona_state_change_with_authorization() {
+        let mut transition = test_transition(
+            TransitionType::PersonaStateChange,
+            Boundary::PersonaStateChangeRequiresAuthorization,
+        );
+        transition.authorization = Some(true);
+        transition.cause_id = Some(77);
+
+        let decision = decide_transition(&transition);
+
+        assert_eq!(decision.class, DecisionClass::Accept);
+        assert_eq!(decision.code, "ACCEPT_PERSONA_STATE_CHANGE_WITH_AUTHORIZATION");
+        assert_eq!(decision.invariant_id, "P2");
+        assert_eq!(decision.boundary, Boundary::PersonaStateChangeRequiresAuthorization);
+        assert_eq!(decision.verdict, "accepted_persona_state_change_with_authorization");
+        assert_eq!(decision.cause_id, Some(77));
+    }
+
+    #[test]
+    fn decision_unit_rejects_p2_persona_state_change_without_authorization() {
         let transition = test_transition(
             TransitionType::PersonaStateChange,
             Boundary::PersonaStateChangeRequiresAuthorization,
@@ -144,10 +165,23 @@ mod tests {
 
         let decision = decide_transition(&transition);
 
+        assert_eq!(decision.class, DecisionClass::Reject);
+        assert_eq!(decision.code, "REJECT_PERSONA_STATE_CHANGE_WITHOUT_AUTHORIZATION");
+        assert_eq!(decision.invariant_id, "P2");
+        assert_eq!(decision.boundary, Boundary::PersonaStateChangeRequiresAuthorization);
+        assert_eq!(decision.verdict, "blocked_persona_state_change_without_authorization");
+    }
+
+    #[test]
+    fn decision_unit_holds_boundaries_not_implemented_yet() {
+        let transition = test_transition(TransitionType::Introspection, Boundary::IntrospectionRequiresHypothesisLabel);
+
+        let decision = decide_transition(&transition);
+
         assert_eq!(decision.class, DecisionClass::Hold);
         assert_eq!(decision.code, "HOLD_UNIMPLEMENTED_BOUNDARY");
         assert_eq!(decision.invariant_id, "CAPU");
-        assert_eq!(decision.boundary, Boundary::PersonaStateChangeRequiresAuthorization);
+        assert_eq!(decision.boundary, Boundary::IntrospectionRequiresHypothesisLabel);
         assert_eq!(decision.verdict, "hold_unimplemented_boundary");
     }
 
