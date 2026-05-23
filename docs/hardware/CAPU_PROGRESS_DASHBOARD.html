@@ -5,131 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CaPU Progress Dashboard</title>
   <style>
-    :root {
-      --bg: #0f172a;
-      --panel: #111827;
-      --text: #e5e7eb;
-      --muted: #9ca3af;
-      --software: #60a5fa;
-      --runtime: #34d399;
-      --hardware: #fbbf24;
-      --shadow: rgba(0, 0, 0, 0.28);
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(96, 165, 250, 0.15), transparent 35%),
-        radial-gradient(circle at top right, rgba(52, 211, 153, 0.12), transparent 35%),
-        var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-    }
-
-    main {
-      width: min(1180px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 32px 0 56px;
-    }
-
-    header { display: grid; gap: 14px; margin-bottom: 24px; }
-    .eyebrow { color: var(--runtime); font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-    h1 { margin: 0; font-size: clamp(30px, 5vw, 56px); line-height: 1.02; letter-spacing: -0.04em; }
-    .subtitle { max-width: 900px; margin: 0; color: var(--muted); font-size: 17px; }
-    .grid { display: grid; grid-template-columns: 1.45fr 0.85fr; gap: 18px; align-items: start; }
-    @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
-
-    .card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)), var(--panel);
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      border-radius: 22px;
-      box-shadow: 0 18px 50px var(--shadow);
-      padding: 20px;
-    }
-
-    .card h2 { margin: 0 0 14px; font-size: 20px; letter-spacing: -0.02em; }
-    .controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 4px; }
-
-    button {
-      border: 1px solid rgba(148, 163, 184, 0.28);
-      background: #101827;
-      color: var(--text);
-      border-radius: 999px;
-      padding: 9px 13px;
-      cursor: pointer;
-      font-weight: 800;
-      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
-    }
-
-    button:hover { transform: translateY(-1px); border-color: rgba(96, 165, 250, 0.65); }
-    button.active { background: rgba(96, 165, 250, 0.16); border-color: var(--software); }
-
-    .bars { display: grid; gap: 18px; margin-top: 18px; }
-    .bar-row { display: grid; gap: 7px; }
-    .bar-meta { display: flex; justify-content: space-between; gap: 16px; font-weight: 850; }
-    .bar-label { display: flex; gap: 8px; align-items: center; }
-    .dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
-    .dot.software { background: var(--software); }
-    .dot.runtime { background: var(--runtime); }
-    .dot.hardware { background: var(--hardware); }
-
-    .track {
-      height: 24px;
-      background: rgba(15, 23, 42, 0.82);
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      border-radius: 999px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .fill {
-      height: 100%;
-      width: 0%;
-      border-radius: 999px;
-      transition: width 550ms cubic-bezier(.22,.9,.25,1);
-      position: relative;
-    }
-
-    .fill.software { background: linear-gradient(90deg, #2563eb, var(--software)); }
-    .fill.runtime { background: linear-gradient(90deg, #059669, var(--runtime)); }
-    .fill.hardware { background: linear-gradient(90deg, #b45309, var(--hardware)); }
-
-    .fill::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
-      transform: translateX(-100%);
-      animation: shimmer 2.4s infinite;
-    }
-
-    @keyframes shimmer { to { transform: translateX(100%); } }
-
-    .summary { display: grid; gap: 10px; color: var(--muted); }
-    .summary strong { color: var(--text); }
-    .pill-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    .pill { background: rgba(148, 163, 184, 0.11); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 999px; padding: 7px 10px; color: var(--text); font-size: 13px; font-weight: 800; }
-
-    .timeline { margin-top: 18px; display: grid; gap: 10px; max-height: 560px; overflow: auto; padding-right: 4px; }
-    .event { border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 16px; padding: 12px; background: rgba(15, 23, 42, 0.58); cursor: pointer; transition: background 120ms ease, border-color 120ms ease, transform 120ms ease; }
-    .event:hover { transform: translateY(-1px); border-color: rgba(96, 165, 250, 0.56); }
-    .event.active { border-color: var(--runtime); background: rgba(52, 211, 153, 0.10); }
-    .event-title { display: flex; justify-content: space-between; gap: 12px; font-weight: 850; margin-bottom: 4px; }
-    .event small { color: var(--muted); }
-
-    .mini-bars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; color: var(--muted); font-size: 12px; }
-    .mini { height: 6px; background: rgba(148, 163, 184, 0.14); border-radius: 999px; overflow: hidden; margin-top: 4px; }
-    .mini > span { display: block; height: 100%; border-radius: 999px; }
-    .mini .software { background: var(--software); }
-    .mini .runtime { background: var(--runtime); }
-    .mini .hardware { background: var(--hardware); }
-
-    .callout { margin-top: 18px; border-left: 4px solid var(--runtime); padding: 12px 14px; background: rgba(52, 211, 153, 0.08); border-radius: 14px; color: var(--text); }
-    .footer-note { margin-top: 22px; color: var(--muted); font-size: 13px; }
-    code { background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.16); padding: 2px 6px; border-radius: 7px; color: #dbeafe; }
+    :root{--bg:#0f172a;--panel:#111827;--text:#e5e7eb;--muted:#9ca3af;--software:#60a5fa;--runtime:#34d399;--hardware:#fbbf24;--shadow:rgba(0,0,0,.28)}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at top left,rgba(96,165,250,.15),transparent 35%),radial-gradient(circle at top right,rgba(52,211,153,.12),transparent 35%),var(--bg);color:var(--text);line-height:1.5}main{width:min(1180px,calc(100% - 32px));margin:0 auto;padding:32px 0 56px}header{display:grid;gap:14px;margin-bottom:24px}.eyebrow{color:var(--runtime);font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}h1{margin:0;font-size:clamp(30px,5vw,56px);line-height:1.02;letter-spacing:-.04em}.subtitle{max-width:900px;margin:0;color:var(--muted);font-size:17px}.grid{display:grid;grid-template-columns:1.45fr .85fr;gap:18px;align-items:start}@media(max-width:920px){.grid{grid-template-columns:1fr}}.card{background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02)),var(--panel);border:1px solid rgba(148,163,184,.2);border-radius:22px;box-shadow:0 18px 50px var(--shadow);padding:20px}.card h2{margin:0 0 14px;font-size:20px;letter-spacing:-.02em}.controls{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 4px}button{border:1px solid rgba(148,163,184,.28);background:#101827;color:var(--text);border-radius:999px;padding:9px 13px;cursor:pointer;font-weight:800;transition:transform 120ms ease,background 120ms ease,border-color 120ms ease}button:hover{transform:translateY(-1px);border-color:rgba(96,165,250,.65)}button.active{background:rgba(96,165,250,.16);border-color:var(--software)}.bars{display:grid;gap:18px;margin-top:18px}.bar-row{display:grid;gap:7px}.bar-meta{display:flex;justify-content:space-between;gap:16px;font-weight:850}.bar-label{display:flex;gap:8px;align-items:center}.dot{width:10px;height:10px;border-radius:999px;display:inline-block}.dot.software{background:var(--software)}.dot.runtime{background:var(--runtime)}.dot.hardware{background:var(--hardware)}.track{height:24px;background:rgba(15,23,42,.82);border:1px solid rgba(148,163,184,.16);border-radius:999px;overflow:hidden;position:relative}.fill{height:100%;width:0%;border-radius:999px;transition:width 550ms cubic-bezier(.22,.9,.25,1);position:relative}.fill.software{background:linear-gradient(90deg,#2563eb,var(--software))}.fill.runtime{background:linear-gradient(90deg,#059669,var(--runtime))}.fill.hardware{background:linear-gradient(90deg,#b45309,var(--hardware))}.fill:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);transform:translateX(-100%);animation:shimmer 2.4s infinite}@keyframes shimmer{to{transform:translateX(100%)}}.summary{display:grid;gap:10px;color:var(--muted)}.summary strong{color:var(--text)}.pill-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.pill{background:rgba(148,163,184,.11);border:1px solid rgba(148,163,184,.18);border-radius:999px;padding:7px 10px;color:var(--text);font-size:13px;font-weight:800}.timeline{margin-top:18px;display:grid;gap:10px;max-height:560px;overflow:auto;padding-right:4px}.event{border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:12px;background:rgba(15,23,42,.58);cursor:pointer;transition:background 120ms ease,border-color 120ms ease,transform 120ms ease}.event:hover{transform:translateY(-1px);border-color:rgba(96,165,250,.56)}.event.active{border-color:var(--runtime);background:rgba(52,211,153,.10)}.event-title{display:flex;justify-content:space-between;gap:12px;font-weight:850;margin-bottom:4px}.event small{color:var(--muted)}.mini-bars{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;color:var(--muted);font-size:12px}.mini{height:6px;background:rgba(148,163,184,.14);border-radius:999px;overflow:hidden;margin-top:4px}.mini>span{display:block;height:100%;border-radius:999px}.mini .software{background:var(--software)}.mini .runtime{background:var(--runtime)}.mini .hardware{background:var(--hardware)}.callout{margin-top:18px;border-left:4px solid var(--runtime);padding:12px 14px;background:rgba(52,211,153,.08);border-radius:14px;color:var(--text)}.footer-note{margin-top:22px;color:var(--muted);font-size:13px}code{background:rgba(148,163,184,.15);border:1px solid rgba(148,163,184,.16);padding:2px 6px;border-radius:7px;color:#dbeafe}
   </style>
 </head>
 <body>
@@ -137,213 +14,42 @@
     <header>
       <div class="eyebrow">CaPU / Causal Processing Unit</div>
       <h1>Interactive progress dashboard</h1>
-      <p class="subtitle">
-        A reviewer-friendly progress histogram for CaPU's three tracks: software reference processor,
-        runtime sidecar/API, and hardware/device path. The percentages are evidence-progress estimates, not production readiness scores.
-      </p>
+      <p class="subtitle">A reviewer-friendly progress histogram for CaPU's three tracks: software reference processor, runtime sidecar/API, and hardware/device path. The percentages are evidence-progress estimates, not production readiness scores.</p>
     </header>
-
     <section class="grid">
       <div class="card">
-        <h2 id="selectedTitle">Current baseline</h2>
-        <div class="summary" id="selectedSummary"></div>
-
+        <h2 id="selectedTitle">Current baseline</h2><div class="summary" id="selectedSummary"></div>
         <div class="bars" aria-label="Progress histogram">
-          <div class="bar-row">
-            <div class="bar-meta"><span class="bar-label"><span class="dot software"></span>Software reference processor</span><span id="softwareValue">0%</span></div>
-            <div class="track"><div class="fill software" id="softwareBar"></div></div>
-          </div>
-          <div class="bar-row">
-            <div class="bar-meta"><span class="bar-label"><span class="dot runtime"></span>Runtime sidecar/API</span><span id="runtimeValue">0%</span></div>
-            <div class="track"><div class="fill runtime" id="runtimeBar"></div></div>
-          </div>
-          <div class="bar-row">
-            <div class="bar-meta"><span class="bar-label"><span class="dot hardware"></span>Hardware/device path</span><span id="hardwareValue">0%</span></div>
-            <div class="track"><div class="fill hardware" id="hardwareBar"></div></div>
-          </div>
+          <div class="bar-row"><div class="bar-meta"><span class="bar-label"><span class="dot software"></span>Software reference processor</span><span id="softwareValue">0%</span></div><div class="track"><div class="fill software" id="softwareBar"></div></div></div>
+          <div class="bar-row"><div class="bar-meta"><span class="bar-label"><span class="dot runtime"></span>Runtime sidecar/API</span><span id="runtimeValue">0%</span></div><div class="track"><div class="fill runtime" id="runtimeBar"></div></div></div>
+          <div class="bar-row"><div class="bar-meta"><span class="bar-label"><span class="dot hardware"></span>Hardware/device path</span><span id="hardwareValue">0%</span></div><div class="track"><div class="fill hardware" id="hardwareBar"></div></div></div>
         </div>
-
-        <div class="pill-list" id="evidencePills"></div>
-        <div class="callout" id="callout"></div>
+        <div class="pill-list" id="evidencePills"></div><div class="callout" id="callout"></div>
       </div>
-
-      <aside class="card">
-        <h2>Controls</h2>
-        <div class="controls" id="controls"></div>
-        <div class="timeline" id="timeline"></div>
-      </aside>
+      <aside class="card"><h2>Controls</h2><div class="controls" id="controls"></div><div class="timeline" id="timeline"></div></aside>
     </section>
-
-    <p class="footer-note">
-      Source of truth for the current baseline: <code>docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md</code>
-      and <code>docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md</code>.
-    </p>
+    <p class="footer-note">Source of truth for the current baseline: <code>docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md</code> and <code>docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md</code>.</p>
   </main>
-
   <script>
-    const milestones = [
-      {
-        id: "baseline-start",
-        label: "Initial tracked baseline",
-        short: "Start",
-        pr: "status-doc",
-        software: 55,
-        runtime: 15,
-        hardware: 5,
-        summary: "The project had a visible software reference direction, early runtime sidecar/API work, and a very early hardware/device path.",
-        evidence: ["status doc", "P1/P6 direction", "early sidecar"],
-        callout: "Good starting line: enough structure to measure movement, not enough yet to impress a serious runtime reviewer."
-      },
-      {
-        id: "submitted-replay",
-        label: "Submitted replay request path",
-        short: "Replay HTTP",
-        pr: "PR #45",
-        software: 62,
-        runtime: 90,
-        hardware: 5,
-        summary: "The replay endpoint gained a checked submitted_pair path with explicit submission_id markers.",
-        evidence: ["submitted_pair", "P1/P6 replay fixtures", "sidecar self-test", "SDK/client coverage"],
-        callout: "Runtime replay became more than canonical selectors while keeping limits explicit."
-      },
-      {
-        id: "submission-unit",
-        label: "Replay submission execution unit",
-        short: "Replay unit",
-        pr: "PR #51",
-        software: 70,
-        runtime: 90,
-        hardware: 5,
-        summary: "Decoded replay submissions receive explicit ACCEPT/HOLD decisions from a dedicated core unit.",
-        evidence: ["replay_submission_unit", "ACCEPT", "HOLD", "unsupported events"],
-        callout: "The system can decide whether a replay envelope is executable, not merely parse it."
-      },
-      {
-        id: "negative-replay",
-        label: "Unsupported replay HTTP fixtures",
-        short: "Negative replay",
-        pr: "PR #53",
-        software: 72,
-        runtime: 95,
-        hardware: 5,
-        summary: "Unsupported replay submissions now have checked HTTP 400 fixtures, manifest rows, OpenAPI-lite coverage, and taxonomy entries.",
-        evidence: ["unsupported invariant", "missing submission_id", "unsupported events", "unsupported mode", "HTTP 400"],
-        callout: "This is the serious reviewer signal: bad replay envelopes fail predictably and visibly."
-      },
-      {
-        id: "public-dashboard",
-        label: "Public dashboard and Pages entrypoint",
-        short: "Pages",
-        pr: "PR #55/#56",
-        software: 72,
-        runtime: 95,
-        hardware: 5,
-        summary: "The repository gained a live Pages dashboard and README entrypoint for reviewers and contributors.",
-        evidence: ["GitHub Pages", "dashboard", "README link", "public roadmap"],
-        callout: "The progress became discoverable instead of buried in PR history. Less treasure map, more runway lights."
-      },
-      {
-        id: "authorization-unit",
-        label: "P2 persona-state authorization unit",
-        short: "P2 auth",
-        pr: "PR #57",
-        software: 76,
-        runtime: 95,
-        hardware: 5,
-        summary: "Persona-state changes now require explicit authorization and reject denied or missing authorization.",
-        evidence: ["authorization_unit", "PersonaStateChange", "P2", "decision_unit route"],
-        callout: "CaPU now checks not only cause and commit, but explicit permission for persona-state changes."
-      },
-      {
-        id: "hypothesis-unit",
-        label: "P3 introspection hypothesis-label unit",
-        short: "P3 hypothesis",
-        pr: "PR #58",
-        software: 80,
-        runtime: 95,
-        hardware: 5,
-        summary: "Introspection transitions now require a non-empty hypothesis label instead of passing as unlabeled self-assessment.",
-        evidence: ["hypothesis_unit", "Introspection", "P3", "label required", "decision_unit route"],
-        callout: "This prevents introspection from pretending to be fact: it must be marked as a hypothesis."
-      }
+    const milestones=[
+      {id:"baseline-start",label:"Initial tracked baseline",short:"Start",pr:"status-doc",software:55,runtime:15,hardware:5,summary:"The project had a visible software reference direction, early runtime sidecar/API work, and a very early hardware/device path.",evidence:["status doc","P1/P6 direction","early sidecar"],callout:"Good starting line: enough structure to measure movement, not enough yet to impress a serious runtime reviewer."},
+      {id:"submitted-replay",label:"Submitted replay request path",short:"Replay HTTP",pr:"PR #45",software:62,runtime:90,hardware:5,summary:"The replay endpoint gained a checked submitted_pair path with explicit submission_id markers.",evidence:["submitted_pair","P1/P6 replay fixtures","sidecar self-test","SDK/client coverage"],callout:"Runtime replay became more than canonical selectors while keeping limits explicit."},
+      {id:"submission-unit",label:"Replay submission execution unit",short:"Replay unit",pr:"PR #51",software:70,runtime:90,hardware:5,summary:"Decoded replay submissions receive explicit ACCEPT/HOLD decisions from a dedicated core unit.",evidence:["replay_submission_unit","ACCEPT","HOLD","unsupported events"],callout:"The system can decide whether a replay envelope is executable, not merely parse it."},
+      {id:"negative-replay",label:"Unsupported replay HTTP fixtures",short:"Negative replay",pr:"PR #53",software:72,runtime:95,hardware:5,summary:"Unsupported replay submissions now have checked HTTP 400 fixtures, manifest rows, OpenAPI-lite coverage, and taxonomy entries.",evidence:["unsupported invariant","missing submission_id","unsupported events","unsupported mode","HTTP 400"],callout:"This is the serious reviewer signal: bad replay envelopes fail predictably and visibly."},
+      {id:"public-dashboard",label:"Public dashboard and Pages entrypoint",short:"Pages",pr:"PR #55/#56",software:72,runtime:95,hardware:5,summary:"The repository gained a live Pages dashboard and README entrypoint for reviewers and contributors.",evidence:["GitHub Pages","dashboard","README link","public roadmap"],callout:"The progress became discoverable instead of buried in PR history. Less treasure map, more runway lights."},
+      {id:"authorization-unit",label:"P2 persona-state authorization unit",short:"P2 auth",pr:"PR #57",software:76,runtime:95,hardware:5,summary:"Persona-state changes now require explicit authorization and reject denied or missing authorization.",evidence:["authorization_unit","PersonaStateChange","P2","decision_unit route"],callout:"CaPU now checks not only cause and commit, but explicit permission for persona-state changes."},
+      {id:"hypothesis-unit",label:"P3 introspection hypothesis-label unit",short:"P3 hypothesis",pr:"PR #58",software:80,runtime:95,hardware:5,summary:"Introspection transitions now require a non-empty hypothesis label instead of passing as unlabeled self-assessment.",evidence:["hypothesis_unit","Introspection","P3","label required","decision_unit route"],callout:"This prevents introspection from pretending to be fact: it must be marked as a hypothesis."},
+      {id:"p2-p3-decoders",label:"P2/P3 typed decoder paths",short:"Typed decoders",pr:"PR #60",software:83,runtime:95,hardware:5,summary:"P2 and P3 now have typed request-to-decoder paths before routing into their legitimacy units.",evidence:["PersonaStateChangeRequest","IntrospectionRequest","decode_persona_state_change","decode_introspection","decision_unit coverage"],callout:"P2/P3 are no longer only engines on a test stand; they now have typed input paths into the processor."}
     ];
-
-    const bars = {
-      software: document.getElementById("softwareBar"),
-      runtime: document.getElementById("runtimeBar"),
-      hardware: document.getElementById("hardwareBar")
-    };
-
-    const values = {
-      software: document.getElementById("softwareValue"),
-      runtime: document.getElementById("runtimeValue"),
-      hardware: document.getElementById("hardwareValue")
-    };
-
-    const selectedTitle = document.getElementById("selectedTitle");
-    const selectedSummary = document.getElementById("selectedSummary");
-    const evidencePills = document.getElementById("evidencePills");
-    const callout = document.getElementById("callout");
-    const controls = document.getElementById("controls");
-    const timeline = document.getElementById("timeline");
-
-    let selectedId = milestones[milestones.length - 1].id;
-
-    function setProgress(key, value) {
-      bars[key].style.width = `${value}%`;
-      values[key].textContent = `${value}%`;
-    }
-
-    function renderSelected() {
-      const item = milestones.find(m => m.id === selectedId) || milestones[milestones.length - 1];
-      selectedTitle.textContent = `${item.label} · ${item.pr}`;
-      selectedSummary.innerHTML = `
-        <div><strong>${item.summary}</strong></div>
-        <div>Snapshot: software <strong>${item.software}%</strong>, runtime <strong>${item.runtime}%</strong>, hardware <strong>${item.hardware}%</strong>.</div>
-      `;
-      setProgress("software", item.software);
-      setProgress("runtime", item.runtime);
-      setProgress("hardware", item.hardware);
-      evidencePills.innerHTML = item.evidence.map(e => `<span class="pill">${e}</span>`).join("");
-      callout.textContent = item.callout;
-      [...document.querySelectorAll("button[data-id], .event[data-id]")].forEach(el => {
-        el.classList.toggle("active", el.dataset.id === item.id);
-      });
-    }
-
-    function renderControls() {
-      controls.innerHTML = milestones.map(m => `<button type="button" data-id="${m.id}">${m.short}</button>`).join("");
-      controls.addEventListener("click", event => {
-        const button = event.target.closest("button[data-id]");
-        if (!button) return;
-        selectedId = button.dataset.id;
-        renderSelected();
-      });
-    }
-
-    function renderTimeline() {
-      timeline.innerHTML = milestones.slice().reverse().map(m => `
-        <article class="event" data-id="${m.id}">
-          <div class="event-title"><span>${m.label}</span><small>${m.pr}</small></div>
-          <small>${m.summary}</small>
-          <div class="mini-bars">
-            <div>Software ${m.software}%<div class="mini"><span class="software" style="width:${m.software}%"></span></div></div>
-            <div>Runtime ${m.runtime}%<div class="mini"><span class="runtime" style="width:${m.runtime}%"></span></div></div>
-            <div>Hardware ${m.hardware}%<div class="mini"><span class="hardware" style="width:${m.hardware}%"></span></div></div>
-          </div>
-        </article>
-      `).join("");
-      timeline.addEventListener("click", event => {
-        const card = event.target.closest(".event[data-id]");
-        if (!card) return;
-        selectedId = card.dataset.id;
-        renderSelected();
-      });
-    }
-
-    renderControls();
-    renderTimeline();
-    renderSelected();
+    const bars={software:document.getElementById("softwareBar"),runtime:document.getElementById("runtimeBar"),hardware:document.getElementById("hardwareBar")};
+    const values={software:document.getElementById("softwareValue"),runtime:document.getElementById("runtimeValue"),hardware:document.getElementById("hardwareValue")};
+    const selectedTitle=document.getElementById("selectedTitle"),selectedSummary=document.getElementById("selectedSummary"),evidencePills=document.getElementById("evidencePills"),callout=document.getElementById("callout"),controls=document.getElementById("controls"),timeline=document.getElementById("timeline");
+    let selectedId=milestones[milestones.length-1].id;
+    function setProgress(k,v){bars[k].style.width=`${v}%`;values[k].textContent=`${v}%`}
+    function renderSelected(){const item=milestones.find(m=>m.id===selectedId)||milestones[milestones.length-1];selectedTitle.textContent=`${item.label} · ${item.pr}`;selectedSummary.innerHTML=`<div><strong>${item.summary}</strong></div><div>Snapshot: software <strong>${item.software}%</strong>, runtime <strong>${item.runtime}%</strong>, hardware <strong>${item.hardware}%</strong>.</div>`;setProgress("software",item.software);setProgress("runtime",item.runtime);setProgress("hardware",item.hardware);evidencePills.innerHTML=item.evidence.map(e=>`<span class="pill">${e}</span>`).join("");callout.textContent=item.callout;[...document.querySelectorAll("button[data-id], .event[data-id]")].forEach(el=>el.classList.toggle("active",el.dataset.id===item.id))}
+    function renderControls(){controls.innerHTML=milestones.map(m=>`<button type="button" data-id="${m.id}">${m.short}</button>`).join("");controls.addEventListener("click",event=>{const button=event.target.closest("button[data-id]");if(!button)return;selectedId=button.dataset.id;renderSelected()})}
+    function renderTimeline(){timeline.innerHTML=milestones.slice().reverse().map(m=>`<article class="event" data-id="${m.id}"><div class="event-title"><span>${m.label}</span><small>${m.pr}</small></div><small>${m.summary}</small><div class="mini-bars"><div>Software ${m.software}%<div class="mini"><span class="software" style="width:${m.software}%"></span></div></div><div>Runtime ${m.runtime}%<div class="mini"><span class="runtime" style="width:${m.runtime}%"></span></div></div><div>Hardware ${m.hardware}%<div class="mini"><span class="hardware" style="width:${m.hardware}%"></span></div></div></div></article>`).join("");timeline.addEventListener("click",event=>{const card=event.target.closest(".event[data-id]");if(!card)return;selectedId=card.dataset.id;renderSelected()})}
+    renderControls();renderTimeline();renderSelected();
   </script>
 </body>
 </html>
