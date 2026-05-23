@@ -5,7 +5,7 @@ Status: current implementation snapshot for CaPU software reference units.
 Progress estimate:
 
 ```text
-Software reference processor: ~80%
+Software reference processor: ~83%
 Runtime sidecar/API:        ~95%
 Hardware/device path:       ~5%
 ```
@@ -20,6 +20,7 @@ This document is the current short status source for the Rust-side CaPU referenc
 rust/cmc-core/src/capu/mod.rs
 rust/cmc-core/src/capu/transition.rs
 rust/cmc-core/src/capu/decoder.rs
+rust/cmc-core/src/capu/p2_p3_decoder.rs
 rust/cmc-core/src/capu/boundary_router.rs
 rust/cmc-core/src/capu/cause_unit.rs
 rust/cmc-core/src/capu/commit_unit.rs
@@ -53,6 +54,7 @@ pub mod commit_unit;
 pub mod decision_unit;
 pub mod decoder;
 pub mod hypothesis_unit;
+pub mod p2_p3_decoder;
 pub mod persona_memory_unit;
 pub mod replay_submission_unit;
 pub mod replay_unit;
@@ -90,7 +92,9 @@ cause_id=42
 ### P2: persona-state changes require authorization
 
 ```text
-TransitionType::PersonaStateChange
+PersonaStateChangeRequest
+ -> decode_persona_state_change
+ -> route_boundary(TransitionType::PersonaStateChange)
  -> Boundary::PersonaStateChangeRequiresAuthorization
  -> decide_transition
  -> check_persona_state_change_authorization
@@ -115,7 +119,9 @@ authorization=None
 ### P3: introspection requires hypothesis label
 
 ```text
-TransitionType::Introspection
+IntrospectionRequest
+ -> decode_introspection
+ -> route_boundary(TransitionType::Introspection)
  -> Boundary::IntrospectionRequiresHypothesisLabel
  -> decide_transition
  -> check_introspection_hypothesis_label
@@ -124,17 +130,17 @@ TransitionType::Introspection
 Current v0 mapping:
 
 ```text
-Transition.object -> hypothesis label
+IntrospectionRequest.hypothesis_label -> Transition.object
 ```
 
 Current outcomes:
 
 ```text
-object = non-empty hypothesis label
+hypothesis_label = non-empty
  -> ACCEPT_INTROSPECTION_WITH_HYPOTHESIS_LABEL
  -> accepted_introspection_with_hypothesis_label
 
-object = None or blank
+hypothesis_label = None or blank
  -> REJECT_INTROSPECTION_WITHOUT_HYPOTHESIS_LABEL
  -> blocked_introspection_without_hypothesis_label
 ```
@@ -254,6 +260,9 @@ The current CaPU path demonstrates these evidence layers:
 Decision evidence
  -> UnitDecision: ACCEPT / REJECT / HOLD
 
+Typed request decode evidence
+ -> P1, P2, P3, P6, and replay submission request envelopes
+
 Audit evidence
  -> AuditRecord JSONL
 
@@ -346,7 +355,7 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-CaPU can execute reviewer-visible legitimacy checks for P1 persona-memory writes, P2 persona-state changes, P3 introspection, P6 external actions, and replay submission envelopes. These checks are routed through small software reference units, produce explicit ACCEPT/REJECT/HOLD decisions, and are verified through Rust tests, reviewer scripts, runtime fixtures, and CI.
+CaPU can execute reviewer-visible legitimacy checks for P1 persona-memory writes, P2 persona-state changes, P3 introspection, P6 external actions, and replay submission envelopes. P1/P2/P3/P6 now have typed request/decode paths into small software reference units, produce explicit ACCEPT/REJECT/HOLD decisions, and are verified through Rust tests, reviewer scripts, runtime fixtures, and CI.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
@@ -356,9 +365,9 @@ The current implementation does not claim a complete CaPU runtime.
 ## Recommended next steps
 
 ```text
-1. Add route-specific typed decoders for P2 and P3.
-2. Centralize decision/error codes to reduce string duplication.
-3. Add incubation_unit.rs for HOLD/defer semantics.
+1. Centralize decision/error codes to reduce string duplication.
+2. Add incubation_unit.rs for HOLD/defer semantics.
+3. Add remaining route-specific decoders.
 4. Keep runtime API stable rather than inflating it cosmetically.
 5. Begin hardware/device path only after canonical event encoding stabilizes.
 ```
@@ -387,5 +396,5 @@ It is a software reference scaffold.
 ## One-line summary
 
 ```text
-CaPU currently has an executable software reference evidence path for P1, P2, P3, P6, and replay submission semantics: decode -> boundary/replay route -> unit decision -> audit -> seal -> replay/fixture/manifest verification -> runtime adapter -> reviewer script -> CI step.
+CaPU currently has an executable software reference evidence path for P1, P2, P3, P6, and replay submission semantics: typed request -> decode -> boundary/replay route -> unit decision -> audit -> seal -> replay/fixture/manifest verification -> runtime adapter -> reviewer script -> CI step.
 ```
