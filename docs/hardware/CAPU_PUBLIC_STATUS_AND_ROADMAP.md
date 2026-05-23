@@ -7,7 +7,7 @@ This document is the current high-level status page for people who want to under
 Current baseline:
 
 ```text
-Software reference processor: ~80%
+Software reference processor: ~83%
 Runtime sidecar/API:        ~95%
 Hardware/device path:       ~5%
 ```
@@ -45,6 +45,7 @@ P1 persona-memory writes require cause
 P2 persona-state changes require explicit authorization
 P3 introspection requires a hypothesis label
 P6 external actions require commit
+P2/P3 now have typed request -> decoder -> decision paths
 Replay evidence can be sealed and replay-verified
 Submitted replay envelopes are decoded and accepted/held explicitly
 Runtime HTTP /capu/replay passes through core replay-submission semantics
@@ -71,7 +72,7 @@ request/fixture
 
 ## Current evidence chain
 
-### Software reference processor: ~80%
+### Software reference processor: ~83%
 
 Implemented as small Rust units under:
 
@@ -84,6 +85,7 @@ Current unit surface:
 ```text
 transition.rs
 decoder.rs
+p2_p3_decoder.rs
 boundary_router.rs
 cause_unit.rs
 commit_unit.rs
@@ -102,8 +104,8 @@ Current processor evidence:
 ```text
 ExternalActionRequest -> P6 decision path
 PersonaMemoryRequest -> P1 decision path
-PersonaStateChange -> P2 authorization decision path
-Introspection -> P3 hypothesis-label decision path
+PersonaStateChangeRequest -> P2 authorization decision path
+IntrospectionRequest -> P3 hypothesis-label decision path
 ReplaySubmissionRequest -> replay submission decode path
 DecodedReplaySubmission -> replay submission ACCEPT/HOLD path
 AuditRecord JSONL
@@ -288,7 +290,7 @@ Good first areas:
 ```text
 incubation_unit.rs
 central error enum
-route-specific decoders
+route-specific decoders for remaining boundaries
 more direct unit tests for P1/P2/P3/P6/replay submission
 ```
 
@@ -368,7 +370,7 @@ No roadmap item is allowed to break reviewer baseline.
 Target movement:
 
 ```text
-Software reference processor: ~80% -> stable reference v0
+Software reference processor: ~83% -> stable reference v0
 ```
 
 Likely PR sequence:
@@ -376,8 +378,8 @@ Likely PR sequence:
 ```text
 sync central status files
 centralize decision/error codes
-add route-specific typed decoders for P2/P3
 add incubation_unit.rs
+add remaining route-specific decoders
 more direct unit tests for P1/P2/P3/P6/replay submission
 ```
 
