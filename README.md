@@ -29,6 +29,7 @@ ASCII fallback:
 
 ## Review links
 
+- Interactive progress dashboard: [docs/hardware/CAPU_PROGRESS_DASHBOARD.html](docs/hardware/CAPU_PROGRESS_DASHBOARD.html)
 - Public status and roadmap snapshot: [docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md](docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md)
 - CaPU software reference units status: [docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md](docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md)
 - CaPU processor model: [docs/hardware/CAPU_PROCESSOR_MODEL.md](docs/hardware/CAPU_PROCESSOR_MODEL.md)
@@ -73,7 +74,8 @@ CaPU/CMC treats legitimacy as something that should be represented, replayed, an
 Recommended reviewer path:
 
 ```text
-CAPU_PUBLIC_STATUS_AND_ROADMAP
+CAPU_PROGRESS_DASHBOARD
+ -> CAPU_PUBLIC_STATUS_AND_ROADMAP
  -> CAPU_SOFTWARE_REFERENCE_UNITS_STATUS
  -> CAPU_PROCESSOR_MODEL
  -> CAPU_PROCESSOR_ISA_V0
