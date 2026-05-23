@@ -14,6 +14,13 @@ const fixtureRoot = path.join(repoRoot, 'rust/cmc-core/fixtures/capu_runtime_htt
 const requestDir = path.join(fixtureRoot, 'requests')
 const responseDir = path.join(fixtureRoot, 'responses')
 
+const replayErrorRequestFixtures = new Map([
+  ['replay_unsupported_invariant_id.json', 'unsupported_invariant_id'],
+  ['replay_missing_submission_id.json', 'missing_submission_id'],
+  ['replay_unsupported_events.json', 'unsupported_events'],
+  ['replay_unsupported_mode.json', 'unsupported_mode'],
+])
+
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
 }
@@ -53,7 +60,69 @@ function assertOnlyKeys(value, allowedKeys, kind, filePath) {
   }
 }
 
+function validateReplayErrorRequest(value, filePath, caseName) {
+  if (caseName === 'unsupported_invariant_id') {
+    assertOnlyKeys(value, ['invariant_id', 'replay'], 'request', filePath)
+    if (value.invariant_id === 'P1' || value.invariant_id === 'P6') {
+      fail('request', filePath, 'unsupported invariant fixture must not use P1 or P6')
+    }
+    if (value.replay !== 'canonical_pair') {
+      fail('request', filePath, 'unsupported invariant fixture must use canonical_pair')
+    }
+    return
+  }
+
+  if (caseName === 'missing_submission_id') {
+    assertOnlyKeys(value, ['invariant_id', 'replay', 'events'], 'request', filePath)
+    if (!['P1', 'P6'].includes(value.invariant_id)) {
+      fail('request', filePath, 'invariant_id must be P1 or P6')
+    }
+    if (value.replay !== 'submitted_pair') {
+      fail('request', filePath, 'missing submission id fixture must use submitted_pair')
+    }
+    if (value.events !== 'canonical_pair') {
+      fail('request', filePath, 'events must be canonical_pair')
+    }
+    return
+  }
+
+  if (caseName === 'unsupported_events') {
+    assertOnlyKeys(value, ['invariant_id', 'replay', 'submission_id', 'events'], 'request', filePath)
+    if (!['P1', 'P6'].includes(value.invariant_id)) {
+      fail('request', filePath, 'invariant_id must be P1 or P6')
+    }
+    if (value.replay !== 'submitted_pair') {
+      fail('request', filePath, 'unsupported events fixture must use submitted_pair')
+    }
+    assertString(value.submission_id, 'submission_id', 'request', filePath)
+    if (value.events === 'canonical_pair') {
+      fail('request', filePath, 'unsupported events fixture must not use canonical_pair')
+    }
+    return
+  }
+
+  if (caseName === 'unsupported_mode') {
+    assertOnlyKeys(value, ['invariant_id', 'replay'], 'request', filePath)
+    if (!['P1', 'P6'].includes(value.invariant_id)) {
+      fail('request', filePath, 'invariant_id must be P1 or P6')
+    }
+    if (['canonical_pair', 'submitted_pair'].includes(value.replay)) {
+      fail('request', filePath, 'unsupported mode fixture must not use a supported replay mode')
+    }
+    return
+  }
+
+  fail('request', filePath, `unknown replay error fixture case ${caseName}`)
+}
+
 function validateRequest(value, filePath) {
+  const fileName = path.basename(filePath)
+  const replayErrorCase = replayErrorRequestFixtures.get(fileName)
+  if (replayErrorCase) {
+    validateReplayErrorRequest(value, filePath, replayErrorCase)
+    return
+  }
+
   if (value.transition_type === 'persona_memory') {
     assertOnlyKeys(value, ['transition_type', 'transition_id', 'memory', 'cause_id'], 'request', filePath)
     assertString(value.transition_id, 'transition_id', 'request', filePath)
@@ -211,8 +280,6 @@ function validateResponse(value, filePath) {
   fail('response', filePath, 'unknown response fixture route')
 }
 
-// Keep schema files part of the evidence surface even though this validator is
-// dependency-free in CI.
 readJson(requestSchemaPath)
 readJson(responseSchemaPath)
 
