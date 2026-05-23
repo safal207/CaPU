@@ -29,6 +29,8 @@ ASCII fallback:
 
 ## Review links
 
+- Public status and roadmap snapshot: [docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md](docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md)
+- CaPU software reference units status: [docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md](docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md)
 - CaPU processor model: [docs/hardware/CAPU_PROCESSOR_MODEL.md](docs/hardware/CAPU_PROCESSOR_MODEL.md)
 - CaPU semantic ISA v0: [docs/hardware/CAPU_PROCESSOR_ISA_V0.md](docs/hardware/CAPU_PROCESSOR_ISA_V0.md)
 - CaPU microarchitecture v0: [docs/hardware/CAPU_MICROARCHITECTURE_V0.md](docs/hardware/CAPU_MICROARCHITECTURE_V0.md)
@@ -71,7 +73,9 @@ CaPU/CMC treats legitimacy as something that should be represented, replayed, an
 Recommended reviewer path:
 
 ```text
-CAPU_PROCESSOR_MODEL
+CAPU_PUBLIC_STATUS_AND_ROADMAP
+ -> CAPU_SOFTWARE_REFERENCE_UNITS_STATUS
+ -> CAPU_PROCESSOR_MODEL
  -> CAPU_PROCESSOR_ISA_V0
  -> CAPU_MICROARCHITECTURE_V0
  -> CAPU_LEGITIMACY_COPROCESSOR_BRIEF
