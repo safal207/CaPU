@@ -1,15 +1,17 @@
 use super::authorization_unit::check_persona_state_change_authorization;
 use super::boundary_router::boundary_matches_route;
 use super::commit_unit::check_external_action_commit;
+use super::hypothesis_unit::check_introspection_hypothesis_label;
 use super::persona_memory_unit::check_persona_memory_cause;
 use super::transition::{Boundary, DecisionClass, Transition, TransitionType, UnitDecision};
 
 /// Evaluate a typed transition through the CaPU software reference pipeline.
 ///
 /// v0 fully executes P6 external-action decisions, P1 persona-memory cause
-/// decisions, and P2 persona-state authorization decisions. Other boundaries
-/// return HOLD so they can be implemented incrementally without pretending they
-/// are rejected or accepted by a unit that does not exist yet.
+/// decisions, P2 persona-state authorization decisions, and P3 introspection
+/// hypothesis-label decisions. Other boundaries return HOLD so they can be
+/// implemented incrementally without pretending they are rejected or accepted by
+/// a unit that does not exist yet.
 pub fn decide_transition(transition: &Transition) -> UnitDecision {
     if !boundary_matches_route(transition) {
         return UnitDecision {
@@ -26,6 +28,7 @@ pub fn decide_transition(transition: &Transition) -> UnitDecision {
         TransitionType::ExternalAction => check_external_action_commit(transition),
         TransitionType::PersonaMemory => check_persona_memory_cause(transition),
         TransitionType::PersonaStateChange => check_persona_state_change_authorization(transition),
+        TransitionType::Introspection => check_introspection_hypothesis_label(transition),
         _ => hold_unimplemented_boundary(transition),
     }
 }
@@ -173,15 +176,50 @@ mod tests {
     }
 
     #[test]
+    fn decision_unit_accepts_p3_introspection_with_hypothesis_label() {
+        let mut transition = test_transition(
+            TransitionType::Introspection,
+            Boundary::IntrospectionRequiresHypothesisLabel,
+        );
+        transition.object = Some("hypothesis:memory-drift-risk".to_string());
+        transition.cause_id = Some(303);
+
+        let decision = decide_transition(&transition);
+
+        assert_eq!(decision.class, DecisionClass::Accept);
+        assert_eq!(decision.code, "ACCEPT_INTROSPECTION_WITH_HYPOTHESIS_LABEL");
+        assert_eq!(decision.invariant_id, "P3");
+        assert_eq!(decision.boundary, Boundary::IntrospectionRequiresHypothesisLabel);
+        assert_eq!(decision.verdict, "accepted_introspection_with_hypothesis_label");
+        assert_eq!(decision.cause_id, Some(303));
+    }
+
+    #[test]
+    fn decision_unit_rejects_p3_introspection_without_hypothesis_label() {
+        let transition = test_transition(
+            TransitionType::Introspection,
+            Boundary::IntrospectionRequiresHypothesisLabel,
+        );
+
+        let decision = decide_transition(&transition);
+
+        assert_eq!(decision.class, DecisionClass::Reject);
+        assert_eq!(decision.code, "REJECT_INTROSPECTION_WITHOUT_HYPOTHESIS_LABEL");
+        assert_eq!(decision.invariant_id, "P3");
+        assert_eq!(decision.boundary, Boundary::IntrospectionRequiresHypothesisLabel);
+        assert_eq!(decision.verdict, "blocked_introspection_without_hypothesis_label");
+    }
+
+    #[test]
     fn decision_unit_holds_boundaries_not_implemented_yet() {
-        let transition = test_transition(TransitionType::Introspection, Boundary::IntrospectionRequiresHypothesisLabel);
+        let transition = test_transition(TransitionType::MemoryWrite, Boundary::WriteAuthorization);
 
         let decision = decide_transition(&transition);
 
         assert_eq!(decision.class, DecisionClass::Hold);
         assert_eq!(decision.code, "HOLD_UNIMPLEMENTED_BOUNDARY");
         assert_eq!(decision.invariant_id, "CAPU");
-        assert_eq!(decision.boundary, Boundary::IntrospectionRequiresHypothesisLabel);
+        assert_eq!(decision.boundary, Boundary::WriteAuthorization);
         assert_eq!(decision.verdict, "hold_unimplemented_boundary");
     }
 
