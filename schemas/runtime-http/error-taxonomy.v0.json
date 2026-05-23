@@ -3,8 +3,8 @@
   "status": "reference",
   "source_manifest": "schemas/runtime-http/api-manifest.v0.json",
   "maturity": {
-    "software_reference_processor": "~62%",
-    "runtime_sidecar_api": "~85%",
+    "software_reference_processor": "~72%",
+    "runtime_sidecar_api": "~95%",
     "hardware_device_path": "~5%"
   },
   "errors": [
@@ -28,6 +28,50 @@
       "manifest_route_id": "malformed_request",
       "fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/malformed_request.json",
       "description": "The request line is malformed and does not contain a parseable path.",
+      "retryable": false
+    },
+    {
+      "id": "unsupported_replay_invariant_id",
+      "response_error": "unsupported_replay_invariant_id",
+      "http_status": 400,
+      "category": "replay_submission",
+      "boundary": "replay_submission_boundary",
+      "manifest_route_id": "replay_unsupported_invariant_id",
+      "fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_unsupported_invariant_id.json",
+      "description": "The replay submission references an invariant id not supported by v0 replay semantics.",
+      "retryable": false
+    },
+    {
+      "id": "missing_replay_submission_id",
+      "response_error": "missing_replay_submission_id",
+      "http_status": 400,
+      "category": "replay_submission",
+      "boundary": "replay_submission_boundary",
+      "manifest_route_id": "replay_missing_submission_id",
+      "fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_missing_submission_id.json",
+      "description": "A submitted replay envelope is missing its required submission_id.",
+      "retryable": false
+    },
+    {
+      "id": "unsupported_replay_events",
+      "response_error": "unsupported_replay_events",
+      "http_status": 400,
+      "category": "replay_submission",
+      "boundary": "replay_submission_boundary",
+      "manifest_route_id": "replay_unsupported_events",
+      "fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_unsupported_events.json",
+      "description": "The submitted replay envelope requests an events payload shape not supported by v0.",
+      "retryable": false
+    },
+    {
+      "id": "unsupported_replay_mode",
+      "response_error": "unsupported_replay_mode",
+      "http_status": 400,
+      "category": "replay_submission",
+      "boundary": "replay_submission_boundary",
+      "manifest_route_id": "replay_unsupported_mode",
+      "fixture": "rust/cmc-core/fixtures/capu_runtime_http/responses/replay_unsupported_mode.json",
+      "description": "The replay field is not one of the v0 supported modes: canonical_pair or submitted_pair.",
       "retryable": false
     }
   ],

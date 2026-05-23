@@ -464,6 +464,16 @@ fn assert_response(label: &str, actual: &str, expected_path: &str) -> Result<(),
     }
 }
 
+fn assert_replay_fixture(addr: SocketAddr, case: &str) -> Result<(), String> {
+    let request = read_fixture(&format!("{FIXTURE_DIR}/requests/{case}.json"))?;
+    let response = send_http(addr, "POST", RuntimeRoute::Replay.path(), &request)?;
+    assert_response(
+        case,
+        &response,
+        &format!("{FIXTURE_DIR}/responses/{case}.json"),
+    )
+}
+
 fn run_self_test() -> Result<(), String> {
     let listener = TcpListener::bind("127.0.0.1:0")
         .map_err(|err| format!("failed to bind self-test listener: {err}"))?;
@@ -471,7 +481,7 @@ fn run_self_test() -> Result<(), String> {
         .local_addr()
         .map_err(|err| format!("failed to read listener addr: {err}"))?;
 
-    let server = thread::spawn(move || run_listener(listener, Some(12)));
+    let server = thread::spawn(move || run_listener(listener, Some(16)));
 
     let health = send_http(addr, "GET", RuntimeRoute::Health.path(), "")?;
     assert_response(
@@ -538,37 +548,18 @@ fn run_self_test() -> Result<(), String> {
         &format!("{FIXTURE_DIR}/responses/audit_p6_committed.json"),
     )?;
 
-    let replay_p1_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_p1_pair.json"))?;
-    let replay_p1 = send_http(addr, "POST", RuntimeRoute::Replay.path(), &replay_p1_body)?;
-    assert_response(
+    for case in [
         "replay_p1_pair",
-        &replay_p1,
-        &format!("{FIXTURE_DIR}/responses/replay_p1_pair.json"),
-    )?;
-
-    let replay_p6_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_p6_pair.json"))?;
-    let replay_p6 = send_http(addr, "POST", RuntimeRoute::Replay.path(), &replay_p6_body)?;
-    assert_response(
         "replay_p6_pair",
-        &replay_p6,
-        &format!("{FIXTURE_DIR}/responses/replay_p6_pair.json"),
-    )?;
-
-    let submitted_p1_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_submitted_p1_pair.json"))?;
-    let submitted_p1 = send_http(addr, "POST", RuntimeRoute::Replay.path(), &submitted_p1_body)?;
-    assert_response(
         "replay_submitted_p1_pair",
-        &submitted_p1,
-        &format!("{FIXTURE_DIR}/responses/replay_submitted_p1_pair.json"),
-    )?;
-
-    let submitted_p6_body = read_fixture(&format!("{FIXTURE_DIR}/requests/replay_submitted_p6_pair.json"))?;
-    let submitted_p6 = send_http(addr, "POST", RuntimeRoute::Replay.path(), &submitted_p6_body)?;
-    assert_response(
         "replay_submitted_p6_pair",
-        &submitted_p6,
-        &format!("{FIXTURE_DIR}/responses/replay_submitted_p6_pair.json"),
-    )?;
+        "replay_unsupported_invariant_id",
+        "replay_missing_submission_id",
+        "replay_unsupported_events",
+        "replay_unsupported_mode",
+    ] {
+        assert_replay_fixture(addr, case)?;
+    }
 
     let unknown_route = send_http(addr, "GET", "/capu/unknown", "")?;
     assert_response(
@@ -599,6 +590,10 @@ fn run_self_test() -> Result<(), String> {
     println!("route={} case=replay_p6_pair status=ok", RuntimeRoute::Replay.path());
     println!("route={} case=replay_submitted_p1_pair status=ok", RuntimeRoute::Replay.path());
     println!("route={} case=replay_submitted_p6_pair status=ok", RuntimeRoute::Replay.path());
+    println!("route={} case=replay_unsupported_invariant_id status=ok", RuntimeRoute::Replay.path());
+    println!("route={} case=replay_missing_submission_id status=ok", RuntimeRoute::Replay.path());
+    println!("route={} case=replay_unsupported_events status=ok", RuntimeRoute::Replay.path());
+    println!("route={} case=replay_unsupported_mode status=ok", RuntimeRoute::Replay.path());
     println!("route=/capu/unknown case=unknown_route status=ok");
     println!("case=malformed_request status=ok");
     println!("fixtures={FIXTURE_DIR}");
