@@ -89,12 +89,16 @@
     "/capu/replay": {
       "post": {
         "operationId": "capuReplay",
-        "summary": "Return replay evidence for canonical or submitted sealed audit pair requests",
+        "summary": "Return replay evidence or checked replay-submission errors",
         "x-capu-route-ids": [
           "replay_p1_pair",
           "replay_p6_pair",
           "replay_submitted_p1_pair",
-          "replay_submitted_p6_pair"
+          "replay_submitted_p6_pair",
+          "replay_unsupported_invariant_id",
+          "replay_missing_submission_id",
+          "replay_unsupported_events",
+          "replay_unsupported_mode"
         ],
         "requestBody": {
           "required": true,
@@ -110,6 +114,14 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/JsonObject" }
+              }
+            }
+          },
+          "400": {
+            "description": "Replay submission rejected by checked v0 boundary semantics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -162,8 +174,8 @@
     }
   ],
   "x-capu-maturity": {
-    "software_reference_processor": "~62%",
-    "runtime_sidecar_api": "~90%",
+    "software_reference_processor": "~72%",
+    "runtime_sidecar_api": "~95%",
     "hardware_device_path": "~5%"
   },
   "x-capu-non-claims": [
