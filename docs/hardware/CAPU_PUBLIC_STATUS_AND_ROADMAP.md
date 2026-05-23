@@ -7,7 +7,7 @@ This document is the current high-level status page for people who want to under
 Current baseline:
 
 ```text
-Software reference processor: ~72%
+Software reference processor: ~80%
 Runtime sidecar/API:        ~95%
 Hardware/device path:       ~5%
 ```
@@ -19,7 +19,7 @@ This is not a production-readiness score. It is a research evidence-progress est
 ## One-sentence position
 
 ```text
-CaPU is a software reference path toward a Causal Processing Unit: a legitimacy processor that checks whether high-risk transitions are allowed before memory writes, external actions, or replayed effects are treated as valid.
+CaPU is a software reference path toward a Causal Processing Unit: a legitimacy processor that checks whether high-risk transitions are allowed before memory writes, external actions, introspection, persona-state updates, or replayed effects are treated as valid.
 ```
 
 Traditional systems ask:
@@ -41,8 +41,10 @@ Was the transition causally permitted to happen at all?
 The repository currently has executable evidence for:
 
 ```text
-P6 external actions require commit
 P1 persona-memory writes require cause
+P2 persona-state changes require explicit authorization
+P3 introspection requires a hypothesis label
+P6 external actions require commit
 Replay evidence can be sealed and replay-verified
 Submitted replay envelopes are decoded and accepted/held explicitly
 Runtime HTTP /capu/replay passes through core replay-submission semantics
@@ -54,7 +56,7 @@ The core verified path is:
 ```text
 request/fixture
  -> decoder
- -> boundary or replay submission unit
+ -> boundary unit or replay submission unit
  -> decision
  -> audit record
  -> seal
@@ -69,7 +71,7 @@ request/fixture
 
 ## Current evidence chain
 
-### Software reference processor: ~72%
+### Software reference processor: ~80%
 
 Implemented as small Rust units under:
 
@@ -86,6 +88,8 @@ boundary_router.rs
 cause_unit.rs
 commit_unit.rs
 persona_memory_unit.rs
+authorization_unit.rs
+hypothesis_unit.rs
 decision_unit.rs
 audit_bus.rs
 seal_unit.rs
@@ -98,6 +102,8 @@ Current processor evidence:
 ```text
 ExternalActionRequest -> P6 decision path
 PersonaMemoryRequest -> P1 decision path
+PersonaStateChange -> P2 authorization decision path
+Introspection -> P3 hypothesis-label decision path
 ReplaySubmissionRequest -> replay submission decode path
 DecodedReplaySubmission -> replay submission ACCEPT/HOLD path
 AuditRecord JSONL
@@ -185,7 +191,7 @@ npm run example:runtime-http-client
 npm run example:runtime-http-sdk
 ```
 
-The runtime track is now strong enough that future work should avoid inflating it with cosmetic additions. Next runtime work should focus on stability, error clarity, and adapter alignment with the core processor.
+The runtime track is now strong enough that future work should avoid inflating it with cosmetic additions. Next runtime work should focus on stability, error clarity, route-specific schemas, and adapter alignment with the core processor.
 
 ---
 
@@ -230,6 +236,8 @@ stable public SDK
 full arbitrary replay engine
 hardware implementation
 production cryptographic certification
+complete hypothesis model
+production authorization system
 ```
 
 This is important. The strength of the project is that it keeps a hard line between:
@@ -248,7 +256,7 @@ future ambition
 
 ## Why this matters to large players
 
-CaPU is useful to teams building or evaluating agentic systems where actions can be expensive, irreversible, regulated, or security-sensitive.
+CaPU is useful to teams building or evaluating agentic systems where actions can be expensive, irreversible, regulated, epistemically risky, or security-sensitive.
 
 Relevant audiences:
 
@@ -264,7 +272,7 @@ model evaluation/red-team teams
 The key adoption angle is not that CaPU is another agent framework. It is a legitimacy layer around transition boundaries:
 
 ```text
-Before an agent writes memory, calls a tool, sends data, or replays evidence, CaPU asks whether that transition has sufficient causal permission.
+Before an agent writes memory, changes persona-state, makes introspective claims, calls a tool, sends data, or replays evidence, CaPU asks whether that transition has sufficient causal permission.
 ```
 
 ---
@@ -278,10 +286,10 @@ High-value contribution areas:
 Good first areas:
 
 ```text
-authorization_unit.rs
-hypothesis_unit.rs
 incubation_unit.rs
-errors.rs
+central error enum
+route-specific decoders
+more direct unit tests for P1/P2/P3/P6/replay submission
 ```
 
 Best contribution style:
@@ -355,22 +363,22 @@ runtime fixture validators
 
 No roadmap item is allowed to break reviewer baseline.
 
-### P1: finish core processor coverage
+### P1: consolidate core processor coverage
 
 Target movement:
 
 ```text
-Software reference processor: ~72% -> ~80%
+Software reference processor: ~80% -> stable reference v0
 ```
 
 Likely PR sequence:
 
 ```text
-authorization_unit.rs
-hypothesis_unit.rs
-incubation_unit.rs
-central error enum
-more direct unit tests for P1/P6/replay submission
+sync central status files
+centralize decision/error codes
+add route-specific typed decoders for P2/P3
+add incubation_unit.rs
+more direct unit tests for P1/P2/P3/P6/replay submission
 ```
 
 ### P2: stabilize runtime contract
@@ -432,6 +440,7 @@ For a fast review, read in this order:
 
 ```text
 README.md
+CAPU_PROGRESS_DASHBOARD.html
 CAPU_PUBLIC_STATUS_AND_ROADMAP.md
 CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md
 CAPU_SOFTWARE_REFERENCE_UNITS_ROADMAP.md

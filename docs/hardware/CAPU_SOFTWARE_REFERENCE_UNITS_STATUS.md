@@ -5,8 +5,8 @@ Status: current implementation snapshot for CaPU software reference units.
 Progress estimate:
 
 ```text
-Software reference processor: ~72%
-Runtime sidecar/API:        ~93%
+Software reference processor: ~80%
+Runtime sidecar/API:        ~95%
 Hardware/device path:       ~5%
 ```
 
@@ -24,6 +24,8 @@ rust/cmc-core/src/capu/boundary_router.rs
 rust/cmc-core/src/capu/cause_unit.rs
 rust/cmc-core/src/capu/commit_unit.rs
 rust/cmc-core/src/capu/persona_memory_unit.rs
+rust/cmc-core/src/capu/authorization_unit.rs
+rust/cmc-core/src/capu/hypothesis_unit.rs
 rust/cmc-core/src/capu/decision_unit.rs
 rust/cmc-core/src/capu/audit_bus.rs
 rust/cmc-core/src/capu/seal_unit.rs
@@ -37,21 +39,20 @@ rust/cmc-core/src/bin/capu_manifest_verify.rs
 rust/cmc-core/src/bin/capu_p1_persona_memory_verify.rs
 rust/cmc-core/src/bin/capu_runtime_http_sidecar.rs
 rust/cmc-core/fixtures/capu/MANIFEST.tsv
-rust/cmc-core/fixtures/capu/p6_audit_valid.jsonl
-rust/cmc-core/fixtures/capu/p6_audit_tampered.jsonl
-rust/cmc-core/fixtures/capu_runtime_http/requests/replay_submitted_p1_pair.json
-rust/cmc-core/fixtures/capu_runtime_http/requests/replay_submitted_p6_pair.json
+rust/cmc-core/fixtures/capu_runtime_http/
 ```
 
 Current module tree:
 
 ```rust
 pub mod audit_bus;
+pub mod authorization_unit;
 pub mod boundary_router;
 pub mod cause_unit;
 pub mod commit_unit;
 pub mod decision_unit;
 pub mod decoder;
+pub mod hypothesis_unit;
 pub mod persona_memory_unit;
 pub mod replay_submission_unit;
 pub mod replay_unit;
@@ -61,9 +62,84 @@ pub mod transition;
 
 ---
 
-## Current executable P6 pipeline
+## Current executable legitimacy units
 
-The current software reference pipeline implements P6 external-action legitimacy as an executable evidence path:
+### P1: persona-memory writes require cause
+
+```text
+PersonaMemoryRequest
+ -> decode_persona_memory
+ -> route_boundary(TransitionType::PersonaMemory)
+ -> Boundary::PersonaMemoryRequiresCause
+ -> decide_transition
+ -> check_persona_memory_cause
+```
+
+Current outcomes:
+
+```text
+cause_id=None
+ -> REJECT_PERSONA_MEMORY_WITHOUT_CAUSE
+ -> blocked_persona_memory_without_cause
+
+cause_id=42
+ -> ACCEPT_PERSONA_MEMORY_WITH_CAUSE
+ -> accepted_persona_memory_with_cause
+```
+
+### P2: persona-state changes require authorization
+
+```text
+TransitionType::PersonaStateChange
+ -> Boundary::PersonaStateChangeRequiresAuthorization
+ -> decide_transition
+ -> check_persona_state_change_authorization
+```
+
+Current outcomes:
+
+```text
+authorization=true
+ -> ACCEPT_PERSONA_STATE_CHANGE_WITH_AUTHORIZATION
+ -> accepted_persona_state_change_with_authorization
+
+authorization=false
+ -> REJECT_PERSONA_STATE_CHANGE_WITH_DENIED_AUTHORIZATION
+ -> blocked_persona_state_change_denied_authorization
+
+authorization=None
+ -> REJECT_PERSONA_STATE_CHANGE_WITHOUT_AUTHORIZATION
+ -> blocked_persona_state_change_without_authorization
+```
+
+### P3: introspection requires hypothesis label
+
+```text
+TransitionType::Introspection
+ -> Boundary::IntrospectionRequiresHypothesisLabel
+ -> decide_transition
+ -> check_introspection_hypothesis_label
+```
+
+Current v0 mapping:
+
+```text
+Transition.object -> hypothesis label
+```
+
+Current outcomes:
+
+```text
+object = non-empty hypothesis label
+ -> ACCEPT_INTROSPECTION_WITH_HYPOTHESIS_LABEL
+ -> accepted_introspection_with_hypothesis_label
+
+object = None or blank
+ -> REJECT_INTROSPECTION_WITHOUT_HYPOTHESIS_LABEL
+ -> blocked_introspection_without_hypothesis_label
+```
+
+### P6: external actions require commit
 
 ```text
 ExternalActionRequest
@@ -73,15 +149,9 @@ ExternalActionRequest
  -> decide_transition
  -> check_external_action_commit
  -> check_cause_present
- -> emit_audit_record
- -> seal_audit_records
- -> replay_p6_audit_chain
- -> saved fixture verification
- -> manifest verification
- -> reviewer-visible result marker
 ```
 
-Current P6 outcomes:
+Current outcomes:
 
 ```text
 commit=false
@@ -97,55 +167,24 @@ commit=true + missing cause
  -> blocked_action_without_cause
 ```
 
-Current broader P6 action variants:
-
-```text
-delete_file without commit -> REJECT_ACTION_WITHOUT_COMMIT
-delete_file with commit    -> ACCEPT_COMMITTED_ACTION
-deploy_code without commit -> REJECT_ACTION_WITHOUT_COMMIT
-deploy_code with commit    -> ACCEPT_COMMITTED_ACTION
-```
-
 ---
 
-## Current executable P1 pipeline
+## Current replay submission semantics
 
-The current software reference pipeline now also implements P1 persona-memory causal legitimacy:
-
-```text
-PersonaMemoryRequest
- -> decode_persona_memory
- -> route_boundary(TransitionType::PersonaMemory)
- -> Boundary::PersonaMemoryRequiresCause
- -> decide_transition
- -> check_persona_memory_cause
- -> emit_audit_record
- -> seal_audit_records
- -> reviewer-visible result marker
-```
-
-Current P1 outcomes:
-
-```text
-cause_id=None
- -> REJECT_PERSONA_MEMORY_WITHOUT_CAUSE
- -> blocked_persona_memory_without_cause
-
-cause_id=42
- -> ACCEPT_PERSONA_MEMORY_WITH_CAUSE
- -> accepted_persona_memory_with_cause
-```
-
----
-
-## Current replay submission decoder semantics
-
-The core decoder now has typed replay submission semantics for the runtime replay path:
+Decoder path:
 
 ```text
 ReplaySubmissionRequest
  -> decode_replay_submission
  -> DecodedReplaySubmission
+```
+
+Execution unit path:
+
+```text
+DecodedReplaySubmission
+ -> decide_replay_submission
+ -> ReplaySubmissionDecision
 ```
 
 Supported v0 selectors:
@@ -155,49 +194,7 @@ invariant_id = P1 | P6
 replay       = canonical_pair | submitted_pair
 ```
 
-Canonical replay decoding:
-
-```text
-ReplaySubmissionRequest::canonical_pair("P6")
- -> invariant_id=P6
- -> mode=canonical_pair
- -> events=canonical_pair
-```
-
-Submitted replay decoding:
-
-```text
-ReplaySubmissionRequest::submitted_pair("P1", "http-p1-submitted-replay", "canonical_pair")
- -> invariant_id=P1
- -> mode=submitted_pair
- -> submission_id=http-p1-submitted-replay
- -> events=canonical_pair
-```
-
-Current negative decode cases:
-
-```text
-missing submission_id       -> MissingSubmissionId
-unsupported events          -> UnsupportedEvents
-unsupported invariant_id    -> UnsupportedInvariantId
-unsupported replay mode     -> UnsupportedReplayMode
-```
-
-This keeps submitted replay honest: v0 supports an explicit submitted request envelope, but does not yet claim arbitrary inline replay event decoding.
-
----
-
-## Current replay submission unit semantics
-
-The software reference processor now has a dedicated replay submission execution decision unit:
-
-```text
-DecodedReplaySubmission
- -> decide_replay_submission
- -> ReplaySubmissionDecision
-```
-
-Current replay submission unit outcomes:
+Current outcomes:
 
 ```text
 canonical_pair
@@ -219,7 +216,7 @@ The `HOLD_UNSUPPORTED_REPLAY_EVENTS` branch preserves the non-claim: CaPU still 
 
 ## Current runtime replay adapter path
 
-The runtime HTTP sidecar now routes `/capu/replay` through the core replay submission semantics before emitting replay evidence:
+The runtime HTTP sidecar routes `/capu/replay` through the core replay submission semantics before emitting replay evidence:
 
 ```text
 HTTP POST /capu/replay
@@ -229,226 +226,29 @@ HTTP POST /capu/replay
  -> p1_replay_response | p6_replay_response | HOLD/error response
 ```
 
-This replaces the previous direct body-sniffing path for replay dispatch with a typed core adapter while preserving the existing successful fixture outputs.
-
-Current runtime replay adapter behavior:
+Checked positive runtime cases:
 
 ```text
-canonical_pair P1/P6
- -> core decode
- -> core ACCEPT_CANONICAL_REPLAY_PAIR
- -> replay response
+replay_p1_pair
+replay_p6_pair
+replay_submitted_p1_pair
+replay_submitted_p6_pair
+```
 
-submitted_pair P1/P6 + events=canonical_pair
- -> core decode
- -> core ACCEPT_SUBMITTED_REPLAY_PAIR
- -> submitted replay response
+Checked negative runtime cases:
 
-unsupported replay envelope
- -> core decode/unit error or HOLD
- -> HTTP 400 error response
+```text
+replay_unsupported_invariant_id
+replay_missing_submission_id
+replay_unsupported_events
+replay_unsupported_mode
 ```
 
 ---
 
-## Reviewer commands
+## Evidence layers
 
-Run from `rust/cmc-core`.
-
-P6 pipeline demo:
-
-```bash
-cargo run --bin capu_p6_pipeline_demo --locked
-```
-
-Expected output includes:
-
-```text
-CAPU-P6-PIPELINE-DEMO v0
-uncommitted_result=blocked_action_without_commit code=REJECT_ACTION_WITHOUT_COMMIT boundary=action_requires_commit accepted=false
-committed_result=accepted_committed_action code=ACCEPT_COMMITTED_ACTION boundary=action_requires_commit cause_id=101 accepted=true
-sealed_events=2
-seal_result=capu_p6_audit_seal_valid
-replay_summary events=2 p6_boundary_events=2 rejected_without_commit=1 accepted_committed_action=1
-replay_result=capu_p6_audit_replay_valid
-result=capu_p6_pipeline_valid
-```
-
-P6 independent replay verifier:
-
-```bash
-cargo run --bin capu_p6_replay_verify --locked
-```
-
-Expected output includes:
-
-```text
-CAPU-P6-REPLAY-VERIFY v0
-sealed_events=2
-replay_summary events=2 p6_boundary_events=2 rejected_without_commit=1 accepted_committed_action=1
-result=capu_p6_replay_verified
-```
-
-P6 saved fixture verifier:
-
-```bash
-cargo run --bin capu_p6_fixture_verify --locked
-```
-
-Expected output includes:
-
-```text
-CAPU-P6-FIXTURE-VERIFY v0
-valid_fixture=fixtures/capu/p6_audit_valid.jsonl
-valid_events=2
-valid_result=capu_p6_fixture_replay_valid
-tampered_fixture=fixtures/capu/p6_audit_tampered.jsonl
-tampered_events=2
-tampered_result=capu_p6_fixture_tamper_detected event=1
-result=capu_p6_fixtures_verified
-```
-
-P6 action variants verifier:
-
-```bash
-cargo run --bin capu_p6_action_variants_verify --locked
-```
-
-Expected output includes:
-
-```text
-CAPU-P6-ACTION-VARIANTS-VERIFY v0
-variant_cases=4
-variant_rejected=2
-variant_accepted=2
-sealed_events=4
-seal_result=capu_p6_action_variants_seal_valid
-result=capu_p6_action_variants_verified
-```
-
-CaPU manifest verifier:
-
-```bash
-cargo run --bin capu_manifest_verify --locked
-```
-
-Expected output includes:
-
-```text
-CAPU-MANIFEST-VERIFY v0
-case=p6_audit_valid role=valid events=2 result=capu_p6_fixture_replay_valid
-case=p6_audit_tampered role=tampered events=2 result=capu_p6_fixture_tamper_detected
-case=p1_persona_memory_valid role=valid events=2 result=capu_p1_fixture_replay_valid
-case=p1_persona_memory_missing_cause role=missing_cause events=1 result=capu_p1_fixture_missing_cause
-manifest=fixtures/capu/MANIFEST.tsv
-manifest_cases=4
-manifest_valid=2
-manifest_tampered=1
-manifest_missing_cause=1
-result=capu_manifest_verified
-```
-
-P1 persona-memory verifier:
-
-```bash
-cargo run --bin capu_p1_persona_memory_verify --locked
-```
-
-Expected output includes:
-
-```text
-CAPU-P1-PERSONA-MEMORY-VERIFY v0
-unconfirmed_result=blocked_persona_memory_without_cause code=REJECT_PERSONA_MEMORY_WITHOUT_CAUSE boundary=persona_memory_requires_cause accepted=false
-confirmed_result=accepted_persona_memory_with_cause code=ACCEPT_PERSONA_MEMORY_WITH_CAUSE boundary=persona_memory_requires_cause cause_id=42 accepted=true
-sealed_events=2
-seal_result=capu_p1_persona_memory_seal_valid
-result=capu_p1_persona_memory_verified
-```
-
-Runtime HTTP sidecar self-test:
-
-```bash
-cd rust/cmc-core
-cargo run --bin capu_runtime_http_sidecar --locked -- --self-test
-```
-
-Expected output includes:
-
-```text
-route=/capu/replay case=replay_p1_pair status=ok
-route=/capu/replay case=replay_p6_pair status=ok
-route=/capu/replay case=replay_submitted_p1_pair status=ok
-route=/capu/replay case=replay_submitted_p6_pair status=ok
-result=capu_runtime_http_sidecar_verified
-```
-
-All commands are included in:
-
-```bash
-npm run review:cmc
-```
-
-The CI workflow also runs the P1 verifier and runtime HTTP examples directly.
-
----
-
-## What is implemented now
-
-Implemented:
-
-```text
-Transition shared types
-Boundary enum
-DecisionClass enum
-UnitDecision struct
-ExternalActionRequest
-PersonaMemoryRequest
-ReplaySubmissionRequest
-DecodedReplaySubmission
-ReplaySubmissionDecodeError
-ReplaySubmissionDecision
-ReplaySubmissionDecisionClass
-P6 external action decoder
-P1 persona-memory decoder
-Replay submission decoder
-Replay submission execution unit
-Runtime replay submission adapter
-Boundary router
-Cause unit
-P6 commit unit
-P1 persona memory unit
-Decision unit with route-mismatch rejection
-Audit bus with JSONL-shaped records
-Seal unit using existing SHA-256 trace-chain primitives
-Replay unit for sealed P6 audit evidence
-Replay unit for sealed P1 audit evidence
-P6 CLI pipeline demo
-Independent P6 replay verifier binary
-Saved valid P6 sealed audit fixture
-Saved tampered P6 sealed audit fixture
-Saved fixture verifier binary
-P6 action variants verifier binary
-CaPU fixture manifest
-CaPU manifest verifier binary
-P1 persona-memory verifier binary
-Runtime HTTP sidecar reference path
-Reviewer script integration
-CI integration for CaPU verifiers and runtime HTTP examples
-```
-
-Boundaries not yet implemented by dedicated units intentionally return:
-
-```text
-HOLD_UNIMPLEMENTED_BOUNDARY
-```
-
-This keeps the reference processor honest while more units are extracted.
-
----
-
-## Evidence semantics
-
-The current CaPU path now demonstrates ten separate evidence layers:
+The current CaPU path demonstrates these evidence layers:
 
 ```text
 Decision evidence
@@ -470,7 +270,7 @@ Replay submission execution evidence
  -> ACCEPT/HOLD decision over decoded replay submission envelopes
 
 Runtime adapter evidence
- -> HTTP replay path now passes through core replay submission semantics
+ -> HTTP replay path passes through core replay submission semantics
 
 Saved fixture evidence
  -> valid P6/P1 fixtures + tampered/missing-cause fixture checks
@@ -479,30 +279,44 @@ Manifest-linked evidence
  -> MANIFEST.tsv + manifest verifier
 
 Cross-invariant evidence
- -> P6 external actions + P1 persona-memory writes
+ -> P1, P2, P3, P6, and replay submission paths
 ```
 
-P6 currently checks the canonical two-event pair:
+---
+
+## Reviewer commands
+
+Run from repository root:
+
+```bash
+npm run review:cmc
+```
+
+Expected final marker:
 
 ```text
-REJECT_ACTION_WITHOUT_COMMIT
-ACCEPT_COMMITTED_ACTION
+result=reviewer_baseline_passed
 ```
 
-P1 currently checks the canonical two-event pair:
+Run Rust unit tests directly:
+
+```bash
+cd rust/cmc-core
+cargo test --all --locked
+```
+
+Run runtime HTTP sidecar self-test:
+
+```bash
+cd rust/cmc-core
+cargo run --bin capu_runtime_http_sidecar --locked -- --self-test
+```
+
+Expected marker:
 
 ```text
-REJECT_PERSONA_MEMORY_WITHOUT_CAUSE
-ACCEPT_PERSONA_MEMORY_WITH_CAUSE
+result=capu_runtime_http_sidecar_verified
 ```
-
-The tampered P6 fixture intentionally modifies the first saved event while preserving the old hash, so the verifier must fail before semantic replay:
-
-```text
-ReplayError::SealInvalid { event_index: 1 }
-```
-
-This is intentionally narrow and deterministic. Future replay units can generalize to arbitrary trace classes and multiple invariants.
 
 ---
 
@@ -532,34 +346,21 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-CaPU can execute reviewer-visible legitimacy checks for P6 external actions, P1 persona-memory writes, and replay submission request envelopes: decoded requests are boundary-routed or replay-decoded, replay submission envelopes receive explicit ACCEPT/HOLD execution decisions, and `/capu/replay` now passes through those core semantics before returning runtime replay evidence.
+CaPU can execute reviewer-visible legitimacy checks for P1 persona-memory writes, P2 persona-state changes, P3 introspection, P6 external actions, and replay submission envelopes. These checks are routed through small software reference units, produce explicit ACCEPT/REJECT/HOLD decisions, and are verified through Rust tests, reviewer scripts, runtime fixtures, and CI.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
 
 ---
 
-## Next implementation steps
-
-Recommended next step:
+## Recommended next steps
 
 ```text
-Add explicit unsupported replay submission HTTP error fixtures:
-- unsupported invariant_id
-- missing submission_id
-- unsupported events
-```
-
-Then:
-
-```text
-Promote the replay adapter markers into the runtime API manifest/OpenAPI-lite contract.
-```
-
-Then:
-
-```text
-Get a fresh green CI / reviewer baseline on current main.
+1. Add route-specific typed decoders for P2 and P3.
+2. Centralize decision/error codes to reduce string duplication.
+3. Add incubation_unit.rs for HOLD/defer semantics.
+4. Keep runtime API stable rather than inflating it cosmetically.
+5. Begin hardware/device path only after canonical event encoding stabilizes.
 ```
 
 ---
@@ -575,6 +376,8 @@ complete policy language
 complete AI safety system
 production cryptographic certification
 full arbitrary replay engine
+complete hypothesis model
+production authorization system
 ```
 
 It is a software reference scaffold.
@@ -584,5 +387,5 @@ It is a software reference scaffold.
 ## One-line summary
 
 ```text
-CaPU currently has an executable software reference evidence path for P6 external actions, P1 persona-memory writes, and typed replay submission envelopes: decode -> boundary/replay route -> replay submission decision -> cause/commit check -> audit -> seal -> replay/fixture/manifest verification -> runtime adapter -> reviewer script -> CI step.
+CaPU currently has an executable software reference evidence path for P1, P2, P3, P6, and replay submission semantics: decode -> boundary/replay route -> unit decision -> audit -> seal -> replay/fixture/manifest verification -> runtime adapter -> reviewer script -> CI step.
 ```
