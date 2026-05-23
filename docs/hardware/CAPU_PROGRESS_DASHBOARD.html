@@ -8,14 +8,11 @@
     :root {
       --bg: #0f172a;
       --panel: #111827;
-      --panel-2: #172033;
       --text: #e5e7eb;
       --muted: #9ca3af;
-      --line: #334155;
       --software: #60a5fa;
       --runtime: #34d399;
       --hardware: #fbbf24;
-      --danger: #fb7185;
       --shadow: rgba(0, 0, 0, 0.28);
     }
 
@@ -38,44 +35,12 @@
       padding: 32px 0 56px;
     }
 
-    header {
-      display: grid;
-      gap: 14px;
-      margin-bottom: 24px;
-    }
-
-    .eyebrow {
-      color: var(--runtime);
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(30px, 5vw, 56px);
-      line-height: 1.02;
-      letter-spacing: -0.04em;
-    }
-
-    .subtitle {
-      max-width: 900px;
-      margin: 0;
-      color: var(--muted);
-      font-size: 17px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1.45fr 0.85fr;
-      gap: 18px;
-      align-items: start;
-    }
-
-    @media (max-width: 920px) {
-      .grid { grid-template-columns: 1fr; }
-    }
+    header { display: grid; gap: 14px; margin-bottom: 24px; }
+    .eyebrow { color: var(--runtime); font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(30px, 5vw, 56px); line-height: 1.02; letter-spacing: -0.04em; }
+    .subtitle { max-width: 900px; margin: 0; color: var(--muted); font-size: 17px; }
+    .grid { display: grid; grid-template-columns: 1.45fr 0.85fr; gap: 18px; align-items: start; }
+    @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
 
     .card {
       background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)), var(--panel);
@@ -85,18 +50,8 @@
       padding: 20px;
     }
 
-    .card h2 {
-      margin: 0 0 14px;
-      font-size: 20px;
-      letter-spacing: -0.02em;
-    }
-
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin: 18px 0 4px;
-    }
+    .card h2 { margin: 0 0 14px; font-size: 20px; letter-spacing: -0.02em; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 4px; }
 
     button {
       border: 1px solid rgba(148, 163, 184, 0.28);
@@ -105,31 +60,16 @@
       border-radius: 999px;
       padding: 9px 13px;
       cursor: pointer;
-      font-weight: 700;
+      font-weight: 800;
       transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
     }
 
     button:hover { transform: translateY(-1px); border-color: rgba(96, 165, 250, 0.65); }
     button.active { background: rgba(96, 165, 250, 0.16); border-color: var(--software); }
 
-    .bars {
-      display: grid;
-      gap: 18px;
-      margin-top: 18px;
-    }
-
-    .bar-row {
-      display: grid;
-      gap: 7px;
-    }
-
-    .bar-meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      font-weight: 800;
-    }
-
+    .bars { display: grid; gap: 18px; margin-top: 18px; }
+    .bar-row { display: grid; gap: 7px; }
+    .bar-meta { display: flex; justify-content: space-between; gap: 16px; font-weight: 850; }
     .bar-label { display: flex; gap: 8px; align-items: center; }
     .dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
     .dot.software { background: var(--software); }
@@ -168,106 +108,28 @@
 
     @keyframes shimmer { to { transform: translateX(100%); } }
 
-    .summary {
-      display: grid;
-      gap: 10px;
-      color: var(--muted);
-    }
-
+    .summary { display: grid; gap: 10px; color: var(--muted); }
     .summary strong { color: var(--text); }
+    .pill-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .pill { background: rgba(148, 163, 184, 0.11); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 999px; padding: 7px 10px; color: var(--text); font-size: 13px; font-weight: 800; }
 
-    .pill-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
-    }
-
-    .pill {
-      background: rgba(148, 163, 184, 0.11);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 999px;
-      padding: 7px 10px;
-      color: var(--text);
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .timeline {
-      margin-top: 18px;
-      display: grid;
-      gap: 10px;
-      max-height: 520px;
-      overflow: auto;
-      padding-right: 4px;
-    }
-
-    .event {
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 16px;
-      padding: 12px;
-      background: rgba(15, 23, 42, 0.58);
-      cursor: pointer;
-      transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
-    }
-
+    .timeline { margin-top: 18px; display: grid; gap: 10px; max-height: 560px; overflow: auto; padding-right: 4px; }
+    .event { border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 16px; padding: 12px; background: rgba(15, 23, 42, 0.58); cursor: pointer; transition: background 120ms ease, border-color 120ms ease, transform 120ms ease; }
     .event:hover { transform: translateY(-1px); border-color: rgba(96, 165, 250, 0.56); }
     .event.active { border-color: var(--runtime); background: rgba(52, 211, 153, 0.10); }
-
-    .event-title {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      font-weight: 850;
-      margin-bottom: 4px;
-    }
-
+    .event-title { display: flex; justify-content: space-between; gap: 12px; font-weight: 850; margin-bottom: 4px; }
     .event small { color: var(--muted); }
 
-    .mini-bars {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .mini {
-      height: 6px;
-      background: rgba(148, 163, 184, 0.14);
-      border-radius: 999px;
-      overflow: hidden;
-      margin-top: 4px;
-    }
-
+    .mini-bars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+    .mini { height: 6px; background: rgba(148, 163, 184, 0.14); border-radius: 999px; overflow: hidden; margin-top: 4px; }
     .mini > span { display: block; height: 100%; border-radius: 999px; }
     .mini .software { background: var(--software); }
     .mini .runtime { background: var(--runtime); }
     .mini .hardware { background: var(--hardware); }
 
-    .callout {
-      margin-top: 18px;
-      border-left: 4px solid var(--runtime);
-      padding: 12px 14px;
-      background: rgba(52, 211, 153, 0.08);
-      border-radius: 14px;
-      color: var(--text);
-    }
-
-    .footer-note {
-      margin-top: 22px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    code {
-      background: rgba(148, 163, 184, 0.15);
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      padding: 2px 6px;
-      border-radius: 7px;
-      color: #dbeafe;
-    }
+    .callout { margin-top: 18px; border-left: 4px solid var(--runtime); padding: 12px 14px; background: rgba(52, 211, 153, 0.08); border-radius: 14px; color: var(--text); }
+    .footer-note { margin-top: 22px; color: var(--muted); font-size: 13px; }
+    code { background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.16); padding: 2px 6px; border-radius: 7px; color: #dbeafe; }
   </style>
 </head>
 <body>
@@ -333,105 +195,33 @@
         callout: "Good starting line: enough structure to measure movement, not enough yet to impress a serious runtime reviewer."
       },
       {
-        id: "runtime-client",
-        label: "External runtime HTTP client verified",
-        short: "Client",
-        pr: "PR #37",
-        software: 62,
-        runtime: 70,
-        hardware: 5,
-        summary: "The runtime sidecar became externally consumable through a checked raw TCP client example and visible CI step.",
-        evidence: ["raw TCP client", "HTTP fixtures", "visible CI", "reviewer path"],
-        callout: "This was the first big runtime jump: the API stopped being internal-only and became externally testable."
-      },
-      {
-        id: "openapi-lite",
-        label: "OpenAPI-lite contract checked",
-        short: "OpenAPI-lite",
-        pr: "PR #41",
-        software: 62,
-        runtime: 75,
-        hardware: 5,
-        summary: "A checked OpenAPI-lite artifact was synchronized with the runtime API manifest.",
-        evidence: ["OpenAPI-lite", "manifest linkage", "route coverage"],
-        callout: "This made the API visible as a contract, not just a script and a pile of fixtures."
-      },
-      {
-        id: "sdk-wrapper",
-        label: "Tiny SDK wrapper verified",
-        short: "SDK",
-        pr: "PR #43",
-        software: 62,
-        runtime: 80,
-        hardware: 5,
-        summary: "A tiny reference SDK wrapper exposed health, decide, audit, replay, and unknown-route calls as reusable methods.",
-        evidence: ["SDK example", "fixture validation", "local sidecar launch"],
-        callout: "Not a public SDK yet — but enough to show how consumers would use the sidecar."
-      },
-      {
-        id: "error-taxonomy",
-        label: "Runtime HTTP error taxonomy v0",
-        short: "Errors",
-        pr: "PR #44",
-        software: 62,
-        runtime: 85,
-        hardware: 5,
-        summary: "Verified boundary errors were recorded as a checked reference taxonomy linked to manifest routes and fixtures.",
-        evidence: ["error taxonomy", "route_not_found", "bad_request", "fixture linkage"],
-        callout: "This reduced ambiguity: errors became part of the evidence surface."
-      },
-      {
         id: "submitted-replay",
         label: "Submitted replay request path",
-        short: "Submitted replay",
+        short: "Replay HTTP",
         pr: "PR #45",
         software: 62,
         runtime: 90,
         hardware: 5,
         summary: "The replay endpoint gained a checked submitted_pair path with explicit submission_id markers.",
         evidence: ["submitted_pair", "P1/P6 replay fixtures", "sidecar self-test", "SDK/client coverage"],
-        callout: "Runtime replay became more than canonical selectors: it could accept a submitted envelope while keeping limits explicit."
-      },
-      {
-        id: "decoder-semantics",
-        label: "Typed replay submission decoder",
-        short: "Decoder",
-        pr: "PR #48",
-        software: 66,
-        runtime: 90,
-        hardware: 5,
-        summary: "Replay submission moved into core typed semantics with positive and negative unit tests.",
-        evidence: ["ReplaySubmissionRequest", "DecodedReplaySubmission", "decode errors", "unit tests"],
-        callout: "This shifted replay submission from HTTP behavior into the software reference processor."
+        callout: "Runtime replay became more than canonical selectors while keeping limits explicit."
       },
       {
         id: "submission-unit",
         label: "Replay submission execution unit",
-        short: "Unit",
+        short: "Replay unit",
         pr: "PR #51",
         software: 70,
         runtime: 90,
         hardware: 5,
-        summary: "Decoded replay submissions now receive explicit ACCEPT/HOLD decisions from a dedicated core unit.",
+        summary: "Decoded replay submissions receive explicit ACCEPT/HOLD decisions from a dedicated core unit.",
         evidence: ["replay_submission_unit", "ACCEPT", "HOLD", "unsupported events"],
-        callout: "The system can now decide whether a replay envelope is executable, not merely parse it."
-      },
-      {
-        id: "runtime-adapter",
-        label: "Runtime replay routed through core semantics",
-        short: "Adapter",
-        pr: "PR #52",
-        software: 72,
-        runtime: 93,
-        hardware: 5,
-        summary: "The runtime /capu/replay path now passes through core replay submission decoding and decision semantics.",
-        evidence: ["runtime adapter", "core semantics", "same fixtures", "HTTP path"],
-        callout: "This connected the runtime API to the processor logic. Less guessing, more architecture."
+        callout: "The system can decide whether a replay envelope is executable, not merely parse it."
       },
       {
         id: "negative-replay",
         label: "Unsupported replay HTTP fixtures",
-        short: "Negative path",
+        short: "Negative replay",
         pr: "PR #53",
         software: 72,
         runtime: 95,
@@ -441,16 +231,40 @@
         callout: "This is the serious reviewer signal: bad replay envelopes fail predictably and visibly."
       },
       {
-        id: "public-snapshot",
-        label: "Public status and roadmap snapshot",
-        short: "Snapshot",
-        pr: "PR #54",
+        id: "public-dashboard",
+        label: "Public dashboard and Pages entrypoint",
+        short: "Pages",
+        pr: "PR #55/#56",
         software: 72,
         runtime: 95,
         hardware: 5,
-        summary: "The repository gained a public status and roadmap entrypoint for reviewers, large players, and contributors.",
-        evidence: ["public roadmap", "README link", "contributor map", "non-claims"],
-        callout: "The progress became discoverable. Less treasure map, more runway lights."
+        summary: "The repository gained a live Pages dashboard and README entrypoint for reviewers and contributors.",
+        evidence: ["GitHub Pages", "dashboard", "README link", "public roadmap"],
+        callout: "The progress became discoverable instead of buried in PR history. Less treasure map, more runway lights."
+      },
+      {
+        id: "authorization-unit",
+        label: "P2 persona-state authorization unit",
+        short: "P2 auth",
+        pr: "PR #57",
+        software: 76,
+        runtime: 95,
+        hardware: 5,
+        summary: "Persona-state changes now require explicit authorization and reject denied or missing authorization.",
+        evidence: ["authorization_unit", "PersonaStateChange", "P2", "decision_unit route"],
+        callout: "CaPU now checks not only cause and commit, but explicit permission for persona-state changes."
+      },
+      {
+        id: "hypothesis-unit",
+        label: "P3 introspection hypothesis-label unit",
+        short: "P3 hypothesis",
+        pr: "PR #58",
+        software: 80,
+        runtime: 95,
+        hardware: 5,
+        summary: "Introspection transitions now require a non-empty hypothesis label instead of passing as unlabeled self-assessment.",
+        evidence: ["hypothesis_unit", "Introspection", "P3", "label required", "decision_unit route"],
+        callout: "This prevents introspection from pretending to be fact: it must be marked as a hypothesis."
       }
     ];
 
@@ -492,7 +306,6 @@
       setProgress("hardware", item.hardware);
       evidencePills.innerHTML = item.evidence.map(e => `<span class="pill">${e}</span>`).join("");
       callout.textContent = item.callout;
-
       [...document.querySelectorAll("button[data-id], .event[data-id]")].forEach(el => {
         el.classList.toggle("active", el.dataset.id === item.id);
       });
