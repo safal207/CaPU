@@ -1,3 +1,4 @@
+use super::decision_codes::p3;
 use super::transition::{Boundary, DecisionClass, Transition, UnitDecision};
 
 /// Check that introspection transitions are explicitly labeled as hypotheses.
@@ -15,19 +16,19 @@ pub fn check_introspection_hypothesis_label(transition: &Transition) -> UnitDeci
     if has_label {
         UnitDecision {
             class: DecisionClass::Accept,
-            code: "ACCEPT_INTROSPECTION_WITH_HYPOTHESIS_LABEL",
-            invariant_id: "P3",
+            code: p3::ACCEPT_WITH_HYPOTHESIS_LABEL,
+            invariant_id: p3::INVARIANT_ID,
             boundary: Boundary::IntrospectionRequiresHypothesisLabel,
-            verdict: "accepted_introspection_with_hypothesis_label",
+            verdict: p3::VERDICT_ACCEPTED_WITH_HYPOTHESIS_LABEL,
             cause_id: transition.cause_id,
         }
     } else {
         UnitDecision {
             class: DecisionClass::Reject,
-            code: "REJECT_INTROSPECTION_WITHOUT_HYPOTHESIS_LABEL",
-            invariant_id: "P3",
+            code: p3::REJECT_WITHOUT_HYPOTHESIS_LABEL,
+            invariant_id: p3::INVARIANT_ID,
             boundary: Boundary::IntrospectionRequiresHypothesisLabel,
-            verdict: "blocked_introspection_without_hypothesis_label",
+            verdict: p3::VERDICT_BLOCKED_WITHOUT_HYPOTHESIS_LABEL,
             cause_id: transition.cause_id,
         }
     }
@@ -60,10 +61,10 @@ mod tests {
 
         assert_eq!(decision.class, DecisionClass::Accept);
         assert!(decision.accepted());
-        assert_eq!(decision.code, "ACCEPT_INTROSPECTION_WITH_HYPOTHESIS_LABEL");
-        assert_eq!(decision.invariant_id, "P3");
+        assert_eq!(decision.code, p3::ACCEPT_WITH_HYPOTHESIS_LABEL);
+        assert_eq!(decision.invariant_id, p3::INVARIANT_ID);
         assert_eq!(decision.boundary, Boundary::IntrospectionRequiresHypothesisLabel);
-        assert_eq!(decision.verdict, "accepted_introspection_with_hypothesis_label");
+        assert_eq!(decision.verdict, p3::VERDICT_ACCEPTED_WITH_HYPOTHESIS_LABEL);
         assert_eq!(decision.cause_id, Some(303));
     }
 
@@ -74,10 +75,10 @@ mod tests {
 
         assert_eq!(decision.class, DecisionClass::Reject);
         assert!(!decision.accepted());
-        assert_eq!(decision.code, "REJECT_INTROSPECTION_WITHOUT_HYPOTHESIS_LABEL");
-        assert_eq!(decision.invariant_id, "P3");
+        assert_eq!(decision.code, p3::REJECT_WITHOUT_HYPOTHESIS_LABEL);
+        assert_eq!(decision.invariant_id, p3::INVARIANT_ID);
         assert_eq!(decision.boundary, Boundary::IntrospectionRequiresHypothesisLabel);
-        assert_eq!(decision.verdict, "blocked_introspection_without_hypothesis_label");
+        assert_eq!(decision.verdict, p3::VERDICT_BLOCKED_WITHOUT_HYPOTHESIS_LABEL);
     }
 
     #[test]
@@ -86,7 +87,7 @@ mod tests {
         let decision = check_introspection_hypothesis_label(&transition);
 
         assert_eq!(decision.class, DecisionClass::Reject);
-        assert_eq!(decision.code, "REJECT_INTROSPECTION_WITHOUT_HYPOTHESIS_LABEL");
-        assert_eq!(decision.verdict, "blocked_introspection_without_hypothesis_label");
+        assert_eq!(decision.code, p3::REJECT_WITHOUT_HYPOTHESIS_LABEL);
+        assert_eq!(decision.verdict, p3::VERDICT_BLOCKED_WITHOUT_HYPOTHESIS_LABEL);
     }
 }
