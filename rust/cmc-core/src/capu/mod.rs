@@ -9,6 +9,7 @@ pub mod authorization_unit;
 pub mod boundary_router;
 pub mod cause_unit;
 pub mod commit_unit;
+pub mod decision_codes;
 pub mod decision_unit;
 pub mod decoder;
 pub mod hypothesis_unit;
