@@ -5,7 +5,7 @@ Status: current implementation snapshot for CaPU software reference units.
 Progress estimate:
 
 ```text
-Software reference processor: ~83%
+Software reference processor: ~84%
 Runtime sidecar/API:        ~95%
 Hardware/device path:       ~5%
 ```
@@ -21,6 +21,7 @@ rust/cmc-core/src/capu/mod.rs
 rust/cmc-core/src/capu/transition.rs
 rust/cmc-core/src/capu/decoder.rs
 rust/cmc-core/src/capu/p2_p3_decoder.rs
+rust/cmc-core/src/capu/decision_codes.rs
 rust/cmc-core/src/capu/boundary_router.rs
 rust/cmc-core/src/capu/cause_unit.rs
 rust/cmc-core/src/capu/commit_unit.rs
@@ -51,6 +52,7 @@ pub mod authorization_unit;
 pub mod boundary_router;
 pub mod cause_unit;
 pub mod commit_unit;
+pub mod decision_codes;
 pub mod decision_unit;
 pub mod decoder;
 pub mod hypothesis_unit;
@@ -98,6 +100,7 @@ PersonaStateChangeRequest
  -> Boundary::PersonaStateChangeRequiresAuthorization
  -> decide_transition
  -> check_persona_state_change_authorization
+ -> decision_codes::p2
 ```
 
 Current outcomes:
@@ -125,6 +128,7 @@ IntrospectionRequest
  -> Boundary::IntrospectionRequiresHypothesisLabel
  -> decide_transition
  -> check_introspection_hypothesis_label
+ -> decision_codes::p3
 ```
 
 Current v0 mapping:
@@ -220,38 +224,6 @@ The `HOLD_UNSUPPORTED_REPLAY_EVENTS` branch preserves the non-claim: CaPU still 
 
 ---
 
-## Current runtime replay adapter path
-
-The runtime HTTP sidecar routes `/capu/replay` through the core replay submission semantics before emitting replay evidence:
-
-```text
-HTTP POST /capu/replay
- -> replay_submission_from_body
- -> decode_replay_submission
- -> decide_replay_submission
- -> p1_replay_response | p6_replay_response | HOLD/error response
-```
-
-Checked positive runtime cases:
-
-```text
-replay_p1_pair
-replay_p6_pair
-replay_submitted_p1_pair
-replay_submitted_p6_pair
-```
-
-Checked negative runtime cases:
-
-```text
-replay_unsupported_invariant_id
-replay_missing_submission_id
-replay_unsupported_events
-replay_unsupported_mode
-```
-
----
-
 ## Evidence layers
 
 The current CaPU path demonstrates these evidence layers:
@@ -259,6 +231,9 @@ The current CaPU path demonstrates these evidence layers:
 ```text
 Decision evidence
  -> UnitDecision: ACCEPT / REJECT / HOLD
+
+Decision-code stability evidence
+ -> decision_codes::p2 and decision_codes::p3 central constants
 
 Typed request decode evidence
  -> P1, P2, P3, P6, and replay submission request envelopes
@@ -272,23 +247,11 @@ Integrity evidence
 Replay evidence
  -> semantic replay summary over sealed P6/P1 audit events
 
-Replay submission decode evidence
- -> typed canonical/submitted replay request decoding with explicit failure modes
-
-Replay submission execution evidence
- -> ACCEPT/HOLD decision over decoded replay submission envelopes
-
 Runtime adapter evidence
  -> HTTP replay path passes through core replay submission semantics
 
-Saved fixture evidence
- -> valid P6/P1 fixtures + tampered/missing-cause fixture checks
-
 Manifest-linked evidence
  -> MANIFEST.tsv + manifest verifier
-
-Cross-invariant evidence
- -> P1, P2, P3, P6, and replay submission paths
 ```
 
 ---
@@ -314,40 +277,6 @@ cd rust/cmc-core
 cargo test --all --locked
 ```
 
-Run runtime HTTP sidecar self-test:
-
-```bash
-cd rust/cmc-core
-cargo run --bin capu_runtime_http_sidecar --locked -- --self-test
-```
-
-Expected marker:
-
-```text
-result=capu_runtime_http_sidecar_verified
-```
-
----
-
-## Relationship to architecture docs
-
-This status file connects the architecture docs to code:
-
-```text
-CAPU_PROCESSOR_MODEL
- -> CAPU_PROCESSOR_ISA_V0
- -> CAPU_MICROARCHITECTURE_V0
- -> CAPU_SOFTWARE_REFERENCE_UNITS_ROADMAP
- -> CAPU_SOFTWARE_REFERENCE_UNITS_STATUS
- -> rust/cmc-core/src/capu
- -> reviewer binaries
- -> saved fixtures
- -> fixture manifest
- -> runtime HTTP evidence
- -> npm run review:cmc
- -> GitHub Actions verifier steps
-```
-
 ---
 
 ## Current reviewer claim
@@ -355,7 +284,7 @@ CAPU_PROCESSOR_MODEL
 The current implemented claim is:
 
 ```text
-CaPU can execute reviewer-visible legitimacy checks for P1 persona-memory writes, P2 persona-state changes, P3 introspection, P6 external actions, and replay submission envelopes. P1/P2/P3/P6 now have typed request/decode paths into small software reference units, produce explicit ACCEPT/REJECT/HOLD decisions, and are verified through Rust tests, reviewer scripts, runtime fixtures, and CI.
+CaPU can execute reviewer-visible legitimacy checks for P1 persona-memory writes, P2 persona-state changes, P3 introspection, P6 external actions, and replay submission envelopes. P2/P3 decision codes and verdicts now have central Rust constants, reducing string drift in the fresh software-reference units.
 ```
 
 The current implementation does not claim a complete CaPU runtime.
@@ -365,7 +294,7 @@ The current implementation does not claim a complete CaPU runtime.
 ## Recommended next steps
 
 ```text
-1. Centralize decision/error codes to reduce string duplication.
+1. Migrate P1/P6 decision codes safely.
 2. Add incubation_unit.rs for HOLD/defer semantics.
 3. Add remaining route-specific decoders.
 4. Keep runtime API stable rather than inflating it cosmetically.
@@ -387,14 +316,7 @@ production cryptographic certification
 full arbitrary replay engine
 complete hypothesis model
 production authorization system
+complete decision/error code migration
 ```
 
 It is a software reference scaffold.
-
----
-
-## One-line summary
-
-```text
-CaPU currently has an executable software reference evidence path for P1, P2, P3, P6, and replay submission semantics: typed request -> decode -> boundary/replay route -> unit decision -> audit -> seal -> replay/fixture/manifest verification -> runtime adapter -> reviewer script -> CI step.
-```
