@@ -156,9 +156,7 @@ fn model_uid_mismatch_scenario(payload: &[u8]) -> ScenarioResult {
 }
 
 fn trace_line(step: u64, state: &str, cause: &str, phase: &str, transition: &str) -> String {
-    format!(
-        "tau={step}|state={state}|cause={cause}|phase={phase}|transition={transition}"
-    )
+    format!("tau={step}|state={state}|cause={cause}|phase={phase}|transition={transition}")
 }
 
 fn proof_json() -> (String, bool, String) {
@@ -174,9 +172,21 @@ fn proof_json() -> (String, bool, String) {
     let trace_source = [
         trace_line(0, "HBM_ONLY", "baseline", "save", "request_save"),
         trace_line(1, "HOST_BYTES_WRITTEN", "save", "persistence", "write_host"),
-        trace_line(2, "METADATA_COMMITTED", "commit", "persistence", "publish_binding"),
+        trace_line(
+            2,
+            "METADATA_COMMITTED",
+            "commit",
+            "persistence",
+            "publish_binding",
+        ),
         trace_line(3, "CRASHED", "fault_injection", "recovery", "process_loss"),
-        trace_line(4, "RECOVERY_CHECK", "restart", "recovery", "validate_identity_and_commit"),
+        trace_line(
+            4,
+            "RECOVERY_CHECK",
+            "restart",
+            "recovery",
+            "validate_identity_and_commit",
+        ),
         trace_line(5, "VERIFIED", "invariants", "verification", "emit_proof"),
     ]
     .join("\n");
@@ -254,10 +264,7 @@ fn proof_json() -> (String, bool, String) {
                     "      \"trace_hash\": \"{}\"\n",
                     "    }}"
                 ),
-                index,
-                event.prev_hash,
-                event.event,
-                event.trace_hash
+                index, event.prev_hash, event.event, event.trace_hash
             )
         })
         .collect::<Vec<_>>()
@@ -307,7 +314,10 @@ fn main() {
     }
     fs::write(path, json).expect("write proof artifact");
 
-    println!("Raiden CPU causal-recovery model proof: {}", if passed { "PASS" } else { "FAIL" });
+    println!(
+        "Raiden CPU causal-recovery model proof: {}",
+        if passed { "PASS" } else { "FAIL" }
+    );
     println!("mode: {MODE}");
     println!("proof_sha256: {proof_hash}");
     println!("artifact: {}", path.display());
