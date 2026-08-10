@@ -1,0 +1,91 @@
+name: Raiden Upstream JAX CPU Recovery Baseline
+
+on:
+  push:
+    paths:
+      - ".github/workflows/raiden-upstream-cpu.yml"
+      - "docs/hardware/RAIDEN_CAUSAL_CRASH_RECOVERY.md"
+  pull_request:
+    paths:
+      - ".github/workflows/raiden-upstream-cpu.yml"
+      - "docs/hardware/RAIDEN_CAUSAL_CRASH_RECOVERY.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream-recovery:
+    name: Pinned google/tpu-raiden JAX recovery E2E on CPU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      RAIDEN_UPSTREAM_REPO: https://github.com/google/tpu-raiden.git
+      RAIDEN_UPSTREAM_SHA: 050d32bc7173d6413d32a8152118d0bad44c034d
+      RAIDEN_BAZEL_VERSION: 8.6.0
+      RAIDEN_BAZEL_TARGET: //tpu_raiden/api/jax:kv_cache_store_recovery_e2e_test
+
+    steps:
+      - name: Checkout CaPU
+        uses: actions/checkout@v4
+
+      - name: Install pinned Bazel
+        run: |
+          set -euo pipefail
+          url="https://github.com/bazelbuild/bazel/releases/download/${RAIDEN_BAZEL_VERSION}/bazel-${RAIDEN_BAZEL_VERSION}-linux-x86_64"
+          curl --fail --location --retry 3 "$url" --output /tmp/bazel
+          chmod +x /tmp/bazel
+          sudo install /tmp/bazel /usr/local/bin/bazel
+          bazel --version
+          test "$(bazel --version)" = "bazel ${RAIDEN_BAZEL_VERSION}"
+
+      - name: Checkout pinned upstream Raiden
+        run: |
+          set -euo pipefail
+          git init upstream-raiden
+          git -C upstream-raiden remote add origin "$RAIDEN_UPSTREAM_REPO"
+          git -C upstream-raiden fetch --depth=1 origin "$RAIDEN_UPSTREAM_SHA"
+          git -C upstream-raiden checkout --detach FETCH_HEAD
+          actual="$(git -C upstream-raiden rev-parse HEAD)"
+          echo "actual_upstream_sha=$actual"
+          test "$actual" = "$RAIDEN_UPSTREAM_SHA"
+          test "$(cat upstream-raiden/.bazelversion)" = "$RAIDEN_BAZEL_VERSION"
+
+      - name: Run upstream JAX CPU recovery E2E
+        working-directory: upstream-raiden
+        run: |
+          set -o pipefail
+          mkdir -p ../evidence/raiden-upstream
+          bazel test "$RAIDEN_BAZEL_TARGET" \
+            --test_output=all \
+            --test_env=JAX_PLATFORMS=cpu \
+            --test_env=XLA_FLAGS=--xla_force_host_platform_device_count=1 \
+            2>&1 | tee ../evidence/raiden-upstream/bazel-test.log
+
+      - name: Capture upstream baseline manifest
+        if: always()
+        run: |
+          mkdir -p evidence/raiden-upstream
+          result="${{ job.status }}"
+          cat > evidence/raiden-upstream/manifest.json <<EOF
+          {
+            "schema": "capu.raiden.upstream-baseline.v0",
+            "target": "google/tpu-raiden",
+            "upstream_sha": "${RAIDEN_UPSTREAM_SHA}",
+            "bazel_version": "${RAIDEN_BAZEL_VERSION}",
+            "bazel_target": "${RAIDEN_BAZEL_TARGET}",
+            "requested_device_mode": "JAX CPU",
+            "job_status": "${result}",
+            "claim_scope": "Execution result for the pinned upstream Raiden JAX recovery E2E target on a GitHub-hosted CPU runner."
+          }
+          EOF
+          sha256sum evidence/raiden-upstream/manifest.json evidence/raiden-upstream/bazel-test.log 2>/dev/null || true
+
+      - name: Upload upstream baseline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raiden-upstream-jax-cpu-baseline
+          path: evidence/raiden-upstream/
+          if-no-files-found: error
