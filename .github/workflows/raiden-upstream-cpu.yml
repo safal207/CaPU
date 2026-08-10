@@ -27,6 +27,7 @@ jobs:
       RAIDEN_UPSTREAM_SHA: 050d32bc7173d6413d32a8152118d0bad44c034d
       RAIDEN_BAZEL_VERSION: 8.6.0
       RAIDEN_BAZEL_TARGET: //tpu_raiden/api/jax:kv_cache_store_recovery_e2e_test
+      RAIDEN_BAZEL_DISK_CACHE: ${{ github.workspace }}/.bazel-disk-cache
 
     steps:
       - name: Checkout CaPU
@@ -57,22 +58,47 @@ jobs:
           test "$actual" = "$RAIDEN_UPSTREAM_SHA"
           test "$(cat upstream-raiden/.bazelversion)" = "$RAIDEN_BAZEL_VERSION"
 
+      - name: Restore Bazel disk cache
+        id: raiden-bazel-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/.bazel-disk-cache
+          key: raiden-bazel-${{ runner.os }}-8.6.0-050d32bc7173d6413d32a8152118d0bad44c034d-${{ github.run_id }}
+          restore-keys: |
+            raiden-bazel-${{ runner.os }}-8.6.0-050d32bc7173d6413d32a8152118d0bad44c034d-
+
       - name: Run upstream JAX CPU recovery E2E
         working-directory: upstream-raiden
         run: |
-          mkdir -p ../evidence/raiden-upstream
+          mkdir -p ../evidence/raiden-upstream "$RAIDEN_BAZEL_DISK_CACHE"
           set +e
-          bazel test --config=oss "$RAIDEN_BAZEL_TARGET" \
-            --test_output=all \
-            --test_env=JAX_PLATFORMS=cpu \
-            --test_env=XLA_FLAGS=--xla_force_host_platform_device_count=1 \
+          timeout --signal=TERM --kill-after=30s 70m \
+            bazel test --config=oss "$RAIDEN_BAZEL_TARGET" \
+              --disk_cache="$RAIDEN_BAZEL_DISK_CACHE" \
+              --experimental_disk_cache_gc_max_size=6G \
+              --test_output=all \
+              --test_env=JAX_PLATFORMS=cpu \
+              --test_env=XLA_FLAGS=--xla_force_host_platform_device_count=1 \
             2>&1 | tee ../evidence/raiden-upstream/bazel-test.log
           code=${PIPESTATUS[0]}
           set -e
           echo "RAIDEN_BAZEL_EXIT_CODE=$code" >> "$GITHUB_ENV"
-          exit "$code"
+          echo "bazel_exit_code=$code"
+          if [ "$code" -eq 124 ]; then
+            echo "Bazel execution reached the 70-minute seed budget; preserving the disk cache for the next run."
+          fi
+          # Keep the job alive long enough to persist partial build outputs and evidence.
+          exit 0
+
+      - name: Save partial Bazel disk cache
+        if: always() && env.RAIDEN_BAZEL_EXIT_CODE == '124'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/.bazel-disk-cache
+          key: ${{ steps.raiden-bazel-cache-restore.outputs.cache-primary-key }}
 
       - name: Seal upstream execution into CaPU proof
+        if: env.RAIDEN_BAZEL_EXIT_CODE == '0'
         run: |
           python3 tools/raiden_upstream_evidence.py \
             --log evidence/raiden-upstream/bazel-test.log \
@@ -87,8 +113,13 @@ jobs:
         if: always()
         run: |
           mkdir -p evidence/raiden-upstream
-          result="${{ job.status }}"
           bazel_exit_code="${RAIDEN_BAZEL_EXIT_CODE:-not_run}"
+          case "$bazel_exit_code" in
+            0) execution_status="passed" ;;
+            124) execution_status="time_budget_exhausted_cache_seeded" ;;
+            not_run) execution_status="not_run" ;;
+            *) execution_status="failed" ;;
+          esac
           cat > evidence/raiden-upstream/manifest.json <<EOF
           {
             "schema": "capu.raiden.upstream-baseline.v0",
@@ -98,8 +129,9 @@ jobs:
             "bazel_target": "${RAIDEN_BAZEL_TARGET}",
             "bazel_config": "oss",
             "bazel_exit_code": "${bazel_exit_code}",
+            "execution_status": "${execution_status}",
             "requested_device_mode": "JAX CPU",
-            "job_status": "${result}",
+            "build_cache": "bazel disk cache via GitHub Actions cache",
             "claim_scope": "Execution result for the pinned upstream Raiden JAX recovery E2E target on a GitHub-hosted CPU runner."
           }
           EOF
@@ -112,3 +144,12 @@ jobs:
           name: raiden-upstream-jax-cpu-baseline
           path: evidence/raiden-upstream/
           if-no-files-found: error
+
+      - name: Enforce upstream baseline result
+        if: always()
+        run: |
+          code="${RAIDEN_BAZEL_EXIT_CODE:-1}"
+          if [ "$code" -ne 0 ]; then
+            echo "Upstream baseline did not complete successfully (Bazel exit code: $code)."
+            exit "$code"
+          fi
