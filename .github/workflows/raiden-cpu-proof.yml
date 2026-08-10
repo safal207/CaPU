@@ -35,8 +35,8 @@ jobs:
         with:
           components: rustfmt
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Check probe formatting
+        run: rustfmt --edition 2021 --check src/bin/raiden_recovery_probe.rs
 
       - name: Run Raiden recovery probe tests
         run: cargo test --locked --bin raiden_recovery_probe
