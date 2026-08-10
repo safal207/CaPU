@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - ".github/workflows/raiden-upstream-cpu.yml"
+      - "tools/raiden_upstream_evidence.py"
       - "docs/hardware/RAIDEN_CAUSAL_CRASH_RECOVERY.md"
   pull_request:
     paths:
       - ".github/workflows/raiden-upstream-cpu.yml"
+      - "tools/raiden_upstream_evidence.py"
       - "docs/hardware/RAIDEN_CAUSAL_CRASH_RECOVERY.md"
   workflow_dispatch:
 
@@ -29,6 +31,9 @@ jobs:
     steps:
       - name: Checkout CaPU
         uses: actions/checkout@v4
+
+      - name: Self-test CaPU upstream evidence adapter
+        run: python3 tools/raiden_upstream_evidence.py --self-test
 
       - name: Install pinned Bazel
         run: |
@@ -55,19 +60,35 @@ jobs:
       - name: Run upstream JAX CPU recovery E2E
         working-directory: upstream-raiden
         run: |
-          set -o pipefail
           mkdir -p ../evidence/raiden-upstream
+          set +e
           bazel test --config=oss "$RAIDEN_BAZEL_TARGET" \
             --test_output=all \
             --test_env=JAX_PLATFORMS=cpu \
             --test_env=XLA_FLAGS=--xla_force_host_platform_device_count=1 \
             2>&1 | tee ../evidence/raiden-upstream/bazel-test.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "RAIDEN_BAZEL_EXIT_CODE=$code" >> "$GITHUB_ENV"
+          exit "$code"
+
+      - name: Seal upstream execution into CaPU proof
+        run: |
+          python3 tools/raiden_upstream_evidence.py \
+            --log evidence/raiden-upstream/bazel-test.log \
+            --source upstream-raiden/tpu_raiden/api/jax/kv_cache_store_recovery_e2e_test.py \
+            --upstream-sha "$RAIDEN_UPSTREAM_SHA" \
+            --bazel-version "$RAIDEN_BAZEL_VERSION" \
+            --bazel-target "$RAIDEN_BAZEL_TARGET" \
+            --bazel-exit-code "$RAIDEN_BAZEL_EXIT_CODE" \
+            --output evidence/raiden-upstream/capu-upstream-proof.json
 
       - name: Capture upstream baseline manifest
         if: always()
         run: |
           mkdir -p evidence/raiden-upstream
           result="${{ job.status }}"
+          bazel_exit_code="${RAIDEN_BAZEL_EXIT_CODE:-not_run}"
           cat > evidence/raiden-upstream/manifest.json <<EOF
           {
             "schema": "capu.raiden.upstream-baseline.v0",
@@ -76,12 +97,13 @@ jobs:
             "bazel_version": "${RAIDEN_BAZEL_VERSION}",
             "bazel_target": "${RAIDEN_BAZEL_TARGET}",
             "bazel_config": "oss",
+            "bazel_exit_code": "${bazel_exit_code}",
             "requested_device_mode": "JAX CPU",
             "job_status": "${result}",
             "claim_scope": "Execution result for the pinned upstream Raiden JAX recovery E2E target on a GitHub-hosted CPU runner."
           }
           EOF
-          sha256sum evidence/raiden-upstream/manifest.json evidence/raiden-upstream/bazel-test.log 2>/dev/null || true
+          sha256sum evidence/raiden-upstream/manifest.json evidence/raiden-upstream/bazel-test.log evidence/raiden-upstream/capu-upstream-proof.json 2>/dev/null || true
 
       - name: Upload upstream baseline evidence
         if: always()
