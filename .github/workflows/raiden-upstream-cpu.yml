@@ -58,6 +58,7 @@ jobs:
           set -o pipefail
           mkdir -p ../evidence/raiden-upstream
           bazel test "$RAIDEN_BAZEL_TARGET" \
+            --ignore_dev_dependency \
             --test_output=all \
             --test_env=JAX_PLATFORMS=cpu \
             --test_env=XLA_FLAGS=--xla_force_host_platform_device_count=1 \
@@ -75,6 +76,7 @@ jobs:
             "upstream_sha": "${RAIDEN_UPSTREAM_SHA}",
             "bazel_version": "${RAIDEN_BAZEL_VERSION}",
             "bazel_target": "${RAIDEN_BAZEL_TARGET}",
+            "bzlmod_mode": "ignore_root_dev_dependency",
             "requested_device_mode": "JAX CPU",
             "job_status": "${result}",
             "claim_scope": "Execution result for the pinned upstream Raiden JAX recovery E2E target on a GitHub-hosted CPU runner."
