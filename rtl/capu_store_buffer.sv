@@ -5,29 +5,25 @@ module capu_store_buffer #(
     input  logic                  clk,
     input  logic                  rst_n,
 
-    // Candidate STORE enters the speculative domain only when gate and
-    // execution checks already permit it to be buffered.
     input  logic                  issue_valid,
     input  logic                  gate_allow,
     input  logic                  execute_ok,
     input  logic [ADDR_WIDTH-1:0] store_addr,
     input  logic [DATA_WIDTH-1:0] store_data,
 
-    // Causal validation and commit are deliberately separated from issue.
-    // With one buffered entry there is no ambiguity about which transition
-    // causal_valid refers to.
+    // Validation belongs to the currently buffered single entry.
     input  logic                  causal_valid,
     input  logic                  commit_request,
 
-    // flush models interruption / squash / recovery before commit.
-    // It dominates commit: a flushed speculative STORE must never escape.
+    // Interruption / squash before retirement. Flush dominates commit.
     input  logic                  flush,
 
     output logic                  buffer_valid,
     output logic [ADDR_WIDTH-1:0] buffered_addr,
     output logic [DATA_WIDTH-1:0] buffered_data,
 
-    // This is the only externally visible memory-side-effect path in v0.1.
+    // The only externally visible memory-side-effect path in v0.1.
+    // It is a one-cycle registered retirement pulse carrying stable payload.
     output logic                  memory_write_enable,
     output logic [ADDR_WIDTH-1:0] memory_write_addr,
     output logic [DATA_WIDTH-1:0] memory_write_data,
@@ -47,55 +43,60 @@ module capu_store_buffer #(
 
     assign issue_rejected = issue_valid && (!gate_allow || !execute_ok || buffer_valid);
 
-    // Externally visible memory mutation has exactly one path.
-    assign memory_write_enable = commit_allowed;
-    assign memory_write_addr   = buffered_addr;
-    assign memory_write_data   = buffered_data;
-
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            buffer_valid  <= 1'b0;
-            buffered_addr <= '0;
-            buffered_data <= '0;
-        end else if (flush) begin
-            // Recovery/squash dominates commit and discards speculative state.
-            buffer_valid  <= 1'b0;
-            buffered_addr <= '0;
-            buffered_data <= '0;
-        end else if (commit_allowed) begin
-            // The memory write is visible combinationally for this commit
-            // decision; the speculative entry retires on the clock edge.
-            buffer_valid  <= 1'b0;
-            buffered_addr <= '0;
-            buffered_data <= '0;
-        end else if (issue_allowed && !buffer_valid) begin
-            buffer_valid  <= 1'b1;
-            buffered_addr <= store_addr;
-            buffered_data <= store_data;
+            buffer_valid        <= 1'b0;
+            buffered_addr       <= '0;
+            buffered_data       <= '0;
+            memory_write_enable <= 1'b0;
+            memory_write_addr   <= '0;
+            memory_write_data   <= '0;
+        end else begin
+            // Memory visibility is a retirement pulse, never a level inherited
+            // from speculative state.
+            memory_write_enable <= 1'b0;
+
+            if (flush) begin
+                // Recovery/squash dominates commit and discards speculation.
+                buffer_valid  <= 1'b0;
+                buffered_addr <= '0;
+                buffered_data <= '0;
+            end else if (commit_allowed) begin
+                // Exactly here speculative state becomes externally visible.
+                memory_write_enable <= 1'b1;
+                memory_write_addr   <= buffered_addr;
+                memory_write_data   <= buffered_data;
+
+                buffer_valid  <= 1'b0;
+                buffered_addr <= '0;
+                buffered_data <= '0;
+            end else if (issue_allowed && !buffer_valid) begin
+                // Issue only creates speculative state. It cannot write memory.
+                buffer_valid  <= 1'b1;
+                buffered_addr <= store_addr;
+                buffered_data <= store_data;
+            end
         end
     end
 
 `ifdef CAPU_ASSERTIONS
-    // INV-CAPU-STORE-001 — memory-visible write implies valid causal commit.
+    // These properties describe the retirement boundary. A formal harness can
+    // enable CAPU_ASSERTIONS with a tool that supports concurrent SVA.
+
+    // INV-CAPU-STORE-001 — a visible memory write must correspond to a valid
+    // causal commit decision in the immediately preceding sampling edge.
     property p_memory_write_requires_causal_commit;
         @(posedge clk) disable iff (!rst_n)
-            memory_write_enable |-> (buffer_valid && causal_valid && commit_request && !flush);
+            memory_write_enable |-> $past(buffer_valid && causal_valid && commit_request && !flush);
     endproperty
     assert property (p_memory_write_requires_causal_commit);
 
-    // INV-CAPU-STORE-002 — flush dominates all externally visible writes.
+    // INV-CAPU-STORE-002 — flush never creates a memory write pulse.
     property p_flush_blocks_memory_write;
         @(posedge clk) disable iff (!rst_n)
-            flush |-> !memory_write_enable;
+            flush |=> !memory_write_enable;
     endproperty
     assert property (p_flush_blocks_memory_write);
-
-    // INV-CAPU-STORE-003 — no buffered transition means no memory write.
-    property p_empty_buffer_cannot_write;
-        @(posedge clk) disable iff (!rst_n)
-            !buffer_valid |-> !memory_write_enable;
-    endproperty
-    assert property (p_empty_buffer_cannot_write);
 `endif
 
 endmodule
