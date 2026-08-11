@@ -121,6 +121,11 @@ module capu_vcml_store_buffer_formal;
                 assert(!buffer_valid);
             end
 
+            // FORMAL-CML-COVER-001: prove the authorization path is not vacuous.
+            // A valid CTAG-bearing causal commit must be reachable and produce
+            // both the external STORE pulse and the paired hardware vCML event.
+            cover(memory_write_enable && vcml_event_valid && ghost_ctag_valid);
+
             // Capture current authorization for observation at the next edge.
             // Flush is included explicitly, so recovery/squash dominates commit.
             ghost_commit <= buffer_valid
