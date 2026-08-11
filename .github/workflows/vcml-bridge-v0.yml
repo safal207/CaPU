@@ -7,6 +7,7 @@ on:
       - "rtl/capu_vcml_store_buffer.sv"
       - "rtl/tb/capu_vcml_store_buffer_tb.sv"
       - "formal/capu_vcml_store_buffer.sby"
+      - "formal/capu_vcml_store_buffer_cover.sby"
       - "formal/capu_vcml_store_buffer_formal.sv"
       - "tools/vcml_bridge.py"
       - "tests/test_vcml_bridge.py"
@@ -147,12 +148,26 @@ jobs:
           mkdir -p target/capu-vcml-formal
           python3 /tmp/sby/sbysrc/sby.py \
             -f \
-            -d target/capu-vcml-formal/work \
+            -d target/capu-vcml-formal/safety-work \
             formal/capu_vcml_store_buffer.sby \
             2>&1 | tee target/capu-vcml-formal/formal.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/formal.log
           if grep -q 'DONE (ERROR' target/capu-vcml-formal/formal.log; then
             echo 'SBY reported ERROR; refusing to seal vCML formal proof' >&2
+            exit 1
+          fi
+
+      - name: Prove authorized CTAG retirement is reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py \
+            -f \
+            -d target/capu-vcml-formal/cover-work \
+            formal/capu_vcml_store_buffer_cover.sby \
+            2>&1 | tee target/capu-vcml-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-vcml-formal/cover.log
+          if grep -q 'DONE (ERROR' target/capu-vcml-formal/cover.log; then
+            echo 'SBY reported ERROR; refusing to seal vCML non-vacuity evidence' >&2
             exit 1
           fi
 
@@ -166,14 +181,18 @@ jobs:
 
           root = Path('target/capu-vcml-formal')
           log_text = (root / 'formal.log').read_text(encoding='utf-8', errors='replace')
+          cover_text = (root / 'cover.log').read_text(encoding='utf-8', errors='replace')
           if 'DONE (PASS' not in log_text or 'DONE (ERROR' in log_text:
-              raise SystemExit('formal solver did not produce an authenticated PASS status')
+              raise SystemExit('formal safety solver did not produce an authenticated PASS status')
+          if 'DONE (PASS' not in cover_text or 'DONE (ERROR' in cover_text:
+              raise SystemExit('formal cover solver did not produce an authenticated PASS status')
 
           inputs = [
               Path('rtl/capu_store_buffer.sv'),
               Path('rtl/capu_vcml_store_buffer.sv'),
               Path('formal/capu_vcml_store_buffer_formal.sv'),
               Path('formal/capu_vcml_store_buffer.sby'),
+              Path('formal/capu_vcml_store_buffer_cover.sby'),
           ]
           h = hashlib.sha256()
           for path in inputs:
@@ -186,14 +205,16 @@ jobs:
               'schema': 'capu.hardware.vcml-formal-proof.v0',
               'design': 'CaPU Core v0.2 CTAG-aware one-entry STORE retirement bridge',
               'result': 'PASS',
-              'result_basis': 'SBY DONE (PASS) observed in formal.log',
-              'mode': 'bounded model checking',
+              'result_basis': 'SBY DONE (PASS) observed in both safety and non-vacuity cover logs',
+              'mode': 'bounded model checking + bounded reachability cover',
               'depth': 20,
               'depth_units': 'formal CPU sampling steps',
+              'cover_depth': 8,
               'engine': 'smtbmc',
               'solver': 'z3',
               'engine_options': ['--unroll', '--noincr'],
               'sby_timeout_seconds': 300,
+              'cover_timeout_seconds': 120,
               'formal_instance': {
                   'addr_width': 4,
                   'data_width': 8,
@@ -208,9 +229,11 @@ jobs:
                   'VISIBLE_WRITE => RETIRED_TRANSITION_ID == COMMITTED_TRANSITION_ID',
                   'VISIBLE_WRITE => RETIRED_PARENT_REF == COMMITTED_PARENT_REF',
               ],
-              'claim_boundary': 'This is a depth-20 bounded proof of the explicitly stated reduced-width formal instance. It is not a parametric proof of every width configuration or of the default 64-bit transition/parent references. CTAG validity is represented by buffered_ctag_valid; the proof does not infer semantic validity from CTAG bits and does not prove cryptographic lineage.',
+              'non_vacuity_cover': 'reachable VALID_CTAG causal commit => MEMORY_VISIBLE_WRITE && VCML_EVENT_VALID',
+              'claim_boundary': 'This is a depth-20 bounded safety proof plus depth-8 reachability evidence for the explicitly stated reduced-width formal instance. It is not a parametric proof of every width configuration or of the default 64-bit transition/parent references. CTAG validity is represented by buffered_ctag_valid; the proof does not infer semantic validity from CTAG bits and does not prove cryptographic lineage.',
               'formal_input_sha256': h.hexdigest(),
               'formal_log_sha256': hashlib.sha256(log_text.encode()).hexdigest(),
+              'cover_log_sha256': hashlib.sha256(cover_text.encode()).hexdigest(),
               'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
               'yosys_version': subprocess.check_output(['yosys', '-V'], text=True).strip(),
               'z3_version': subprocess.check_output(['z3', '--version'], text=True).strip(),
@@ -230,6 +253,8 @@ jobs:
           name: capu-vcml-v0-formal-evidence
           path: |
             target/capu-vcml-formal/formal.log
+            target/capu-vcml-formal/cover.log
             target/capu-vcml-formal/formal-proof.json
-            target/capu-vcml-formal/work/
+            target/capu-vcml-formal/safety-work/
+            target/capu-vcml-formal/cover-work/
           if-no-files-found: warn
