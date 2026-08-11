@@ -1,0 +1,110 @@
+name: CaPU vCML Bridge v0
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_store_buffer.sv"
+      - "rtl/capu_vcml_store_buffer.sv"
+      - "rtl/tb/capu_vcml_store_buffer_tb.sv"
+      - "tools/vcml_bridge.py"
+      - "tests/test_vcml_bridge.py"
+      - "docs/hardware/CAPU_VCML_BRIDGE_V0.md"
+      - ".github/workflows/vcml-bridge-v0.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rtl-and-semantic-bridge:
+    name: CTAG retirement and vCML projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+          iverilog -V | head -n 2
+
+      - name: Compile CTAG-aware STORE bridge
+        run: |
+          iverilog -g2012 \
+            -o /tmp/capu-vcml-bridge \
+            rtl/capu_store_buffer.sv \
+            rtl/capu_vcml_store_buffer.sv \
+            rtl/tb/capu_vcml_store_buffer_tb.sv
+
+      - name: Run RTL invariant smoke
+        run: |
+          set -o pipefail
+          vvp /tmp/capu-vcml-bridge | tee vcml-rtl.log
+          grep -F "CAPU_VCML_BRIDGE_V0_RTL_PASS" vcml-rtl.log
+
+      - name: Run semantic bridge tests
+        run: |
+          python3 -m py_compile tools/vcml_bridge.py
+          python3 tests/test_vcml_bridge.py | tee vcml-python.log
+
+      - name: Emit deterministic vCML-compatible record
+        run: |
+          cat > vcml-event.json <<'JSON'
+          {
+            "event": {
+              "address": 66,
+              "data": 3405643842,
+              "ctag": 16912,
+              "transition_id": 66,
+              "parent_ref": 17
+            },
+            "actor": {
+              "pid": 4242,
+              "uid": 1000,
+              "comm": "capu-ci"
+            },
+            "permitted_by": "capu:causal_commit",
+            "timestamp_ns": 123456789
+          }
+          JSON
+          python3 tools/vcml_bridge.py vcml-event.json > vcml-record.json
+          python3 - <<'PY'
+          import json
+          from tools.vcml_bridge import CausalStoreEvent, verify_integrity, verify_parent_projection
+
+          with open("vcml-event.json", encoding="utf-8") as f:
+              payload = json.load(f)
+          with open("vcml-record.json", encoding="utf-8") as f:
+              record = json.load(f)
+
+          event = CausalStoreEvent.from_mapping(payload["event"])
+          assert record["ctag"] == 0x4210
+          assert record["parent_cause"] == "capu-transition:0000000000000011"
+          assert verify_parent_projection(event, record)
+          assert verify_integrity(record)
+          print("CAPU_VCML_BRIDGE_V0_RECORD_PASS")
+          PY
+
+      - name: Capture evidence hashes
+        run: |
+          sha256sum \
+            rtl/capu_vcml_store_buffer.sv \
+            tools/vcml_bridge.py \
+            vcml-rtl.log \
+            vcml-record.json \
+            > vcml-evidence.sha256
+          cat vcml-evidence.sha256
+
+      - name: Upload bridge evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-bridge-v0-evidence
+          path: |
+            vcml-rtl.log
+            vcml-python.log
+            vcml-event.json
+            vcml-record.json
+            vcml-evidence.sha256
