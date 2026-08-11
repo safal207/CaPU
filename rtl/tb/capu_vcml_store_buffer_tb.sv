@@ -34,6 +34,7 @@ module capu_vcml_store_buffer_tb;
     logic [15:0] retired_ctag;
     logic [63:0] retired_transition_id;
     logic [63:0] retired_parent_ref;
+    logic ctag_semantic_accept;
     logic issue_rejected;
 
     capu_vcml_store_buffer dut (
@@ -65,6 +66,7 @@ module capu_vcml_store_buffer_tb;
         .retired_ctag(retired_ctag),
         .retired_transition_id(retired_transition_id),
         .retired_parent_ref(retired_parent_ref),
+        .ctag_semantic_accept(ctag_semantic_accept),
         .issue_rejected(issue_rejected)
     );
 
@@ -94,6 +96,27 @@ module capu_vcml_store_buffer_tb;
         end
     endtask
 
+    task automatic try_rejected_ctag(input logic [15:0] tag, input string label);
+        begin
+            clear_inputs();
+            issue_valid = 1'b1;
+            gate_allow = 1'b1;
+            execute_ok = 1'b1;
+            store_addr = 16'h0010;
+            store_data = 32'hAAAA_0010;
+            store_ctag = tag;
+            store_ctag_valid = 1'b1;
+            store_transition_id = 64'h10;
+            store_parent_ref = 64'h01;
+            #1;
+            if (ctag_semantic_accept)
+                $fatal(1, "%s: invalid CTAG was semantically accepted", label);
+            step();
+            if (!issue_rejected || buffer_valid || memory_write_enable || vcml_event_valid)
+                $fatal(1, "%s: invalid CTAG did not fail closed", label);
+        end
+    endtask
+
     initial begin
         clear_inputs();
         repeat (2) @(posedge clk);
@@ -104,23 +127,33 @@ module capu_vcml_store_buffer_tb;
             $fatal(1, "reset did not produce empty/no-effect state");
         $display("TRACE CAPU-VCML S0 reset buffer=0 memory_write=0 event=0");
 
-        // Invalid/missing CTAG metadata fails closed before speculation.
+        // Missing metadata fails closed before local CTAG semantics are trusted.
         issue_valid = 1'b1;
         gate_allow = 1'b1;
         execute_ok = 1'b1;
         store_addr = 16'h0010;
         store_data = 32'hAAAA_0010;
-        store_ctag = 16'h4210;
+        store_ctag = 16'h4210; // USER / WRITE / GEN=1
         store_ctag_valid = 1'b0;
         store_transition_id = 64'h10;
         store_parent_ref = 64'h01;
+        #1;
+        if (ctag_semantic_accept)
+            $fatal(1, "missing CTAG metadata was accepted");
         step();
-
         if (!issue_rejected || buffer_valid || memory_write_enable || vcml_event_valid)
-            $fatal(1, "invalid CTAG metadata did not fail closed");
-        $display("TRACE CAPU-VCML S1 invalid_ctag rejected=1 memory_write=0");
+            $fatal(1, "missing CTAG metadata did not fail closed");
+        $display("TRACE CAPU-VCML S1 missing_metadata rejected=1 memory_write=0");
 
-        // Canonical-shape CTAG example: DOM=USER(4), CLASS=WRITE(2), GEN=1.
+        // v0.3 local semantic rejection cases.
+        try_rejected_ctag(16'hF210, "reserved DOM"); // RESERVED / WRITE
+        $display("TRACE CAPU-VCML S2 reserved_dom rejected=1");
+        try_rejected_ctag(16'h4010, "CLASS NONE");   // USER / NONE
+        $display("TRACE CAPU-VCML S3 class_none rejected=1");
+        try_rejected_ctag(16'h4110, "non-WRITE class"); // USER / READ
+        $display("TRACE CAPU-VCML S4 non_write rejected=1");
+
+        // Canonical normal STORE: DOM=USER(4), CLASS=WRITE(2), GEN=1.
         clear_inputs();
         issue_valid = 1'b1;
         gate_allow = 1'b1;
@@ -131,6 +164,9 @@ module capu_vcml_store_buffer_tb;
         store_ctag_valid = 1'b1;
         store_transition_id = 64'h42;
         store_parent_ref = 64'h11;
+        #1;
+        if (!ctag_semantic_accept)
+            $fatal(1, "canonical WRITE CTAG was rejected");
         step();
 
         if (!buffer_valid || !buffered_ctag_valid)
@@ -141,23 +177,21 @@ module capu_vcml_store_buffer_tb;
             $fatal(1, "causal metadata was not buffered exactly");
         if (memory_write_enable || vcml_event_valid)
             $fatal(1, "speculative issue became externally visible");
-        $display("TRACE CAPU-VCML S2 speculative ctag=4210 transition=42 parent=11");
+        $display("TRACE CAPU-VCML S5 speculative ctag=4210 transition=42 parent=11");
 
         // Commit request alone remains insufficient without causal validation.
         clear_inputs();
         commit_request = 1'b1;
         causal_valid = 1'b0;
         step();
-
         if (!buffer_valid || memory_write_enable || vcml_event_valid)
             $fatal(1, "causal-invalid STORE retired");
-        $display("TRACE CAPU-VCML S3 causal_invalid memory_write=0 event=0");
+        $display("TRACE CAPU-VCML S6 causal_invalid memory_write=0 event=0");
 
         // A valid causal commit retires the STORE and emits the same metadata.
         causal_valid = 1'b1;
         commit_request = 1'b1;
         step();
-
         if (!memory_write_enable || !vcml_event_valid)
             $fatal(1, "valid causal commit produced no bridge event");
         if (memory_write_addr !== 16'h0042 || memory_write_data !== 32'hCAFE_0042)
@@ -168,7 +202,7 @@ module capu_vcml_store_buffer_tb;
             $fatal(1, "retired causal metadata mismatch");
         if (buffer_valid)
             $fatal(1, "retired STORE remained speculative");
-        $display("TRACE CAPU-VCML S4 committed ctag=4210 transition=42 parent=11 memory_write=1 event=1");
+        $display("TRACE CAPU-VCML S7 committed ctag=4210 transition=42 parent=11 memory_write=1 event=1");
 
         // Event/write pulse is exactly one cycle.
         clear_inputs();
@@ -176,20 +210,25 @@ module capu_vcml_store_buffer_tb;
         if (memory_write_enable || vcml_event_valid)
             $fatal(1, "retirement event was not a one-cycle pulse");
 
-        // Flush destroys speculative metadata and cannot emit an event.
+        // SEAL=1 controls continuation semantics but does not reject the current
+        // valid WRITE at this boundary. The bit must be preserved exactly.
         issue_valid = 1'b1;
         gate_allow = 1'b1;
         execute_ok = 1'b1;
         store_addr = 16'h0055;
         store_data = 32'hBEEF_0055;
-        store_ctag = 16'h4220;
+        store_ctag = 16'h4211; // same valid WRITE, SEAL=1
         store_ctag_valid = 1'b1;
         store_transition_id = 64'h55;
         store_parent_ref = 64'h42;
+        #1;
+        if (!ctag_semantic_accept)
+            $fatal(1, "SEALed valid WRITE CTAG was incorrectly rejected");
         step();
-        if (!buffer_valid)
-            $fatal(1, "flush test STORE did not buffer");
+        if (!buffer_valid || buffered_ctag !== 16'h4211)
+            $fatal(1, "SEALed CTAG was not preserved in speculation");
 
+        // Flush destroys speculative metadata and cannot emit an event.
         clear_inputs();
         flush = 1'b1;
         causal_valid = 1'b1;
@@ -197,9 +236,9 @@ module capu_vcml_store_buffer_tb;
         step();
         if (buffer_valid || buffered_ctag_valid || memory_write_enable || vcml_event_valid)
             $fatal(1, "flush did not discard causal STORE metadata fail-closed");
-        $display("TRACE CAPU-VCML S5 flushed memory_write=0 event=0");
+        $display("TRACE CAPU-VCML S8 sealed_then_flushed memory_write=0 event=0");
 
-        $display("CAPU_VCML_BRIDGE_V0_RTL_PASS");
+        $display("CAPU_VCML_BRIDGE_V03_RTL_PASS");
         $finish;
     end
 endmodule
