@@ -1,8 +1,8 @@
 # CaPU ↔ vCML Bridge v0
 
-Status: experimental semantic/hardware bridge. Current hardware step: **CaPU Core v0.3 local CTAG semantic validation**.
+Status: experimental semantic/hardware bridge. Current hardware step: **CaPU Core v0.4 stateful SEAL continuation control**.
 
-This layer connects the CaPU causal STORE retirement boundary to the Causal Memory Layer (CML) / vCML semantic model without embedding a full causal journal in RTL.
+This layer connects the CaPU causal STORE retirement boundary to CML/vCML without embedding a full causal journal in RTL.
 
 ## Source semantics
 
@@ -10,13 +10,7 @@ The bridge follows the vCML / CTAG semantics from `safal207/Causal-Memory-Layer`
 
 `1635804f127b7840dca0cd2679c0f001552b7b10`
 
-Relevant upstream definitions:
-
-- `vcml/FORMAT.md` — causal record semantics
-- `vcml/CTAG.md` — canonical 16-bit CTAG layout
-- `cml/ctag.py` — reference CTAG implementation
-
-CTAG layout:
+Canonical CTAG layout:
 
 ```text
 b15..b12  DOM    4 bits
@@ -26,11 +20,11 @@ b3..b1    LHINT  3 bits
 b0        SEAL   1 bit
 ```
 
-CTAG is a compact semantic marker. It is not cryptography, a signature, or proof of parent identity. In particular, the 3-bit `LHINT` MUST NOT be treated as a unique lineage identifier.
+CTAG is compact causal metadata, not cryptography. `LHINT` is not parent identity, and `SEAL` is not a signature or proof of authorization.
 
 ## Architectural split
 
-CaPU hardware carries only a compact causal projection with a speculative STORE:
+CaPU carries a compact projection with each speculative STORE:
 
 ```text
 address
@@ -38,32 +32,14 @@ data
 ctag             : 16 bits
 transition_id    : implementation-width reference
 parent_ref       : implementation-width reference
+explicit_new_cause : 1 bit admission intent
 ```
 
-The full vCML-style causal record is emitted in software after retirement:
+The full vCML-style record remains a software projection after retirement. Exact lineage continues to use `transition_id` / `parent_ref`; the 3-bit `LHINT` is only a hint.
 
-```text
-actor
-action
-object
-permitted_by
-parent_cause
-timestamp
-ctag
-integrity
-```
+## v0.3 local CTAG validation retained
 
-This preserves the separation of responsibilities:
-
-- **CaPU** controls when an effect may become externally visible.
-- **CTAG validator** checks only narrow, local STORE semantics before speculative admission.
-- **CMC metadata** carries causal identity across the retirement boundary.
-- **vCML bridge** expands the retired hardware event into an append-only causal record.
-- **CML/vCML audit** reasons about richer causal coherence after the fact.
-
-## v0.3 local CTAG validator
-
-`capu_ctag_validator` is combinational and intentionally small. In the normal strict STORE configuration it accepts a CTAG only when:
+Strict STORE admission still requires:
 
 ```text
 metadata_valid
@@ -71,21 +47,51 @@ metadata_valid
 && CLASS == WRITE(2)
 ```
 
-`CLASS=NONE(0)` is therefore rejected, as are READ/EXEC/other non-WRITE classes on the normal STORE path. `REQUIRE_WRITE_CLASS` is an explicit module parameter for experiments that use a different boundary; strict STORE mode is the default.
+`GEN` remains an opaque 4-bit epoch at this layer. `LHINT` is not recomputed. A valid `SEAL=1` CTAG may commit the current WRITE; v0.4 gives that bit stateful meaning only for later continuation.
 
-The validator does **not** pretend to verify semantics that cannot be established from one local 16-bit value:
+## v0.4 stateful SEAL controller
 
-- `GEN` is carried as an opaque 4-bit epoch; v0.3 does not prove epoch history.
-- `LHINT` is carried as an opaque 3-bit lineage hint; v0.3 does not recompute it or use it as parent identity.
-- `SEAL=1` does not reject the current valid WRITE. It is continuation-control metadata: downstream logic must not interpret a sealed record as permission to auto-continue a causal chain.
+`capu_seal_controller` adds one architectural continuation-control state bit:
 
-`store_ctag_valid` remains the upstream metadata-present/accepted signal. Local semantic acceptance is the conjunction of that signal and the validator rules above.
+```text
+sealed_chain
+```
+
+A normal committed transition with `CTAG.SEAL=1` sets `sealed_chain=1`. While that state is active, an ordinary child/continuation cannot enter the speculative STORE buffer.
+
+```text
+sealed_chain && !explicit_new_cause
+    => NO_AUTOMATIC_CHILD_ADMISSION
+```
+
+A caller may request an explicit new cause/root boundary with `explicit_new_cause=1`. This permits the candidate to enter speculation even while the previous chain is sealed, but **does not clear the committed seal at admission time**.
+
+This distinction is intentional. A speculative new cause may be flushed. Clearing `sealed_chain` merely because such a candidate was issued would allow a flushed candidate to reopen a previously committed sealed chain.
+
+Therefore the state changes only at retirement:
+
+```text
+committed normal STORE, SEAL=0
+    => existing open/sealed state is not weakened
+
+committed normal STORE, SEAL=1
+    => sealed_chain = 1
+
+committed explicit new cause, SEAL=0
+    => sealed_chain = 0   // fresh open chain
+
+committed explicit new cause, SEAL=1
+    => sealed_chain = 1   // fresh chain immediately sealed
+
+flushed explicit new cause
+    => previous committed sealed_chain remains unchanged
+```
+
+Reset clears the experimental `sealed_chain` latch in v0.4. This is not persistent causal state across reset/power loss.
 
 ## STORE admission and retirement
 
-`capu_vcml_store_buffer` wraps the existing one-entry `capu_store_buffer`.
-
-A STORE may enter the speculative buffer only when:
+A STORE may enter speculation only when:
 
 ```text
 issue_valid
@@ -93,70 +99,53 @@ issue_valid
 && execute_ok
 && CTAG_SEMANTIC_ACCEPT
 && !buffer_valid
+&& (!sealed_chain || explicit_new_cause)
 ```
 
-A memory-visible write may retire only when the existing causal commit condition succeeds for an entry that was admitted with validator-accepted CTAG metadata.
+A memory-visible write still requires the existing causal commit boundary over accepted metadata.
 
-### INV-CML-001
-
-```text
-MEMORY_VISIBLE_WRITE
-    => VALID_CAUSAL_COMMIT
-    && VALIDATOR_ACCEPTED_CTAG
-```
-
-### INV-CML-002
-
-```text
-BUFFERED_CTAG_VALID
-    => CTAG.DOM != RESERVED
-    && CTAG.CLASS == WRITE
-```
-
-### INV-CML-003
-
-For every emitted hardware vCML bridge event, the exact metadata is bound to the same retirement:
-
-```text
-retired.ctag          == committed.ctag
-retired.transition_id == committed.transition_id
-retired.parent_ref    == committed.parent_ref
-```
-
-The software bridge maps `parent_ref` deterministically to:
-
-```text
-parent_cause = capu-transition:<parent_ref>
-```
-
-except `parent_ref == 0`, which is represented as `parent_cause = null` and must be justified by the software caller as an explicit root/gap case.
-
-## Formal verification envelope
-
-The formal harness uses a global formal processor sampling clock and a ghost commit witness to bind a visible STORE to the exact speculative entry authorized at the preceding sampling edge.
-
-The safety task explores arbitrary bounded environment inputs for 20 formal CPU sampling steps and checks:
+Primary invariants:
 
 ```text
 MEMORY_VISIBLE_WRITE
     => VALID_CAUSAL_COMMIT
     && VALIDATOR_ACCEPTED_CTAG
 
-BUFFERED_CTAG_VALID
-    => CTAG.DOM != RESERVED
-    && CTAG.CLASS == WRITE
+SEALED_CHAIN && !EXPLICIT_NEW_CAUSE
+    => NO_AUTOMATIC_CHILD_ADMISSION
 
-VCML_EVENT_VALID == MEMORY_VISIBLE_WRITE
+FLUSHED_EXPLICIT_NEW_CAUSE
+    => PREVIOUS_COMMITTED_SEAL_REMAINS
 
 VISIBLE_WRITE
     => RETIRED_CTAG == COMMITTED_CTAG
     && RETIRED_TRANSITION_ID == COMMITTED_TRANSITION_ID
     && RETIRED_PARENT_REF == COMMITTED_PARENT_REF
+
+VCML_EVENT_VALID == MEMORY_VISIBLE_WRITE
 ```
 
-A separate depth-8 cover task must find a reachable trajectory in which a validator-accepted WRITE CTAG participates in a causal commit that produces both `memory_write_enable` and `vcml_event_valid`. This prevents a safety PASS from being accepted merely because retirement is unreachable.
+The software bridge continues to map non-zero `parent_ref` deterministically to `parent_cause = capu-transition:<parent_ref>`; zero remains `null` and is not automatically declared a valid root by hardware.
 
-The current formal instance is intentionally reduced for solver tractability while retaining the canonical CTAG width:
+## Executable verification
+
+The deterministic RTL trajectory covers:
+
+- invalid CTAG rejection;
+- unsealed commit followed by ordinary continuation;
+- sealed commit followed by blocked automatic child;
+- explicit new-cause speculation under an active seal;
+- flush of that speculative new cause preserving the old committed seal;
+- committed explicit new cause with `SEAL=0` opening a fresh chain;
+- ordinary continuation on the fresh chain.
+
+Marker: `CAPU_VCML_BRIDGE_V04_RTL_PASS`.
+
+## Formal verification envelope
+
+The v0.4 safety task explores arbitrary bounded inputs for **24 formal CPU sampling steps**. A separate cover task explores **12 steps**.
+
+The current reduced-width instance is:
 
 ```text
 ADDR_WIDTH          = 4
@@ -167,22 +156,21 @@ PARENT_REF_WIDTH    = 8
 REQUIRE_WRITE_CLASS = true
 ```
 
-Therefore the formal result is evidence for this explicit finite-width instance. It is not a parametric proof for every width configuration and does not by itself prove the default 64-bit transition/parent reference configuration.
+The safety proof checks the STORE/CTAG metadata binding plus the sealed-chain admission rule. The reachability task separately covers both an ordinary continuation after an unsealed commit and an explicit new-cause admission while a prior committed seal remains active.
 
-The CI is fail-closed: a proof artifact is sealed only after the safety run reports `DONE (PASS)` and the non-vacuity cover run also reports `DONE (PASS)`. Solver logs and formal inputs are SHA-256 sealed into the evidence artifact.
+CI is fail-closed: formal evidence is sealed only after literal `DONE (PASS)` for both safety and cover and no `DONE (ERROR)`.
 
-## Non-goals
+## Non-goals / claim boundary
 
-v0.3 does **not** claim:
+v0.4 does **not** claim:
 
-- that CTAG proves lineage identity;
-- that a 16-bit CTAG is cryptographic evidence;
-- that hardware verifies `LHINT` against `parent_ref`;
-- that hardware proves `GEN` history or epoch correctness;
-- that `SEAL` is a signature or authorization proof;
-- that hardware generates a complete vCML journal;
-- persistent causal memory across reset/power loss;
-- a complete CPU, ISA, cache-coherence, or persistent-memory model;
-- a parametric proof covering every configured field width.
+- cryptographic lineage or authorization;
+- `LHINT` identity verification;
+- validated `GEN` history;
+- that `explicit_new_cause` itself is authenticated by hardware;
+- a proof that `parent_ref == 0` is semantically a legitimate root;
+- persistent `sealed_chain` across reset/power loss;
+- a complete CPU/ISA/cache/coherence model;
+- a parametric proof across all configured widths.
 
-The narrow v0.3 claim is that CaPU can reject a small class of locally invalid STORE CTAGs before speculation, carry accepted causal metadata through retirement, and expose a deterministic event for the richer software vCML/CML layer.
+The narrow v0.4 result is: CaPU now keeps minimal state about whether a committed causal chain is sealed, blocks implicit continuation from that state, and requires an explicit new-cause boundary to begin another speculative chain while preserving the prior seal until the replacement cause actually commits.
