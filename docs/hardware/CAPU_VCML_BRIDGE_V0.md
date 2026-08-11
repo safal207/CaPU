@@ -103,6 +103,41 @@ parent_cause = capu-transition:<parent_ref>
 
 except `parent_ref == 0`, which is represented as `parent_cause = null` and must be justified by the software caller as an explicit root/gap case.
 
+## Formal verification envelope
+
+The formal harness uses the formal global clock directly as the processor sampling clock and a ghost commit witness to bind a visible STORE to the exact speculative entry authorized at the preceding sampling edge.
+
+The safety task checks arbitrary environment inputs for 20 formal CPU sampling steps and requires:
+
+```text
+MEMORY_VISIBLE_WRITE
+    => VALID_CAUSAL_COMMIT
+    && VALID_CTAG_METADATA
+
+VCML_EVENT_VALID == MEMORY_VISIBLE_WRITE
+
+VISIBLE_WRITE
+    => RETIRED_CTAG == COMMITTED_CTAG
+    && RETIRED_TRANSITION_ID == COMMITTED_TRANSITION_ID
+    && RETIRED_PARENT_REF == COMMITTED_PARENT_REF
+```
+
+A separate cover task must also find a reachable trajectory in which a valid CTAG-bearing causal commit produces both `memory_write_enable` and `vcml_event_valid`. This prevents a safety result from being accepted solely because retirement is unreachable.
+
+The current formal instance is intentionally reduced for solver tractability while retaining the canonical CTAG width:
+
+```text
+ADDR_WIDTH          = 4
+DATA_WIDTH          = 8
+CTAG_WIDTH          = 16
+TRANSITION_ID_WIDTH = 8
+PARENT_REF_WIDTH    = 8
+```
+
+Therefore the formal result is evidence for this explicit finite-width instance. It is not a parametric proof for every width configuration and does not by itself prove the default 64-bit transition/parent reference configuration.
+
+The CI is fail-closed: a proof artifact is sealed only after the safety run reports `DONE (PASS)` and the non-vacuity cover run also reports `DONE (PASS)`. Solver logs and formal inputs are SHA-256 sealed into the evidence artifact.
+
 ## Non-goals
 
 v0 does **not** claim:
@@ -112,6 +147,7 @@ v0 does **not** claim:
 - that hardware generates a complete vCML journal;
 - persistent causal memory across reset/power loss;
 - a complete CPU, ISA, cache-coherence, or persistent-memory model;
-- equivalence between `LHINT` and `parent_cause`.
+- equivalence between `LHINT` and `parent_cause`;
+- a parametric proof covering every configured field width.
 
 The narrow claim is that CaPU can carry a compact, CML-compatible causal projection through speculative STORE retirement and emit enough deterministic metadata for software to construct a vCML-style causal record.
