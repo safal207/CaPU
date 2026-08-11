@@ -4,17 +4,15 @@ module capu_vcml_store_buffer_formal;
     localparam int TRANSITION_ID_WIDTH = 8;
     localparam int PARENT_REF_WIDTH = 8;
 
-    // The formal global clock is the processor clock for this harness.
-    // This avoids a derived multiclock state space while preserving the ghost
-    // witness discipline used by the verified v0.1 STORE proof.
+    localparam logic [3:0] DOM_RESERVED = 4'hF;
+    localparam logic [3:0] CLASS_WRITE  = 4'h2;
+
     (* gclk *) reg clk;
 
-    // First formal CPU edge is reset; all following edges exercise the DUT.
     reg rst_n = 1'b0;
     always @(posedge clk)
         rst_n <= 1'b1;
 
-    // Arbitrary bounded environment sampled at each processor edge.
     (* anyseq *) reg                           issue_valid;
     (* anyseq *) reg                           gate_allow;
     (* anyseq *) reg                           execute_ok;
@@ -42,13 +40,15 @@ module capu_vcml_store_buffer_formal;
     wire [15:0]                    retired_ctag;
     wire [TRANSITION_ID_WIDTH-1:0] retired_transition_id;
     wire [PARENT_REF_WIDTH-1:0]    retired_parent_ref;
+    wire                           ctag_semantic_accept;
     wire                           issue_rejected;
 
     capu_vcml_store_buffer #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH),
         .TRANSITION_ID_WIDTH(TRANSITION_ID_WIDTH),
-        .PARENT_REF_WIDTH(PARENT_REF_WIDTH)
+        .PARENT_REF_WIDTH(PARENT_REF_WIDTH),
+        .REQUIRE_WRITE_CLASS(1'b1)
     ) dut (
         .clk(clk),
         .rst_n(rst_n),
@@ -78,11 +78,10 @@ module capu_vcml_store_buffer_formal;
         .retired_ctag(retired_ctag),
         .retired_transition_id(retired_transition_id),
         .retired_parent_ref(retired_parent_ref),
+        .ctag_semantic_accept(ctag_semantic_accept),
         .issue_rejected(issue_rejected)
     );
 
-    // Ghost witness for the exact STORE + causal metadata authorized at the
-    // prior processor edge. It is independent of $past/multiclock semantics.
     reg                           ghost_commit = 1'b0;
     reg [ADDR_WIDTH-1:0]          ghost_addr = '0;
     reg [DATA_WIDTH-1:0]          ghost_data = '0;
@@ -101,18 +100,26 @@ module capu_vcml_store_buffer_formal;
             ghost_transition_id <= '0;
             ghost_parent_ref    <= '0;
         end else begin
-            // FORMAL-CML-001: a visible write exists iff the previous sampled
-            // state authorized a causal commit over accepted CTAG metadata.
+            // FORMAL-CML-001: visible memory effect is exactly the previous
+            // authorized causal retirement decision.
             assert(memory_write_enable == ghost_commit);
 
-            // FORMAL-CML-002: hardware vCML event and memory visibility are one
-            // retirement boundary.
+            // FORMAL-CML-002: vCML event and memory visibility are one boundary.
             assert(vcml_event_valid == memory_write_enable);
 
-            // FORMAL-CML-003/004: the visible side effect and causal event carry
-            // the exact payload and metadata of the committed speculative entry.
+            // FORMAL-CML-003: anything admitted as accepted CTAG metadata in
+            // strict STORE mode must be a non-RESERVED WRITE-class CTAG.
+            if (buffered_ctag_valid) begin
+                assert(buffered_ctag[15:12] != DOM_RESERVED);
+                assert(buffered_ctag[11:8] == CLASS_WRITE);
+            end
+
+            // FORMAL-CML-004..008: the visible side effect carries the exact
+            // validator-accepted causal metadata of the committed entry.
             if (memory_write_enable) begin
                 assert(ghost_ctag_valid);
+                assert(ghost_ctag[15:12] != DOM_RESERVED);
+                assert(ghost_ctag[11:8] == CLASS_WRITE);
                 assert(memory_write_addr == ghost_addr);
                 assert(memory_write_data == ghost_data);
                 assert(retired_ctag == ghost_ctag);
@@ -121,13 +128,14 @@ module capu_vcml_store_buffer_formal;
                 assert(!buffer_valid);
             end
 
-            // FORMAL-CML-COVER-001: prove the authorization path is not vacuous.
-            // A valid CTAG-bearing causal commit must be reachable and produce
-            // both the external STORE pulse and the paired hardware vCML event.
-            cover(memory_write_enable && vcml_event_valid && ghost_ctag_valid);
+            // Non-vacuity: a semantically accepted WRITE-tagged causal commit
+            // must be reachable and produce both the STORE pulse and vCML event.
+            cover(memory_write_enable
+                  && vcml_event_valid
+                  && ghost_ctag_valid
+                  && ghost_ctag[15:12] != DOM_RESERVED
+                  && ghost_ctag[11:8] == CLASS_WRITE);
 
-            // Capture current authorization for observation at the next edge.
-            // Flush is included explicitly, so recovery/squash dominates commit.
             ghost_commit <= buffer_valid
                          && causal_valid
                          && buffered_ctag_valid
