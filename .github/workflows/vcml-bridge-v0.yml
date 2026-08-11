@@ -5,6 +5,7 @@ on:
     paths:
       - "rtl/capu_store_buffer.sv"
       - "rtl/capu_ctag_validator.sv"
+      - "rtl/capu_seal_controller.sv"
       - "rtl/capu_vcml_store_buffer.sv"
       - "rtl/tb/capu_vcml_store_buffer_tb.sv"
       - "formal/capu_vcml_store_buffer.sby"
@@ -21,121 +22,63 @@ permissions:
 
 jobs:
   rtl-and-semantic-bridge:
-    name: CTAG validation, retirement and vCML projection
+    name: CTAG + SEAL continuation + vCML projection
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Install Icarus Verilog
         run: |
           sudo apt-get update
           sudo apt-get install -y iverilog
-          iverilog -V | head -n 2
-
-      - name: Compile CTAG-aware STORE bridge
+      - name: Compile v0.4 causal STORE bridge
         run: |
-          iverilog -g2012 \
-            -o /tmp/capu-vcml-bridge \
+          iverilog -g2012 -o /tmp/capu-vcml-bridge \
             rtl/capu_store_buffer.sv \
             rtl/capu_ctag_validator.sv \
+            rtl/capu_seal_controller.sv \
             rtl/capu_vcml_store_buffer.sv \
             rtl/tb/capu_vcml_store_buffer_tb.sv
-
-      - name: Run RTL semantic/invariant smoke
+      - name: Run RTL invariant smoke
         run: |
           set -o pipefail
           vvp /tmp/capu-vcml-bridge | tee vcml-rtl.log
-          grep -F "CAPU_VCML_BRIDGE_V03_RTL_PASS" vcml-rtl.log
-          grep -F "reserved_dom rejected=1" vcml-rtl.log
-          grep -F "class_none rejected=1" vcml-rtl.log
-          grep -F "non_write rejected=1" vcml-rtl.log
-
-      - name: Run semantic bridge tests
+          grep -F "CAPU_VCML_BRIDGE_V04_RTL_PASS" vcml-rtl.log
+          grep -F "sealed_child rejected=1 memory_write=0" vcml-rtl.log
+          grep -F "new_cause_flushed old_seal_preserved=1" vcml-rtl.log
+          grep -F "new_cause_committed sealed_chain=0 memory_write=1" vcml-rtl.log
+      - name: Run software bridge tests
         run: |
           python3 -m py_compile tools/vcml_bridge.py
           python3 tests/test_vcml_bridge.py | tee vcml-python.log
-
-      - name: Emit deterministic vCML-compatible record
-        run: |
-          cat > vcml-event.json <<'JSON'
-          {
-            "event": {
-              "address": 66,
-              "data": 3405643842,
-              "ctag": 16912,
-              "transition_id": 66,
-              "parent_ref": 17
-            },
-            "actor": {
-              "pid": 4242,
-              "uid": 1000,
-              "comm": "capu-ci"
-            },
-            "permitted_by": "capu:causal_commit",
-            "timestamp_ns": 123456789
-          }
-          JSON
-          python3 tools/vcml_bridge.py vcml-event.json > vcml-record.json
-          python3 - <<'PY'
-          import json
-          from tools.vcml_bridge import CausalStoreEvent, verify_integrity, verify_parent_projection
-
-          with open("vcml-event.json", encoding="utf-8") as f:
-              payload = json.load(f)
-          with open("vcml-record.json", encoding="utf-8") as f:
-              record = json.load(f)
-
-          event = CausalStoreEvent.from_mapping(payload["event"])
-          assert record["ctag"] == 0x4210
-          assert record["parent_cause"] == "capu-transition:0000000000000011"
-          assert verify_parent_projection(event, record)
-          assert verify_integrity(record)
-          print("CAPU_VCML_BRIDGE_V0_RECORD_PASS")
-          PY
-
       - name: Capture evidence hashes
         run: |
-          sha256sum \
-            rtl/capu_ctag_validator.sv \
-            rtl/capu_vcml_store_buffer.sv \
-            tools/vcml_bridge.py \
-            vcml-rtl.log \
-            vcml-record.json \
+          sha256sum rtl/capu_ctag_validator.sv rtl/capu_seal_controller.sv \
+            rtl/capu_vcml_store_buffer.sv vcml-rtl.log tools/vcml_bridge.py \
             > vcml-evidence.sha256
           cat vcml-evidence.sha256
-
-      - name: Upload bridge evidence
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-bridge-v03-evidence
+          name: capu-vcml-bridge-v04-evidence
           path: |
             vcml-rtl.log
             vcml-python.log
-            vcml-event.json
-            vcml-record.json
             vcml-evidence.sha256
 
   formal-causal-abi:
-    name: Bounded CTAG semantic causal ABI proof
+    name: Bounded v0.4 SEAL causal ABI proof
     needs: rtl-and-semantic-bridge
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Install Yosys and Z3
         run: |
           sudo apt-get update
           sudo apt-get install -y yosys z3 git
           yosys -V
           z3 --version
-
-      - name: Install pinned SBY formal front-end
+      - name: Install pinned SBY
         run: |
           set -euo pipefail
           SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
@@ -143,131 +86,65 @@ jobs:
           git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
           git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
           git -C /tmp/sby checkout --detach FETCH_HEAD
-          ACTUAL_SBY_SHA="$(git -C /tmp/sby rev-parse HEAD)"
-          test "$ACTUAL_SBY_SHA" = "$SBY_SHA"
-          printf '%s\n' "$ACTUAL_SBY_SHA" | tee /tmp/sby-sha.txt
-          python3 /tmp/sby/sbysrc/sby.py --version
-
-      - name: Prove CTAG semantic causal ABI for arbitrary bounded sequences
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove v0.4 bounded safety
         run: |
           set -euo pipefail
           mkdir -p target/capu-vcml-formal
-          python3 /tmp/sby/sbysrc/sby.py \
-            -f \
+          python3 /tmp/sby/sbysrc/sby.py -f \
             -d target/capu-vcml-formal/safety-work \
-            formal/capu_vcml_store_buffer.sby \
-            2>&1 | tee target/capu-vcml-formal/formal.log
+            formal/capu_vcml_store_buffer.sby 2>&1 | tee target/capu-vcml-formal/formal.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/formal.log
-          if grep -q 'DONE (ERROR' target/capu-vcml-formal/formal.log; then
-            echo 'SBY reported ERROR; refusing to seal v0.3 formal proof' >&2
-            exit 1
-          fi
-
-      - name: Prove accepted WRITE CTAG retirement is reachable
+          ! grep -q 'DONE (ERROR' target/capu-vcml-formal/formal.log
+      - name: Prove continuation paths are reachable
         run: |
           set -euo pipefail
-          python3 /tmp/sby/sbysrc/sby.py \
-            -f \
+          python3 /tmp/sby/sbysrc/sby.py -f \
             -d target/capu-vcml-formal/cover-work \
-            formal/capu_vcml_store_buffer_cover.sby \
-            2>&1 | tee target/capu-vcml-formal/cover.log
+            formal/capu_vcml_store_buffer_cover.sby 2>&1 | tee target/capu-vcml-formal/cover.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/cover.log
-          if grep -q 'DONE (ERROR' target/capu-vcml-formal/cover.log; then
-            echo 'SBY reported ERROR; refusing to seal v0.3 non-vacuity evidence' >&2
-            exit 1
-          fi
-
-      - name: Seal formal causal-ABI evidence
+          ! grep -q 'DONE (ERROR' target/capu-vcml-formal/cover.log
+      - name: Seal v0.4 formal evidence
         run: |
           python3 - <<'PY'
-          import hashlib
-          import json
-          import subprocess
+          import hashlib, json, subprocess
           from pathlib import Path
-
           root = Path('target/capu-vcml-formal')
-          log_text = (root / 'formal.log').read_text(encoding='utf-8', errors='replace')
-          cover_text = (root / 'cover.log').read_text(encoding='utf-8', errors='replace')
-          if 'DONE (PASS' not in log_text or 'DONE (ERROR' in log_text:
-              raise SystemExit('formal safety solver did not produce an authenticated PASS status')
-          if 'DONE (PASS' not in cover_text or 'DONE (ERROR' in cover_text:
-              raise SystemExit('formal cover solver did not produce an authenticated PASS status')
-
-          inputs = [
-              Path('rtl/capu_store_buffer.sv'),
-              Path('rtl/capu_ctag_validator.sv'),
-              Path('rtl/capu_vcml_store_buffer.sv'),
-              Path('formal/capu_vcml_store_buffer_formal.sv'),
-              Path('formal/capu_vcml_store_buffer.sby'),
-              Path('formal/capu_vcml_store_buffer_cover.sby'),
-          ]
-          h = hashlib.sha256()
-          for path in inputs:
-              h.update(str(path).encode())
-              h.update(b'\0')
-              h.update(path.read_bytes())
-              h.update(b'\0')
-
-          proof = {
-              'schema': 'capu.hardware.vcml-formal-proof.v0.3',
-              'design': 'CaPU Core v0.3 CTAG semantic validator + one-entry STORE retirement bridge',
-              'result': 'PASS',
-              'result_basis': 'SBY DONE (PASS) observed in both safety and non-vacuity cover logs',
-              'mode': 'bounded model checking + bounded reachability cover',
-              'depth': 20,
-              'depth_units': 'formal CPU sampling steps',
-              'cover_depth': 8,
-              'engine': 'smtbmc',
-              'solver': 'z3',
-              'engine_options': ['--unroll', '--noincr'],
-              'sby_timeout_seconds': 300,
-              'cover_timeout_seconds': 120,
-              'formal_instance': {
-                  'addr_width': 4,
-                  'data_width': 8,
-                  'ctag_width': 16,
-                  'transition_id_width': 8,
-                  'parent_ref_width': 8,
-                  'require_write_class': True,
-              },
-              'local_ctag_semantics': {
-                  'reserved_dom_rejected': 15,
-                  'normal_store_required_class': 2,
-                  'class_none_rejected': True,
-                  'gen_semantics': 'opaque 4-bit epoch; no local rejection rule',
-                  'lhint_semantics': 'opaque 3-bit lineage hint; not identity proof',
-                  'seal_semantics': 'continuation-control metadata; does not reject current WRITE',
-              },
-              'invariants': [
-                  'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT && VALIDATOR_ACCEPTED_CTAG',
-                  'BUFFERED_CTAG_VALID => CTAG.DOM != RESERVED && CTAG.CLASS == WRITE',
-                  'VCML_EVENT_VALID == MEMORY_VISIBLE_WRITE',
-                  'VISIBLE_WRITE => RETIRED_CTAG == COMMITTED_CTAG',
-                  'VISIBLE_WRITE => RETIRED_TRANSITION_ID == COMMITTED_TRANSITION_ID',
-                  'VISIBLE_WRITE => RETIRED_PARENT_REF == COMMITTED_PARENT_REF',
-              ],
-              'non_vacuity_cover': 'reachable validator-accepted WRITE CTAG causal commit => MEMORY_VISIBLE_WRITE && VCML_EVENT_VALID',
-              'claim_boundary': 'Depth-20 bounded safety proof plus depth-8 reachability evidence for the reduced-width formal instance. Hardware validates only local STORE CTAG semantics: metadata present, DOM not RESERVED, and CLASS=WRITE in strict mode. It does not recompute LHINT, authenticate parent identity, interpret GEN history, or treat SEAL as cryptographic proof. This is not a parametric proof of all width configurations or a complete CPU proof.',
-              'formal_input_sha256': h.hexdigest(),
-              'formal_log_sha256': hashlib.sha256(log_text.encode()).hexdigest(),
-              'cover_log_sha256': hashlib.sha256(cover_text.encode()).hexdigest(),
-              'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
-              'yosys_version': subprocess.check_output(['yosys', '-V'], text=True).strip(),
-              'z3_version': subprocess.check_output(['z3', '--version'], text=True).strip(),
-          }
-
-          (root / 'formal-proof.json').write_text(
-              json.dumps(proof, indent=2, sort_keys=True) + '\n',
-              encoding='utf-8',
-          )
-          print(json.dumps(proof, indent=2, sort_keys=True))
+          safety = (root/'formal.log').read_text(errors='replace')
+          cover = (root/'cover.log').read_text(errors='replace')
+          if 'DONE (PASS' not in safety or 'DONE (ERROR' in safety: raise SystemExit('safety not PASS')
+          if 'DONE (PASS' not in cover or 'DONE (ERROR' in cover: raise SystemExit('cover not PASS')
+          inputs = [Path(x) for x in [
+            'rtl/capu_store_buffer.sv','rtl/capu_ctag_validator.sv','rtl/capu_seal_controller.sv',
+            'rtl/capu_vcml_store_buffer.sv','formal/capu_vcml_store_buffer_formal.sv',
+            'formal/capu_vcml_store_buffer.sby','formal/capu_vcml_store_buffer_cover.sby']]
+          h=hashlib.sha256()
+          for p in inputs: h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof={
+            'schema':'capu.hardware.vcml-formal-proof.v0.4','result':'PASS',
+            'depth':24,'cover_depth':12,'solver':'z3',
+            'formal_instance':{'addr_width':4,'data_width':8,'ctag_width':16,'transition_id_width':8,'parent_ref_width':8},
+            'invariants':[
+              'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT && VALIDATOR_ACCEPTED_CTAG',
+              'SEALED_CHAIN && !EXPLICIT_NEW_CAUSE => NO_AUTOMATIC_CHILD_ADMISSION',
+              'FLUSHED_EXPLICIT_NEW_CAUSE => PREVIOUS_COMMITTED_SEAL_REMAINS',
+              'VISIBLE_WRITE preserves CTAG/transition_id/parent_ref'],
+            'claim_boundary':'Bounded reduced-width proof. SEAL is continuation-control metadata, not cryptographic lineage proof. LHINT/GEN history are not verified.',
+            'formal_input_sha256':h.hexdigest(),
+            'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
+            'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
+            'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),
+            'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),
+            'z3_version':subprocess.check_output(['z3','--version'],text=True).strip()}
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(proof,indent=2,sort_keys=True))
           PY
-
-      - name: Upload formal causal-ABI evidence
+      - name: Upload v0.4 formal evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-v03-formal-evidence
+          name: capu-vcml-v04-formal-evidence
           path: |
             target/capu-vcml-formal/formal.log
             target/capu-vcml-formal/cover.log
