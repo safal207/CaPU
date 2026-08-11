@@ -1,0 +1,57 @@
+name: CaPU Core v0 RTL Smoke
+
+on:
+  push:
+    branches:
+      - agent/capu-core-v0
+    paths:
+      - 'rtl/**'
+      - 'docs/hardware/CAPU_CORE_V0.md'
+      - '.github/workflows/capu-core-v0.yml'
+  pull_request:
+    paths:
+      - 'rtl/**'
+      - 'docs/hardware/CAPU_CORE_V0.md'
+      - '.github/workflows/capu-core-v0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Commit boundary smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+          iverilog -V
+
+      - name: Compile CaPU Core v0
+        run: |
+          mkdir -p target/capu-core-v0
+          iverilog -g2012 \
+            -s capu_commit_controller_tb \
+            -o target/capu-core-v0/capu_commit_controller_tb \
+            rtl/capu_commit_controller.sv \
+            rtl/tb/capu_commit_controller_tb.sv
+
+      - name: Run causal commit smoke test
+        run: |
+          vvp target/capu-core-v0/capu_commit_controller_tb | tee target/capu-core-v0/smoke.log
+          grep -q 'CAPU_CORE_V0_SMOKE_PASS' target/capu-core-v0/smoke.log
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-core-v0-smoke-evidence
+          path: target/capu-core-v0/
+          if-no-files-found: warn
