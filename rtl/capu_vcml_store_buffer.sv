@@ -44,6 +44,9 @@ module capu_vcml_store_buffer #(
     output logic                           ctag_semantic_accept,
     output logic                           sealed_chain,
     output logic                           continuation_blocked,
+    output logic                           causal_head_valid,
+    output logic [TRANSITION_ID_WIDTH-1:0] causal_head_transition_id,
+    output logic                           parent_policy_accept,
     output logic                           issue_rejected
 );
 
@@ -51,6 +54,8 @@ module capu_vcml_store_buffer #(
     logic retire_allowed;
     logic automatic_continuation_allowed;
     logic buffered_explicit_new_cause;
+    logic root_policy_accept;
+    logic continuation_parent_accept;
 
     logic [3:0] decoded_dom;
     logic [3:0] decoded_class;
@@ -71,21 +76,39 @@ module capu_vcml_store_buffer #(
         .ctag_seal(decoded_seal)
     );
 
+    // v0.5 deliberately requires equal identity widths so continuation
+    // comparison is exact rather than truncated or extended implicitly.
+    initial begin
+        if (TRANSITION_ID_WIDTH != PARENT_REF_WIDTH)
+            $error("CaPU v0.5 requires TRANSITION_ID_WIDTH == PARENT_REF_WIDTH");
+    end
+
+    assign root_policy_accept = explicit_new_cause
+                             && (store_parent_ref == '0);
+
+    assign continuation_parent_accept = !explicit_new_cause
+                                      && causal_head_valid
+                                      && (store_parent_ref == causal_head_transition_id);
+
     assign continuation_blocked = sealed_chain && !explicit_new_cause;
+
+    assign parent_policy_accept = explicit_new_cause
+                                ? root_policy_accept
+                                : (automatic_continuation_allowed && continuation_parent_accept);
 
     assign metadata_issue_allowed = issue_valid
                                  && gate_allow
                                  && execute_ok
                                  && ctag_semantic_accept
-                                 && !buffer_valid
-                                 && (automatic_continuation_allowed || explicit_new_cause);
+                                 && parent_policy_accept
+                                 && !buffer_valid;
 
     assign issue_rejected = issue_valid
                          && (!gate_allow
                              || !execute_ok
                              || !ctag_semantic_accept
-                             || buffer_valid
-                             || continuation_blocked);
+                             || !parent_policy_accept
+                             || buffer_valid);
 
     assign retire_allowed = buffer_valid
                          && causal_valid
@@ -103,6 +126,17 @@ module capu_vcml_store_buffer #(
         .committed_explicit_new_cause(buffered_explicit_new_cause),
         .sealed_chain(sealed_chain),
         .automatic_continuation_allowed(automatic_continuation_allowed)
+    );
+
+    capu_causal_head_controller #(
+        .TRANSITION_ID_WIDTH(TRANSITION_ID_WIDTH)
+    ) causal_head_controller (
+        .clk(clk),
+        .rst_n(rst_n),
+        .committed_event(retire_allowed),
+        .committed_transition_id(buffered_transition_id),
+        .head_valid(causal_head_valid),
+        .causal_head_transition_id(causal_head_transition_id)
     );
 
     capu_store_buffer #(
@@ -177,6 +211,20 @@ module capu_vcml_store_buffer #(
             (sealed_chain && issue_valid && !explicit_new_cause) |-> issue_rejected;
     endproperty
     assert property (p_sealed_chain_blocks_automatic_issue);
+
+    property p_continuation_requires_exact_parent;
+        @(posedge clk) disable iff (!rst_n)
+            (issue_valid && !explicit_new_cause && !issue_rejected)
+            |-> (causal_head_valid && store_parent_ref == causal_head_transition_id);
+    endproperty
+    assert property (p_continuation_requires_exact_parent);
+
+    property p_explicit_root_requires_zero_parent;
+        @(posedge clk) disable iff (!rst_n)
+            (issue_valid && explicit_new_cause && !issue_rejected)
+            |-> (store_parent_ref == '0);
+    endproperty
+    assert property (p_explicit_root_requires_zero_parent);
 `endif
 
 endmodule
