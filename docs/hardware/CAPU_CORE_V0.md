@@ -145,9 +145,13 @@ A valid speculative result remains non-architectural until commit is asserted.
 
 This makes the boundary observable in tests: an operation may be fully computed and causally valid while still producing no architectural side effect.
 
-### Reset / interruption before commit
+### Interruption before commit
 
-Any interruption before commit discards speculative state and restores the core to the last committed architectural state.
+A pipeline interruption or rejected candidate before commit discards the speculative candidate and leaves the last committed architectural state unchanged.
+
+### Hardware reset
+
+In v0, `rst_n` initializes the architectural register to zero. Durable restoration of a previously committed architectural state across a hardware reset is explicitly out of scope for v0 and belongs to a later recovery/checkpoint design.
 
 ## Primary invariants
 
@@ -205,20 +209,20 @@ The v0 RTL is therefore best viewed as a minimal causal commit controller that c
 
 ## Minimal experiment
 
-The first RTL experiment must demonstrate four trajectories:
+The v0 RTL experiment demonstrates five trajectories:
 
 1. `gate=0` — no architectural update.
 2. `gate=1, execute_ok=1, causal_valid=0` — no architectural update.
 3. `gate=1, execute_ok=1, causal_valid=1, commit_request=0` — no architectural update.
 4. All commit predicates true — exactly one architectural update.
+5. A later execute failure cannot corrupt the previously committed value.
 
-A reset before commit must also leave the last committed architectural value intact after restart initialization.
+The CI smoke test also verifies the defined reset initialization value.
 
 ## Next hardware steps
 
-1. Implement `capu_commit_controller.sv`.
-2. Add an executable smoke test for the four trajectories above.
-3. Add assertions for INV-CAPU-CORE-001 through 004.
-4. Introduce a one-entry speculative store buffer.
-5. Extend CMC metadata from interface contract to synthesizable storage.
-6. Add a tiny ISA and compare CaPU commit semantics against a conventional retirement model.
+1. Add stronger temporal/formal assertions for INV-CAPU-CORE-001 through 005.
+2. Introduce a one-entry speculative store buffer.
+3. Extend CMC metadata from interface contract to synthesizable storage.
+4. Add a tiny ISA and compare CaPU commit semantics against a conventional retirement model.
+5. Add checkpoint/recovery semantics for architectural state across reset-class failures.
