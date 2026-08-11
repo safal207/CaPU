@@ -136,10 +136,17 @@ jobs:
           yosys -V
           z3 --version
 
-      - name: Install SBY formal front-end
+      - name: Install pinned SBY formal front-end
         run: |
-          git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
-          git -C /tmp/sby rev-parse HEAD | tee /tmp/sby-sha.txt
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          ACTUAL_SBY_SHA="$(git -C /tmp/sby rev-parse HEAD)"
+          test "$ACTUAL_SBY_SHA" = "$SBY_SHA"
+          printf '%s\n' "$ACTUAL_SBY_SHA" | tee /tmp/sby-sha.txt
           python3 /tmp/sby/sbysrc/sby.py --version
 
       - name: Prove causal STORE boundary for arbitrary bounded sequences
