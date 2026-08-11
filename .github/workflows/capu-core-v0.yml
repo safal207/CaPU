@@ -49,6 +49,7 @@ jobs:
 
       - name: Run causal register commit smoke test
         run: |
+          set -o pipefail
           vvp target/capu-core-v0/capu_commit_controller_tb | tee target/capu-core-v0/register-smoke.log
           grep -q 'CAPU_CORE_V0_SMOKE_PASS' target/capu-core-v0/register-smoke.log
 
@@ -62,6 +63,7 @@ jobs:
 
       - name: Run causal STORE retirement smoke test
         run: |
+          set -o pipefail
           vvp target/capu-core-v0/capu_store_buffer_tb | tee target/capu-core-v0/store-smoke.log
           grep -q 'CAPU_CORE_V01_STORE_PASS' target/capu-core-v0/store-smoke.log
           grep -q 'S4 flushed buffer=0 memory_write=0' target/capu-core-v0/store-smoke.log
@@ -142,12 +144,18 @@ jobs:
 
       - name: Prove causal STORE boundary for arbitrary bounded sequences
         run: |
+          set -o pipefail
           mkdir -p target/capu-core-v0
           python3 /tmp/sby/sbysrc/sby.py \
             -f \
             -d target/capu-core-v0/formal-work \
             formal/capu_store_buffer.sby \
-            | tee target/capu-core-v0/formal.log
+            2>&1 | tee target/capu-core-v0/formal.log
+          grep -q 'DONE (PASS' target/capu-core-v0/formal.log
+          if grep -q 'DONE (ERROR' target/capu-core-v0/formal.log; then
+            echo 'SBY reported ERROR; refusing to seal proof' >&2
+            exit 1
+          fi
 
       - name: Seal formal evidence
         run: |
@@ -158,6 +166,10 @@ jobs:
           from pathlib import Path
 
           root = Path('target/capu-core-v0')
+          log_text = (root / 'formal.log').read_text(encoding='utf-8', errors='replace')
+          if 'DONE (PASS' not in log_text or 'DONE (ERROR' in log_text:
+              raise SystemExit('formal solver did not produce an authenticated PASS status')
+
           inputs = [
               Path('rtl/capu_store_buffer.sv'),
               Path('formal/capu_store_buffer_formal.sv'),
@@ -175,12 +187,14 @@ jobs:
               'schema': 'capu.hardware.formal-proof.v0',
               'design': 'CaPU Core v0.1 one-entry speculative STORE buffer',
               'result': 'PASS',
+              'result_basis': 'SBY DONE (PASS) observed in formal.log',
               'mode': 'bounded model checking',
               'depth': 20,
               'engine': 'smtbmc',
               'solver': 'z3',
               'primary_invariant': 'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT',
               'formal_input_sha256': h.hexdigest(),
+              'formal_log_sha256': hashlib.sha256(log_text.encode()).hexdigest(),
               'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
               'yosys_version': subprocess.check_output(['yosys', '-V'], text=True).strip(),
               'z3_version': subprocess.check_output(['z3', '--version'], text=True).strip(),
