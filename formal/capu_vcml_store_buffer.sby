@@ -1,17 +1,18 @@
 [options]
 mode bmc
-depth 20
+depth 24
 timeout 300
 
 [engines]
 smtbmc --unroll z3 -- --noincr
 
 [script]
-read -formal -sv capu_store_buffer.sv capu_ctag_validator.sv capu_vcml_store_buffer.sv capu_vcml_store_buffer_formal.sv
+read -formal -sv capu_store_buffer.sv capu_ctag_validator.sv capu_seal_controller.sv capu_vcml_store_buffer.sv capu_vcml_store_buffer_formal.sv
 prep -top capu_vcml_store_buffer_formal
 
 [files]
 rtl/capu_store_buffer.sv
 rtl/capu_ctag_validator.sv
+rtl/capu_seal_controller.sv
 rtl/capu_vcml_store_buffer.sv
 formal/capu_vcml_store_buffer_formal.sv
