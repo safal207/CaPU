@@ -2,13 +2,29 @@ module capu_store_buffer_formal;
     localparam int ADDR_WIDTH = 4;
     localparam int DATA_WIDTH = 8;
 
-    // SBY global formal timestep used directly as the DUT clock.
-    (* gclk *) reg clk;
+    // Formal time and processor time are intentionally distinct.
+    // SBY advances gclk every formal timestep; clk toggles deterministically,
+    // so every second formal timestep is one architectural posedge.
+    (* gclk *) reg gclk;
+    reg clk = 1'b0;
 
-    // Hold reset low for the first clock edge, then release it permanently.
+    // Deterministic reset: the first CPU posedge occurs while reset is low.
+    // Reset is released on the following global half-cycle.
     reg rst_n = 1'b0;
-    reg past_valid = 1'b0;
+    reg [1:0] reset_phase = 2'd0;
 
+    always @(posedge gclk) begin
+        clk <= !clk;
+
+        if (reset_phase != 2'd3)
+            reset_phase <= reset_phase + 1'b1;
+
+        if (reset_phase >= 2'd1)
+            rst_n <= 1'b1;
+    end
+
+    // Arbitrary environment. These values may vary each formal timestep; the
+    // DUT samples them only on processor clock edges.
     (* anyseq *) reg                  issue_valid;
     (* anyseq *) reg                  gate_allow;
     (* anyseq *) reg                  execute_ok;
@@ -49,40 +65,45 @@ module capu_store_buffer_formal;
         .issue_rejected(issue_rejected)
     );
 
-    always @(posedge clk) begin
-        past_valid <= 1'b1;
-        rst_n <= 1'b1;
+    // Ghost state records the exact retirement decision sampled at the prior
+    // processor posedge. Because DUT and ghost registers update together with
+    // nonblocking semantics, the observed memory_write_* values at a posedge
+    // must equal this witness from the preceding posedge.
+    reg                  ghost_commit = 1'b0;
+    reg [ADDR_WIDTH-1:0] ghost_addr = '0;
+    reg [DATA_WIDTH-1:0] ghost_data = '0;
 
-        if (past_valid && rst_n) begin
-            // FORMAL-INV-001: every visible memory write must be the retirement
-            // of a previously buffered entry with causal validation, explicit
-            // commit, and no flush.
+    always @(posedge clk) begin
+        if (!rst_n) begin
+            ghost_commit <= 1'b0;
+            ghost_addr   <= '0;
+            ghost_data   <= '0;
+        end else begin
+            // FORMAL-INV-001: visibility is exactly the prior authorized
+            // causal retirement decision. No authorization -> no write.
+            assert(memory_write_enable == ghost_commit);
+
+            // FORMAL-INV-002: a visible write carries the exact buffered
+            // payload that was authorized for retirement.
             if (memory_write_enable) begin
-                assert($past(buffer_valid));
-                assert($past(causal_valid));
-                assert($past(commit_request));
-                assert(!$past(flush));
-                assert(memory_write_addr == $past(buffered_addr));
-                assert(memory_write_data == $past(buffered_data));
+                assert(memory_write_addr == ghost_addr);
+                assert(memory_write_data == ghost_data);
             end
 
-            // FORMAL-INV-002: a flush at the retirement edge cannot create a
-            // visible memory write in the following architectural cycle.
-            if ($past(flush))
-                assert(!memory_write_enable);
+            // FORMAL-INV-003: a retired entry was removed from speculation;
+            // therefore a write pulse cannot simultaneously be backed by the
+            // same still-valid buffered entry.
+            if (memory_write_enable)
+                assert(!buffer_valid);
 
-            // FORMAL-INV-003: an empty speculative buffer cannot retire a STORE.
-            if (!$past(buffer_valid))
-                assert(!memory_write_enable);
-
-            // FORMAL-INV-004: causal validation is necessary for visibility.
-            if ($past(buffer_valid) && $past(commit_request) && !$past(causal_valid))
-                assert(!memory_write_enable);
-
-            // FORMAL-INV-005: one buffered commit cannot create consecutive
-            // write pulses. A new STORE must be issued and buffered first.
-            if ($past(memory_write_enable))
-                assert(!memory_write_enable);
+            // Capture the current decision for verification at the next CPU
+            // posedge. Flush is inside the witness, so it dominates commit.
+            ghost_commit <= buffer_valid
+                         && causal_valid
+                         && commit_request
+                         && !flush;
+            ghost_addr <= buffered_addr;
+            ghost_data <= buffered_data;
         end
     end
 endmodule
