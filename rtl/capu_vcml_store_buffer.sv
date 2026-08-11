@@ -2,7 +2,8 @@ module capu_vcml_store_buffer #(
     parameter int ADDR_WIDTH = 16,
     parameter int DATA_WIDTH = 32,
     parameter int TRANSITION_ID_WIDTH = 64,
-    parameter int PARENT_REF_WIDTH = 64
+    parameter int PARENT_REF_WIDTH = 64,
+    parameter bit REQUIRE_WRITE_CLASS = 1'b1
 ) (
     input  logic                           clk,
     input  logic                           rst_n,
@@ -14,6 +15,8 @@ module capu_vcml_store_buffer #(
     input  logic [DATA_WIDTH-1:0]          store_data,
 
     // Compact CML projection carried with the speculative STORE.
+    // store_ctag_valid means metadata is present/upstream-accepted; the local
+    // validator below independently checks the CTAG's STORE semantics.
     input  logic [15:0]                    store_ctag,
     input  logic                           store_ctag_valid,
     input  logic [TRANSITION_ID_WIDTH-1:0] store_transition_id,
@@ -42,6 +45,8 @@ module capu_vcml_store_buffer #(
     output logic [TRANSITION_ID_WIDTH-1:0] retired_transition_id,
     output logic [PARENT_REF_WIDTH-1:0]    retired_parent_ref,
 
+    // v0.3 local CTAG semantic decision for the current issue candidate.
+    output logic                           ctag_semantic_accept,
     output logic                           issue_rejected
 );
 
@@ -49,18 +54,38 @@ module capu_vcml_store_buffer #(
     logic metadata_issue_allowed;
     logic retire_allowed;
 
+    logic [3:0] decoded_dom;
+    logic [3:0] decoded_class;
+    logic [3:0] decoded_gen;
+    logic [2:0] decoded_lhint;
+    logic       decoded_seal;
+
+    capu_ctag_validator #(
+        .REQUIRE_WRITE_CLASS(REQUIRE_WRITE_CLASS)
+    ) ctag_validator (
+        .ctag(store_ctag),
+        .metadata_valid(store_ctag_valid),
+        .ctag_accept(ctag_semantic_accept),
+        .ctag_dom(decoded_dom),
+        .ctag_class(decoded_class),
+        .ctag_gen(decoded_gen),
+        .ctag_lhint(decoded_lhint),
+        .ctag_seal(decoded_seal)
+    );
+
     assign metadata_issue_allowed = issue_valid
                                  && gate_allow
                                  && execute_ok
-                                 && store_ctag_valid
+                                 && ctag_semantic_accept
                                  && !buffer_valid;
 
-    // The wrapper fails closed for missing/invalid CTAG metadata before the
-    // underlying speculative STORE can even be created.
+    // Missing metadata or locally invalid CTAG semantics fail closed before
+    // speculative admission. LHINT is not authenticated here; SEAL does not
+    // invalidate the current STORE and is only continuation-control metadata.
     assign issue_rejected = issue_valid
                          && (!gate_allow
                              || !execute_ok
-                             || !store_ctag_valid
+                             || !ctag_semantic_accept
                              || buffer_valid);
 
     assign retire_allowed = buffer_valid
@@ -78,7 +103,7 @@ module capu_vcml_store_buffer #(
     ) store_buffer (
         .clk(clk),
         .rst_n(rst_n),
-        .issue_valid(issue_valid && store_ctag_valid),
+        .issue_valid(issue_valid && ctag_semantic_accept),
         .gate_allow(gate_allow),
         .execute_ok(execute_ok),
         .store_addr(store_addr),
@@ -131,8 +156,6 @@ module capu_vcml_store_buffer #(
     end
 
 `ifdef CAPU_ASSERTIONS
-    // INV-CML-001: memory visibility requires a previous valid causal commit
-    // over an entry that carried accepted CTAG metadata.
     property p_memory_write_requires_ctagged_causal_commit;
         @(posedge clk) disable iff (!rst_n)
             memory_write_enable |-> $past(
@@ -145,7 +168,6 @@ module capu_vcml_store_buffer #(
     endproperty
     assert property (p_memory_write_requires_ctagged_causal_commit);
 
-    // A bridge event and the memory-visible side effect are the same boundary.
     property p_vcml_event_matches_memory_visibility;
         @(posedge clk) disable iff (!rst_n)
             vcml_event_valid == memory_write_enable;
