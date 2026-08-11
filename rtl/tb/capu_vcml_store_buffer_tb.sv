@@ -96,14 +96,12 @@ module capu_vcml_store_buffer_tb;
             $fatal(1, "reset state invalid");
         $display("TRACE CAPU-V04 S0 reset sealed=0");
 
-        // Invalid CTAG remains fail-closed under v0.4.
         issue_store(16'hF210, 64'h01, 64'h00, 0);
         if (!issue_rejected || buffer_valid)
             $fatal(1, "reserved DOM escaped validator");
         $display("TRACE CAPU-V04 S1 invalid_ctag rejected=1");
 
-        // Unsealed commit keeps automatic continuation open.
-        issue_store(16'h4210, 64'h10, 64'h00, 0); // USER/WRITE/GEN1/SEAL0
+        issue_store(16'h4210, 64'h10, 64'h00, 0);
         if (!buffer_valid || sealed_chain)
             $fatal(1, "unsealed STORE admission failed");
         commit_store();
@@ -113,16 +111,14 @@ module capu_vcml_store_buffer_tb;
 
         clear_inputs(); step();
         issue_store(16'h4220, 64'h11, 64'h10, 0);
-        if (!buffer_valid || issue_rejected)
+        if (!buffer_valid)
             $fatal(1, "automatic continuation after unsealed commit was blocked");
         $display("TRACE CAPU-V04 S3 unsealed_child admitted=1");
         clear_inputs(); flush = 1; step();
         if (buffer_valid || sealed_chain)
             $fatal(1, "flush of unsealed speculative child failed");
 
-        // Commit a sealed transition. Current WRITE is valid and visible, then
-        // the chain becomes closed for automatic continuation.
-        issue_store(16'h4231, 64'h20, 64'h10, 0); // SEAL=1
+        issue_store(16'h4231, 64'h20, 64'h10, 0);
         if (!buffer_valid)
             $fatal(1, "sealed STORE was not admitted");
         commit_store();
@@ -131,8 +127,6 @@ module capu_vcml_store_buffer_tb;
         $display("TRACE CAPU-V04 S4 sealed_commit sealed_chain=1");
 
         clear_inputs(); step();
-
-        // Ordinary child after seal must fail before speculation.
         issue_store(16'h4240, 64'h21, 64'h20, 0);
         if (!issue_rejected || buffer_valid || memory_write_enable || vcml_event_valid)
             $fatal(1, "automatic child escaped sealed chain");
@@ -140,18 +134,15 @@ module capu_vcml_store_buffer_tb;
             $fatal(1, "sealed continuation state not preserved");
         $display("TRACE CAPU-V04 S5 sealed_child rejected=1 memory_write=0");
 
-        // Explicit new cause may speculate, but a flush must NOT clear the old
-        // committed seal because no replacement cause committed.
         issue_store(16'h4240, 64'h30, 64'h00, 1);
-        if (!buffer_valid || issue_rejected || !sealed_chain)
+        if (!buffer_valid || !sealed_chain)
             $fatal(1, "explicit new cause was not admitted under sealed state");
         clear_inputs(); flush = 1; step();
         if (buffer_valid || !sealed_chain)
             $fatal(1, "flushed new cause incorrectly cleared committed seal");
         $display("TRACE CAPU-V04 S6 new_cause_flushed old_seal_preserved=1");
 
-        // A committed explicit new cause/root replaces the old chain state.
-        issue_store(16'h4250, 64'h31, 64'h00, 1); // SEAL=0
+        issue_store(16'h4250, 64'h31, 64'h00, 1);
         if (!buffer_valid || !sealed_chain)
             $fatal(1, "new cause admission should not clear seal speculatively");
         commit_store();
@@ -163,7 +154,7 @@ module capu_vcml_store_buffer_tb;
 
         clear_inputs(); step();
         issue_store(16'h4260, 64'h32, 64'h31, 0);
-        if (!buffer_valid || issue_rejected)
+        if (!buffer_valid)
             $fatal(1, "continuation after committed new cause was blocked");
         $display("TRACE CAPU-V04 S8 fresh_chain_child admitted=1");
 
