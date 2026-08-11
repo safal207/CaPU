@@ -1,9 +1,10 @@
 [options]
 mode bmc
 depth 20
+timeout 300
 
 [engines]
-smtbmc z3
+smtbmc --unroll z3 -- --noincr
 
 [script]
 read -formal -sv capu_store_buffer.sv capu_vcml_store_buffer.sv capu_vcml_store_buffer_formal.sv
