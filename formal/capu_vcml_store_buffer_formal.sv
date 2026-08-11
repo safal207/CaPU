@@ -34,7 +34,9 @@ module capu_vcml_store_buffer_formal;
     wire [15:0] retired_ctag;
     wire [TRANSITION_ID_WIDTH-1:0] retired_transition_id;
     wire [PARENT_REF_WIDTH-1:0] retired_parent_ref;
-    wire ctag_semantic_accept, sealed_chain, continuation_blocked, issue_rejected;
+    wire ctag_semantic_accept, sealed_chain, continuation_blocked;
+    wire causal_head_valid, parent_policy_accept, issue_rejected;
+    wire [TRANSITION_ID_WIDTH-1:0] causal_head_transition_id;
 
     capu_vcml_store_buffer #(
         .ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH),
@@ -56,7 +58,8 @@ module capu_vcml_store_buffer_formal;
         .retired_ctag(retired_ctag), .retired_transition_id(retired_transition_id),
         .retired_parent_ref(retired_parent_ref), .ctag_semantic_accept(ctag_semantic_accept),
         .sealed_chain(sealed_chain), .continuation_blocked(continuation_blocked),
-        .issue_rejected(issue_rejected)
+        .causal_head_valid(causal_head_valid), .causal_head_transition_id(causal_head_transition_id),
+        .parent_policy_accept(parent_policy_accept), .issue_rejected(issue_rejected)
     );
 
     reg ghost_commit = 1'b0;
@@ -66,18 +69,27 @@ module capu_vcml_store_buffer_formal;
     reg ghost_ctag_valid = 1'b0;
     reg [TRANSITION_ID_WIDTH-1:0] ghost_transition_id = '0;
     reg [PARENT_REF_WIDTH-1:0] ghost_parent_ref = '0;
-    reg ghost_forbidden_auto_issue = 1'b0;
-    reg seen_unsealed_commit = 1'b0;
+
+    reg prev_flush = 1'b0;
+    reg prev_head_valid = 1'b0;
+    reg [TRANSITION_ID_WIDTH-1:0] prev_head = '0;
+    reg prev_sealed = 1'b0;
+
+    reg seen_root_commit = 1'b0;
+    reg seen_normal_continuation = 1'b0;
     reg seen_sealed_commit = 1'b0;
+    reg seen_explicit_root_under_seal = 1'b0;
 
     always @(posedge clk) begin
         if (!rst_n) begin
             ghost_commit <= 0;
             ghost_addr <= '0; ghost_data <= '0; ghost_ctag <= '0; ghost_ctag_valid <= 0;
             ghost_transition_id <= '0; ghost_parent_ref <= '0;
-            ghost_forbidden_auto_issue <= 0;
-            seen_unsealed_commit <= 0; seen_sealed_commit <= 0;
+            prev_flush <= 0; prev_head_valid <= 0; prev_head <= '0; prev_sealed <= 0;
+            seen_root_commit <= 0; seen_normal_continuation <= 0;
+            seen_sealed_commit <= 0; seen_explicit_root_under_seal <= 0;
         end else begin
+            // Existing causal-retirement boundary remains exact.
             assert(memory_write_enable == ghost_commit);
             assert(vcml_event_valid == memory_write_enable);
 
@@ -85,16 +97,6 @@ module capu_vcml_store_buffer_formal;
                 assert(buffered_ctag[15:12] != DOM_RESERVED);
                 assert(buffered_ctag[11:8] == CLASS_WRITE);
             end
-
-            if (sealed_chain && issue_valid && !explicit_new_cause) begin
-                assert(continuation_blocked);
-                assert(issue_rejected);
-            end
-
-            // A candidate observed while sealed without explicit_new_cause may
-            // not materialize as a speculative child on the next sample.
-            if (ghost_forbidden_auto_issue)
-                assert(!buffer_valid);
 
             if (memory_write_enable) begin
                 assert(ghost_ctag_valid);
@@ -106,26 +108,53 @@ module capu_vcml_store_buffer_formal;
                 assert(retired_transition_id == ghost_transition_id);
                 assert(retired_parent_ref == ghost_parent_ref);
                 assert(!buffer_valid);
-
-                if (ghost_ctag[0]) seen_sealed_commit <= 1'b1;
-                else seen_unsealed_commit <= 1'b1;
             end
 
-            // Non-vacuity 1: ordinary continuation is reachable after an
-            // unsealed committed transition.
-            cover(seen_unsealed_commit && buffer_valid && !sealed_chain);
+            // v0.5: every admitted normal continuation must name the exact
+            // committed causal head and must not continue a sealed chain.
+            if (issue_valid && gate_allow && execute_ok && ctag_semantic_accept
+                && !buffer_valid && !explicit_new_cause && parent_policy_accept) begin
+                assert(causal_head_valid);
+                assert(!sealed_chain);
+                assert(store_parent_ref == causal_head_transition_id);
+            end
 
-            // Non-vacuity 2: while a committed seal remains active, an explicit
-            // new-cause candidate can still be admitted speculatively.
-            cover(seen_sealed_commit && sealed_chain && buffer_valid);
+            // v0.5 explicit-root policy is intentionally narrow and fail-closed.
+            if (issue_valid && gate_allow && execute_ok && ctag_semantic_accept
+                && !buffer_valid && explicit_new_cause && parent_policy_accept) begin
+                assert(store_parent_ref == '0);
+            end
 
-            ghost_forbidden_auto_issue <= sealed_chain
-                                       && issue_valid
-                                       && gate_allow
-                                       && execute_ok
-                                       && ctag_semantic_accept
-                                       && !buffer_valid
-                                       && !explicit_new_cause;
+            // A sealed chain cannot admit an automatic child even if the child
+            // names the exact current head.
+            if (sealed_chain && issue_valid && !explicit_new_cause) begin
+                assert(!parent_policy_accept);
+                assert(issue_rejected);
+            end
+
+            // Flush is speculative-only: it cannot mutate committed head/seal.
+            if (prev_flush) begin
+                assert(causal_head_valid == prev_head_valid);
+                assert(causal_head_transition_id == prev_head);
+                assert(sealed_chain == prev_sealed);
+            end
+
+            // Reachability bookkeeping based on visible committed effects.
+            if (memory_write_enable) begin
+                if (ghost_parent_ref == '0)
+                    seen_root_commit <= 1'b1;
+                else
+                    seen_normal_continuation <= 1'b1;
+                if (ghost_ctag[0])
+                    seen_sealed_commit <= 1'b1;
+            end
+
+            if (seen_sealed_commit && sealed_chain && buffer_valid && buffered_parent_ref == '0)
+                seen_explicit_root_under_seal <= 1'b1;
+
+            // Non-vacuity: prove both policy paths can actually be reached.
+            cover(seen_root_commit && seen_normal_continuation && causal_head_valid);
+            cover(seen_sealed_commit && seen_explicit_root_under_seal && sealed_chain);
 
             ghost_commit <= buffer_valid
                          && causal_valid
@@ -138,6 +167,11 @@ module capu_vcml_store_buffer_formal;
             ghost_ctag_valid <= buffered_ctag_valid;
             ghost_transition_id <= buffered_transition_id;
             ghost_parent_ref <= buffered_parent_ref;
+
+            prev_flush <= flush;
+            prev_head_valid <= causal_head_valid;
+            prev_head <= causal_head_transition_id;
+            prev_sealed <= sealed_chain;
         end
     end
 endmodule
