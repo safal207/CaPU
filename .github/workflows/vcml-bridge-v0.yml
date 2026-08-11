@@ -6,6 +6,8 @@ on:
       - "rtl/capu_store_buffer.sv"
       - "rtl/capu_vcml_store_buffer.sv"
       - "rtl/tb/capu_vcml_store_buffer_tb.sv"
+      - "formal/capu_vcml_store_buffer.sby"
+      - "formal/capu_vcml_store_buffer_formal.sv"
       - "tools/vcml_bridge.py"
       - "tests/test_vcml_bridge.py"
       - "docs/hardware/CAPU_VCML_BRIDGE_V0.md"
@@ -108,3 +110,116 @@ jobs:
             vcml-event.json
             vcml-record.json
             vcml-evidence.sha256
+
+  formal-causal-abi:
+    name: Bounded CTAG causal ABI proof
+    needs: rtl-and-semantic-bridge
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+
+      - name: Install pinned SBY formal front-end
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          ACTUAL_SBY_SHA="$(git -C /tmp/sby rev-parse HEAD)"
+          test "$ACTUAL_SBY_SHA" = "$SBY_SHA"
+          printf '%s\n' "$ACTUAL_SBY_SHA" | tee /tmp/sby-sha.txt
+          python3 /tmp/sby/sbysrc/sby.py --version
+
+      - name: Prove CTAG-aware causal ABI for arbitrary bounded sequences
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-vcml-formal
+          python3 /tmp/sby/sbysrc/sby.py \
+            -f \
+            -d target/capu-vcml-formal/work \
+            formal/capu_vcml_store_buffer.sby \
+            2>&1 | tee target/capu-vcml-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-vcml-formal/formal.log
+          if grep -q 'DONE (ERROR' target/capu-vcml-formal/formal.log; then
+            echo 'SBY reported ERROR; refusing to seal vCML formal proof' >&2
+            exit 1
+          fi
+
+      - name: Seal formal causal-ABI evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import subprocess
+          from pathlib import Path
+
+          root = Path('target/capu-vcml-formal')
+          log_text = (root / 'formal.log').read_text(encoding='utf-8', errors='replace')
+          if 'DONE (PASS' not in log_text or 'DONE (ERROR' in log_text:
+              raise SystemExit('formal solver did not produce an authenticated PASS status')
+
+          inputs = [
+              Path('rtl/capu_store_buffer.sv'),
+              Path('rtl/capu_vcml_store_buffer.sv'),
+              Path('formal/capu_vcml_store_buffer_formal.sv'),
+              Path('formal/capu_vcml_store_buffer.sby'),
+          ]
+          h = hashlib.sha256()
+          for path in inputs:
+              h.update(str(path).encode())
+              h.update(b'\0')
+              h.update(path.read_bytes())
+              h.update(b'\0')
+
+          proof = {
+              'schema': 'capu.hardware.vcml-formal-proof.v0',
+              'design': 'CaPU Core v0.2 CTAG-aware one-entry STORE retirement bridge',
+              'result': 'PASS',
+              'result_basis': 'SBY DONE (PASS) observed in formal.log',
+              'mode': 'bounded model checking',
+              'depth': 20,
+              'engine': 'smtbmc',
+              'solver': 'z3',
+              'invariants': [
+                  'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT && VALID_CTAG_METADATA',
+                  'VCML_EVENT_VALID == MEMORY_VISIBLE_WRITE',
+                  'VISIBLE_WRITE => RETIRED_CTAG == COMMITTED_CTAG',
+                  'VISIBLE_WRITE => RETIRED_TRANSITION_ID == COMMITTED_TRANSITION_ID',
+                  'VISIBLE_WRITE => RETIRED_PARENT_REF == COMMITTED_PARENT_REF',
+              ],
+              'claim_boundary': 'CTAG validity is represented by the accepted buffered_ctag_valid bit; this proof does not infer semantic validity from CTAG bit patterns and does not prove cryptographic lineage.',
+              'formal_input_sha256': h.hexdigest(),
+              'formal_log_sha256': hashlib.sha256(log_text.encode()).hexdigest(),
+              'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version': subprocess.check_output(['yosys', '-V'], text=True).strip(),
+              'z3_version': subprocess.check_output(['z3', '--version'], text=True).strip(),
+          }
+
+          (root / 'formal-proof.json').write_text(
+              json.dumps(proof, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(proof, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload formal causal-ABI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v0-formal-evidence
+          path: |
+            target/capu-vcml-formal/formal.log
+            target/capu-vcml-formal/formal-proof.json
+            target/capu-vcml-formal/work/
+          if-no-files-found: warn
