@@ -4,26 +4,17 @@ module capu_vcml_store_buffer_formal;
     localparam int TRANSITION_ID_WIDTH = 8;
     localparam int PARENT_REF_WIDTH = 8;
 
-    // Reuse the deterministic formal-time pattern from the v0.1 STORE proof.
-    // SBY advances gclk every formal timestep; clk toggles deterministically,
-    // so every second formal timestep is one processor posedge.
-    (* gclk *) reg gclk;
-    reg clk = 1'b0;
+    // The formal global clock is the processor clock for this harness.
+    // This avoids a derived multiclock state space while preserving the ghost
+    // witness discipline used by the verified v0.1 STORE proof.
+    (* gclk *) reg clk;
 
+    // First formal CPU edge is reset; all following edges exercise the DUT.
     reg rst_n = 1'b0;
-    reg [1:0] reset_phase = 2'd0;
+    always @(posedge clk)
+        rst_n <= 1'b1;
 
-    always @(posedge gclk) begin
-        clk <= !clk;
-
-        if (reset_phase != 2'd3)
-            reset_phase <= reset_phase + 1'b1;
-
-        if (reset_phase >= 2'd1)
-            rst_n <= 1'b1;
-    end
-
-    // Arbitrary bounded environment. The DUT samples these only at CPU edges.
+    // Arbitrary bounded environment sampled at each processor edge.
     (* anyseq *) reg                           issue_valid;
     (* anyseq *) reg                           gate_allow;
     (* anyseq *) reg                           execute_ok;
@@ -91,7 +82,7 @@ module capu_vcml_store_buffer_formal;
     );
 
     // Ghost witness for the exact STORE + causal metadata authorized at the
-    // prior processor posedge. This avoids relying on multiclock $past timing.
+    // prior processor edge. It is independent of $past/multiclock semantics.
     reg                           ghost_commit = 1'b0;
     reg [ADDR_WIDTH-1:0]          ghost_addr = '0;
     reg [DATA_WIDTH-1:0]          ghost_data = '0;
@@ -110,16 +101,16 @@ module capu_vcml_store_buffer_formal;
             ghost_transition_id <= '0;
             ghost_parent_ref    <= '0;
         end else begin
-            // FORMAL-CML-001: memory visibility is exactly a prior authorized
-            // causal retirement whose buffered entry carried accepted CTAG metadata.
+            // FORMAL-CML-001: a visible write exists iff the previous sampled
+            // state authorized a causal commit over accepted CTAG metadata.
             assert(memory_write_enable == ghost_commit);
 
-            // FORMAL-CML-002: the hardware vCML event is the same boundary as
-            // the externally visible STORE; neither may occur alone.
+            // FORMAL-CML-002: hardware vCML event and memory visibility are one
+            // retirement boundary.
             assert(vcml_event_valid == memory_write_enable);
 
-            // FORMAL-CML-003/004: a visible STORE preserves the exact payload
-            // and exact causal metadata of the committed speculative entry.
+            // FORMAL-CML-003/004: the visible side effect and causal event carry
+            // the exact payload and metadata of the committed speculative entry.
             if (memory_write_enable) begin
                 assert(ghost_ctag_valid);
                 assert(memory_write_addr == ghost_addr);
@@ -130,8 +121,8 @@ module capu_vcml_store_buffer_formal;
                 assert(!buffer_valid);
             end
 
-            // Capture the current authorization decision for observation at the
-            // next CPU edge. Flush is part of the witness and therefore wins.
+            // Capture current authorization for observation at the next edge.
+            // Flush is included explicitly, so recovery/squash dominates commit.
             ghost_commit <= buffer_valid
                          && causal_valid
                          && buffered_ctag_valid
