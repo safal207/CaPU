@@ -2,13 +2,9 @@ module capu_seal_controller (
     input  logic clk,
     input  logic rst_n,
 
-    // A committed STORE closes the current causal chain when its CTAG has
-    // SEAL=1. This is continuation-control state, not cryptographic evidence.
     input  logic committed_event,
     input  logic committed_seal,
-
-    // An explicitly admitted new cause/root starts a fresh chain after seal.
-    input  logic explicit_new_cause_admitted,
+    input  logic committed_explicit_new_cause,
 
     output logic sealed_chain,
     output logic automatic_continuation_allowed
@@ -18,10 +14,15 @@ module capu_seal_controller (
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             sealed_chain <= 1'b0;
-        end else if (committed_event && committed_seal) begin
-            sealed_chain <= 1'b1;
-        end else if (explicit_new_cause_admitted) begin
-            sealed_chain <= 1'b0;
+        end else if (committed_event) begin
+            // A committed explicit new cause/root starts a fresh chain. Its own
+            // SEAL bit decides whether the fresh chain is immediately closed.
+            if (committed_explicit_new_cause)
+                sealed_chain <= committed_seal;
+            // Normal continuation may close an open chain but can never clear
+            // an already sealed chain.
+            else if (committed_seal)
+                sealed_chain <= 1'b1;
         end
     end
 endmodule
