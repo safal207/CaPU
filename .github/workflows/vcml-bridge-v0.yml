@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "rtl/capu_store_buffer.sv"
+      - "rtl/capu_ctag_validator.sv"
       - "rtl/capu_vcml_store_buffer.sv"
       - "rtl/tb/capu_vcml_store_buffer_tb.sv"
       - "formal/capu_vcml_store_buffer.sby"
@@ -20,7 +21,7 @@ permissions:
 
 jobs:
   rtl-and-semantic-bridge:
-    name: CTAG retirement and vCML projection
+    name: CTAG validation, retirement and vCML projection
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -39,14 +40,18 @@ jobs:
           iverilog -g2012 \
             -o /tmp/capu-vcml-bridge \
             rtl/capu_store_buffer.sv \
+            rtl/capu_ctag_validator.sv \
             rtl/capu_vcml_store_buffer.sv \
             rtl/tb/capu_vcml_store_buffer_tb.sv
 
-      - name: Run RTL invariant smoke
+      - name: Run RTL semantic/invariant smoke
         run: |
           set -o pipefail
           vvp /tmp/capu-vcml-bridge | tee vcml-rtl.log
-          grep -F "CAPU_VCML_BRIDGE_V0_RTL_PASS" vcml-rtl.log
+          grep -F "CAPU_VCML_BRIDGE_V03_RTL_PASS" vcml-rtl.log
+          grep -F "reserved_dom rejected=1" vcml-rtl.log
+          grep -F "class_none rejected=1" vcml-rtl.log
+          grep -F "non_write rejected=1" vcml-rtl.log
 
       - name: Run semantic bridge tests
         run: |
@@ -94,6 +99,7 @@ jobs:
       - name: Capture evidence hashes
         run: |
           sha256sum \
+            rtl/capu_ctag_validator.sv \
             rtl/capu_vcml_store_buffer.sv \
             tools/vcml_bridge.py \
             vcml-rtl.log \
@@ -104,7 +110,7 @@ jobs:
       - name: Upload bridge evidence
         uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-bridge-v0-evidence
+          name: capu-vcml-bridge-v03-evidence
           path: |
             vcml-rtl.log
             vcml-python.log
@@ -113,7 +119,7 @@ jobs:
             vcml-evidence.sha256
 
   formal-causal-abi:
-    name: Bounded CTAG causal ABI proof
+    name: Bounded CTAG semantic causal ABI proof
     needs: rtl-and-semantic-bridge
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -142,7 +148,7 @@ jobs:
           printf '%s\n' "$ACTUAL_SBY_SHA" | tee /tmp/sby-sha.txt
           python3 /tmp/sby/sbysrc/sby.py --version
 
-      - name: Prove CTAG-aware causal ABI for arbitrary bounded sequences
+      - name: Prove CTAG semantic causal ABI for arbitrary bounded sequences
         run: |
           set -euo pipefail
           mkdir -p target/capu-vcml-formal
@@ -153,11 +159,11 @@ jobs:
             2>&1 | tee target/capu-vcml-formal/formal.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/formal.log
           if grep -q 'DONE (ERROR' target/capu-vcml-formal/formal.log; then
-            echo 'SBY reported ERROR; refusing to seal vCML formal proof' >&2
+            echo 'SBY reported ERROR; refusing to seal v0.3 formal proof' >&2
             exit 1
           fi
 
-      - name: Prove authorized CTAG retirement is reachable
+      - name: Prove accepted WRITE CTAG retirement is reachable
         run: |
           set -euo pipefail
           python3 /tmp/sby/sbysrc/sby.py \
@@ -167,7 +173,7 @@ jobs:
             2>&1 | tee target/capu-vcml-formal/cover.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/cover.log
           if grep -q 'DONE (ERROR' target/capu-vcml-formal/cover.log; then
-            echo 'SBY reported ERROR; refusing to seal vCML non-vacuity evidence' >&2
+            echo 'SBY reported ERROR; refusing to seal v0.3 non-vacuity evidence' >&2
             exit 1
           fi
 
@@ -189,6 +195,7 @@ jobs:
 
           inputs = [
               Path('rtl/capu_store_buffer.sv'),
+              Path('rtl/capu_ctag_validator.sv'),
               Path('rtl/capu_vcml_store_buffer.sv'),
               Path('formal/capu_vcml_store_buffer_formal.sv'),
               Path('formal/capu_vcml_store_buffer.sby'),
@@ -202,8 +209,8 @@ jobs:
               h.update(b'\0')
 
           proof = {
-              'schema': 'capu.hardware.vcml-formal-proof.v0',
-              'design': 'CaPU Core v0.2 CTAG-aware one-entry STORE retirement bridge',
+              'schema': 'capu.hardware.vcml-formal-proof.v0.3',
+              'design': 'CaPU Core v0.3 CTAG semantic validator + one-entry STORE retirement bridge',
               'result': 'PASS',
               'result_basis': 'SBY DONE (PASS) observed in both safety and non-vacuity cover logs',
               'mode': 'bounded model checking + bounded reachability cover',
@@ -221,16 +228,26 @@ jobs:
                   'ctag_width': 16,
                   'transition_id_width': 8,
                   'parent_ref_width': 8,
+                  'require_write_class': True,
+              },
+              'local_ctag_semantics': {
+                  'reserved_dom_rejected': 15,
+                  'normal_store_required_class': 2,
+                  'class_none_rejected': True,
+                  'gen_semantics': 'opaque 4-bit epoch; no local rejection rule',
+                  'lhint_semantics': 'opaque 3-bit lineage hint; not identity proof',
+                  'seal_semantics': 'continuation-control metadata; does not reject current WRITE',
               },
               'invariants': [
-                  'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT && VALID_CTAG_METADATA',
+                  'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT && VALIDATOR_ACCEPTED_CTAG',
+                  'BUFFERED_CTAG_VALID => CTAG.DOM != RESERVED && CTAG.CLASS == WRITE',
                   'VCML_EVENT_VALID == MEMORY_VISIBLE_WRITE',
                   'VISIBLE_WRITE => RETIRED_CTAG == COMMITTED_CTAG',
                   'VISIBLE_WRITE => RETIRED_TRANSITION_ID == COMMITTED_TRANSITION_ID',
                   'VISIBLE_WRITE => RETIRED_PARENT_REF == COMMITTED_PARENT_REF',
               ],
-              'non_vacuity_cover': 'reachable VALID_CTAG causal commit => MEMORY_VISIBLE_WRITE && VCML_EVENT_VALID',
-              'claim_boundary': 'This is a depth-20 bounded safety proof plus depth-8 reachability evidence for the explicitly stated reduced-width formal instance. It is not a parametric proof of every width configuration or of the default 64-bit transition/parent references. CTAG validity is represented by buffered_ctag_valid; the proof does not infer semantic validity from CTAG bits and does not prove cryptographic lineage.',
+              'non_vacuity_cover': 'reachable validator-accepted WRITE CTAG causal commit => MEMORY_VISIBLE_WRITE && VCML_EVENT_VALID',
+              'claim_boundary': 'Depth-20 bounded safety proof plus depth-8 reachability evidence for the reduced-width formal instance. Hardware validates only local STORE CTAG semantics: metadata present, DOM not RESERVED, and CLASS=WRITE in strict mode. It does not recompute LHINT, authenticate parent identity, interpret GEN history, or treat SEAL as cryptographic proof. This is not a parametric proof of all width configurations or a complete CPU proof.',
               'formal_input_sha256': h.hexdigest(),
               'formal_log_sha256': hashlib.sha256(log_text.encode()).hexdigest(),
               'cover_log_sha256': hashlib.sha256(cover_text.encode()).hexdigest(),
@@ -250,7 +267,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-v0-formal-evidence
+          name: capu-vcml-v03-formal-evidence
           path: |
             target/capu-vcml-formal/formal.log
             target/capu-vcml-formal/cover.log
