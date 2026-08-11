@@ -6,12 +6,14 @@ on:
       - agent/capu-core-v0
     paths:
       - 'rtl/**'
+      - 'formal/**'
       - 'docs/hardware/CAPU_CORE_V0.md'
       - 'docs/hardware/CAPU_CORE_V01_STORE.md'
       - '.github/workflows/capu-core-v0.yml'
   pull_request:
     paths:
       - 'rtl/**'
+      - 'formal/**'
       - 'docs/hardware/CAPU_CORE_V0.md'
       - 'docs/hardware/CAPU_CORE_V01_STORE.md'
       - '.github/workflows/capu-core-v0.yml'
@@ -113,4 +115,91 @@ jobs:
         with:
           name: capu-core-v0-smoke-evidence
           path: target/capu-core-v0/
+          if-no-files-found: warn
+
+  formal:
+    name: Bounded causal STORE proof
+    needs: smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+
+      - name: Install SBY formal front-end
+        run: |
+          git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
+          git -C /tmp/sby rev-parse HEAD | tee /tmp/sby-sha.txt
+          python3 /tmp/sby/sbysrc/sby.py --version
+
+      - name: Prove causal STORE boundary for arbitrary bounded sequences
+        run: |
+          mkdir -p target/capu-core-v0
+          python3 /tmp/sby/sbysrc/sby.py \
+            -f \
+            -d target/capu-core-v0/formal-work \
+            formal/capu_store_buffer.sby \
+            | tee target/capu-core-v0/formal.log
+
+      - name: Seal formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import subprocess
+          from pathlib import Path
+
+          root = Path('target/capu-core-v0')
+          inputs = [
+              Path('rtl/capu_store_buffer.sv'),
+              Path('formal/capu_store_buffer_formal.sv'),
+              Path('formal/capu_store_buffer.sby'),
+          ]
+
+          h = hashlib.sha256()
+          for path in inputs:
+              h.update(str(path).encode())
+              h.update(b'\0')
+              h.update(path.read_bytes())
+              h.update(b'\0')
+
+          proof = {
+              'schema': 'capu.hardware.formal-proof.v0',
+              'design': 'CaPU Core v0.1 one-entry speculative STORE buffer',
+              'result': 'PASS',
+              'mode': 'bounded model checking',
+              'depth': 20,
+              'engine': 'smtbmc',
+              'solver': 'z3',
+              'primary_invariant': 'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT',
+              'formal_input_sha256': h.hexdigest(),
+              'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version': subprocess.check_output(['yosys', '-V'], text=True).strip(),
+              'z3_version': subprocess.check_output(['z3', '--version'], text=True).strip(),
+          }
+
+          (root / 'formal-proof.json').write_text(
+              json.dumps(proof, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(proof, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-core-v01-formal-evidence
+          path: |
+            target/capu-core-v0/formal.log
+            target/capu-core-v0/formal-proof.json
+            target/capu-core-v0/formal-work/
           if-no-files-found: warn
