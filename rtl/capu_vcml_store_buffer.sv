@@ -18,9 +18,6 @@ module capu_vcml_store_buffer #(
     input  logic                           store_ctag_valid,
     input  logic [TRANSITION_ID_WIDTH-1:0] store_transition_id,
     input  logic [PARENT_REF_WIDTH-1:0]    store_parent_ref,
-
-    // v0.4: after a committed SEAL=1 transition, automatic continuation is
-    // blocked. The caller must explicitly declare a new cause/root boundary.
     input  logic                           explicit_new_cause,
 
     input  logic                           causal_valid,
@@ -53,7 +50,7 @@ module capu_vcml_store_buffer #(
     logic metadata_issue_allowed;
     logic retire_allowed;
     logic automatic_continuation_allowed;
-    logic explicit_new_cause_admitted;
+    logic buffered_explicit_new_cause;
 
     logic [3:0] decoded_dom;
     logic [3:0] decoded_class;
@@ -83,8 +80,6 @@ module capu_vcml_store_buffer #(
                                  && !buffer_valid
                                  && (automatic_continuation_allowed || explicit_new_cause);
 
-    assign explicit_new_cause_admitted = metadata_issue_allowed && explicit_new_cause;
-
     assign issue_rejected = issue_valid
                          && (!gate_allow
                              || !execute_ok
@@ -105,7 +100,7 @@ module capu_vcml_store_buffer #(
         .rst_n(rst_n),
         .committed_event(retire_allowed),
         .committed_seal(buffered_ctag[0]),
-        .explicit_new_cause_admitted(explicit_new_cause_admitted),
+        .committed_explicit_new_cause(buffered_explicit_new_cause),
         .sealed_chain(sealed_chain),
         .automatic_continuation_allowed(automatic_continuation_allowed)
     );
@@ -135,33 +130,37 @@ module capu_vcml_store_buffer #(
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            buffered_ctag          <= '0;
-            buffered_ctag_valid    <= 1'b0;
-            buffered_transition_id <= '0;
-            buffered_parent_ref    <= '0;
-            retired_ctag           <= '0;
-            retired_transition_id  <= '0;
-            retired_parent_ref     <= '0;
+            buffered_ctag               <= '0;
+            buffered_ctag_valid         <= 1'b0;
+            buffered_transition_id      <= '0;
+            buffered_parent_ref         <= '0;
+            buffered_explicit_new_cause <= 1'b0;
+            retired_ctag                <= '0;
+            retired_transition_id       <= '0;
+            retired_parent_ref          <= '0;
         end else begin
             if (flush) begin
-                buffered_ctag          <= '0;
-                buffered_ctag_valid    <= 1'b0;
-                buffered_transition_id <= '0;
-                buffered_parent_ref    <= '0;
+                buffered_ctag               <= '0;
+                buffered_ctag_valid         <= 1'b0;
+                buffered_transition_id      <= '0;
+                buffered_parent_ref         <= '0;
+                buffered_explicit_new_cause <= 1'b0;
             end else if (retire_allowed) begin
                 retired_ctag          <= buffered_ctag;
                 retired_transition_id <= buffered_transition_id;
                 retired_parent_ref    <= buffered_parent_ref;
 
-                buffered_ctag          <= '0;
-                buffered_ctag_valid    <= 1'b0;
-                buffered_transition_id <= '0;
-                buffered_parent_ref    <= '0;
+                buffered_ctag               <= '0;
+                buffered_ctag_valid         <= 1'b0;
+                buffered_transition_id      <= '0;
+                buffered_parent_ref         <= '0;
+                buffered_explicit_new_cause <= 1'b0;
             end else if (metadata_issue_allowed) begin
-                buffered_ctag          <= store_ctag;
-                buffered_ctag_valid    <= 1'b1;
-                buffered_transition_id <= store_transition_id;
-                buffered_parent_ref    <= store_parent_ref;
+                buffered_ctag               <= store_ctag;
+                buffered_ctag_valid         <= 1'b1;
+                buffered_transition_id      <= store_transition_id;
+                buffered_parent_ref         <= store_parent_ref;
+                buffered_explicit_new_cause <= explicit_new_cause;
             end
         end
     end
