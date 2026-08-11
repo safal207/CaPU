@@ -6,6 +6,7 @@ on:
       - "rtl/capu_store_buffer.sv"
       - "rtl/capu_ctag_validator.sv"
       - "rtl/capu_seal_controller.sv"
+      - "rtl/capu_causal_head_controller.sv"
       - "rtl/capu_vcml_store_buffer.sv"
       - "rtl/tb/capu_vcml_store_buffer_tb.sv"
       - "formal/capu_vcml_store_buffer.sby"
@@ -22,7 +23,7 @@ permissions:
 
 jobs:
   rtl-and-semantic-bridge:
-    name: CTAG + SEAL continuation + vCML projection
+    name: CTAG + SEAL + causal parent + vCML projection
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -31,22 +32,23 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y iverilog
-      - name: Compile v0.4 causal STORE bridge
+      - name: Compile v0.5 causal STORE bridge
         run: |
           iverilog -g2012 -o /tmp/capu-vcml-bridge \
             rtl/capu_store_buffer.sv \
             rtl/capu_ctag_validator.sv \
             rtl/capu_seal_controller.sv \
+            rtl/capu_causal_head_controller.sv \
             rtl/capu_vcml_store_buffer.sv \
             rtl/tb/capu_vcml_store_buffer_tb.sv
       - name: Run RTL invariant smoke
         run: |
           set -o pipefail
           vvp /tmp/capu-vcml-bridge | tee vcml-rtl.log
-          grep -F "CAPU_VCML_BRIDGE_V04_RTL_PASS" vcml-rtl.log
-          grep -F "sealed_child rejected=1 memory_write=0" vcml-rtl.log
-          grep -F "new_cause_flushed old_seal_preserved=1" vcml-rtl.log
-          grep -F "new_cause_committed sealed_chain=0 memory_write=1" vcml-rtl.log
+          grep -F "CAPU_VCML_BRIDGE_V05_RTL_PASS" vcml-rtl.log
+          grep -F "wrong_parent rejected=1 head=10" vcml-rtl.log
+          grep -F "sealed_correct_parent rejected=1" vcml-rtl.log
+          grep -F "root_flushed old_head=20 old_seal=1" vcml-rtl.log
       - name: Run software bridge tests
         run: |
           python3 -m py_compile tools/vcml_bridge.py
@@ -54,19 +56,19 @@ jobs:
       - name: Capture evidence hashes
         run: |
           sha256sum rtl/capu_ctag_validator.sv rtl/capu_seal_controller.sv \
-            rtl/capu_vcml_store_buffer.sv vcml-rtl.log tools/vcml_bridge.py \
-            > vcml-evidence.sha256
+            rtl/capu_causal_head_controller.sv rtl/capu_vcml_store_buffer.sv \
+            vcml-rtl.log tools/vcml_bridge.py > vcml-evidence.sha256
           cat vcml-evidence.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-bridge-v04-evidence
+          name: capu-vcml-bridge-v05-evidence
           path: |
             vcml-rtl.log
             vcml-python.log
             vcml-evidence.sha256
 
   formal-causal-abi:
-    name: Bounded v0.4 SEAL causal ABI proof
+    name: Bounded v0.5 causal parent ABI proof
     needs: rtl-and-semantic-bridge
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -88,7 +90,7 @@ jobs:
           git -C /tmp/sby checkout --detach FETCH_HEAD
           test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
           printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
-      - name: Prove v0.4 bounded safety
+      - name: Prove v0.5 bounded safety
         run: |
           set -euo pipefail
           mkdir -p target/capu-vcml-formal
@@ -97,7 +99,7 @@ jobs:
             formal/capu_vcml_store_buffer.sby 2>&1 | tee target/capu-vcml-formal/formal.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/formal.log
           ! grep -q 'DONE (ERROR' target/capu-vcml-formal/formal.log
-      - name: Prove continuation paths are reachable
+      - name: Prove parent policy paths are reachable
         run: |
           set -euo pipefail
           python3 /tmp/sby/sbysrc/sby.py -f \
@@ -105,7 +107,7 @@ jobs:
             formal/capu_vcml_store_buffer_cover.sby 2>&1 | tee target/capu-vcml-formal/cover.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/cover.log
           ! grep -q 'DONE (ERROR' target/capu-vcml-formal/cover.log
-      - name: Seal v0.4 formal evidence
+      - name: Seal v0.5 formal evidence
         run: |
           python3 - <<'PY'
           import hashlib, json, subprocess
@@ -117,20 +119,24 @@ jobs:
           if 'DONE (PASS' not in cover or 'DONE (ERROR' in cover: raise SystemExit('cover not PASS')
           inputs = [Path(x) for x in [
             'rtl/capu_store_buffer.sv','rtl/capu_ctag_validator.sv','rtl/capu_seal_controller.sv',
-            'rtl/capu_vcml_store_buffer.sv','formal/capu_vcml_store_buffer_formal.sv',
-            'formal/capu_vcml_store_buffer.sby','formal/capu_vcml_store_buffer_cover.sby']]
+            'rtl/capu_causal_head_controller.sv','rtl/capu_vcml_store_buffer.sv',
+            'formal/capu_vcml_store_buffer_formal.sv','formal/capu_vcml_store_buffer.sby',
+            'formal/capu_vcml_store_buffer_cover.sby']]
           h=hashlib.sha256()
           for p in inputs: h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
           proof={
-            'schema':'capu.hardware.vcml-formal-proof.v0.4','result':'PASS',
-            'depth':24,'cover_depth':12,'solver':'z3',
+            'schema':'capu.hardware.vcml-formal-proof.v0.5','result':'PASS',
+            'depth':28,'cover_depth':16,'solver':'z3',
             'formal_instance':{'addr_width':4,'data_width':8,'ctag_width':16,'transition_id_width':8,'parent_ref_width':8},
+            'root_policy':'explicit_new_cause requires parent_ref==0',
             'invariants':[
               'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT && VALIDATOR_ACCEPTED_CTAG',
+              'NORMAL_CONTINUATION_ADMISSION => HEAD_VALID && !SEALED_CHAIN && PARENT_REF==COMMITTED_HEAD',
+              'EXPLICIT_NEW_CAUSE_ADMISSION => PARENT_REF==0',
               'SEALED_CHAIN && !EXPLICIT_NEW_CAUSE => NO_AUTOMATIC_CHILD_ADMISSION',
-              'FLUSHED_EXPLICIT_NEW_CAUSE => PREVIOUS_COMMITTED_SEAL_REMAINS',
+              'FLUSH => COMMITTED_HEAD_AND_SEAL_UNCHANGED',
               'VISIBLE_WRITE preserves CTAG/transition_id/parent_ref'],
-            'claim_boundary':'Bounded reduced-width proof. SEAL is continuation-control metadata, not cryptographic lineage proof. LHINT/GEN history are not verified.',
+            'claim_boundary':'Bounded reduced-width proof. Parent identity is exact only within the committed transition/reference field; no cryptographic lineage, LHINT identity proof, GEN-history proof, persistent head/seal state, or authentication of explicit_new_cause is claimed.',
             'formal_input_sha256':h.hexdigest(),
             'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
             'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
@@ -140,11 +146,11 @@ jobs:
           (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
           print(json.dumps(proof,indent=2,sort_keys=True))
           PY
-      - name: Upload v0.4 formal evidence
+      - name: Upload v0.5 formal evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-v04-formal-evidence
+          name: capu-vcml-v05-formal-evidence
           path: |
             target/capu-vcml-formal/formal.log
             target/capu-vcml-formal/cover.log
