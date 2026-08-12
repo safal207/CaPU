@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Deterministic CaPU retirement event -> vCML-style causal record bridge.
 
-The bridge intentionally keeps hardware and semantic responsibilities separate:
 RTL carries compact causal metadata; this module expands a retired STORE event
 into the minimal vCML-style record used by the CaPU/CML experiment.
 
 This is a semantic adapter, not a policy engine and not cryptographic lineage
-proof. The record integrity field seals the emitted record bytes only.
-`root_authorized` is a projection of the trusted hardware sideband observed at
-root admission; it is not a signature or proof of who authorized the root.
+proof. The integrity field seals emitted record bytes only. v0.8 carries a
+root-qualified trusted authorization decision plus an opaque authorization
+reference and policy epoch. Those fields provide provenance binding, not proof
+of signer identity, freshness, capability validity, or upstream policy quality.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
+U8_MAX = (1 << 8) - 1
 U16_MAX = (1 << 16) - 1
 U64_MAX = (1 << 64) - 1
 
@@ -34,6 +35,8 @@ class CausalStoreEvent:
     transition_id: int
     parent_ref: int
     root_authorized: bool = False
+    root_authorization_ref: int = 0
+    root_policy_epoch: int = 0
 
     @staticmethod
     def from_mapping(raw: Mapping[str, Any]) -> "CausalStoreEvent":
@@ -48,6 +51,8 @@ class CausalStoreEvent:
             transition_id=int(raw["transition_id"]),
             parent_ref=int(raw["parent_ref"]),
             root_authorized=raw_root_authorized,
+            root_authorization_ref=int(raw.get("root_authorization_ref", 0)),
+            root_policy_epoch=int(raw.get("root_policy_epoch", 0)),
         )
         event.validate()
         return event
@@ -65,6 +70,16 @@ class CausalStoreEvent:
             raise ValueError("parent_ref must fit the v0 64-bit hardware reference")
         if not isinstance(self.root_authorized, bool):
             raise ValueError("root_authorized must be boolean")
+        if not 0 <= self.root_authorization_ref <= U16_MAX:
+            raise ValueError("root_authorization_ref must fit the v0.8 16-bit provenance reference")
+        if not 0 <= self.root_policy_epoch <= U8_MAX:
+            raise ValueError("root_policy_epoch must fit the v0.8 8-bit policy epoch")
+        if self.root_authorized and self.root_authorization_ref == 0:
+            raise ValueError("authorized root evidence requires a non-zero root_authorization_ref")
+        if not self.root_authorized and (
+            self.root_authorization_ref != 0 or self.root_policy_epoch != 0
+        ):
+            raise ValueError("non-root/unauthorized evidence must not carry root authorization provenance")
 
 
 def transition_ref(value: int) -> str:
@@ -97,9 +112,9 @@ def build_vcml_record(
     """Expand a retired CaPU STORE event into a vCML-style causal record.
 
     `parent_ref == 0` maps to `parent_cause = None`. The caller remains
-    responsible for deciding whether that represents a legitimate explicit root
-    or an observed causal gap. `root_authorized` only mirrors the trusted
-    hardware retirement field; this adapter does not authenticate its source.
+    responsible for interpreting whether that event is a legitimate root or a
+    causal gap. Root authorization provenance mirrors the retirement evidence;
+    this adapter does not authenticate or freshness-check its upstream source.
     """
 
     event.validate()
@@ -127,6 +142,8 @@ def build_vcml_record(
         "parent_cause": parent_cause,
         "ctag": event.ctag,
         "root_authorized": event.root_authorized,
+        "root_authorization_ref": event.root_authorization_ref,
+        "root_policy_epoch": event.root_policy_epoch,
     }
     record["integrity"] = _integrity(record)
     return record
@@ -140,7 +157,11 @@ def verify_parent_projection(event: CausalStoreEvent, record: Mapping[str, Any])
 def verify_root_authorization_projection(
     event: CausalStoreEvent, record: Mapping[str, Any]
 ) -> bool:
-    return record.get("root_authorized") is event.root_authorized
+    return (
+        record.get("root_authorized") is event.root_authorized
+        and record.get("root_authorization_ref") == event.root_authorization_ref
+        and record.get("root_policy_epoch") == event.root_policy_epoch
+    )
 
 
 def verify_integrity(record: Mapping[str, Any]) -> bool:
