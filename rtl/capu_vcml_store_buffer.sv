@@ -3,6 +3,8 @@ module capu_vcml_store_buffer #(
     parameter int DATA_WIDTH = 32,
     parameter int TRANSITION_ID_WIDTH = 64,
     parameter int PARENT_REF_WIDTH = 64,
+    parameter int AUTHORIZATION_REF_WIDTH = 16,
+    parameter int POLICY_EPOCH_WIDTH = 8,
     parameter bit REQUIRE_WRITE_CLASS = 1'b1
 ) (
     input  logic                           clk,
@@ -20,6 +22,8 @@ module capu_vcml_store_buffer #(
     input  logic [PARENT_REF_WIDTH-1:0]    store_parent_ref,
     input  logic                           explicit_new_cause,
     input  logic                           root_authorized,
+    input  logic [AUTHORIZATION_REF_WIDTH-1:0] root_authorization_ref,
+    input  logic [POLICY_EPOCH_WIDTH-1:0]      root_policy_epoch,
 
     input  logic                           causal_valid,
     input  logic                           commit_request,
@@ -33,6 +37,8 @@ module capu_vcml_store_buffer #(
     output logic [TRANSITION_ID_WIDTH-1:0] buffered_transition_id,
     output logic [PARENT_REF_WIDTH-1:0]    buffered_parent_ref,
     output logic                           buffered_root_authorized,
+    output logic [AUTHORIZATION_REF_WIDTH-1:0] buffered_root_authorization_ref,
+    output logic [POLICY_EPOCH_WIDTH-1:0]      buffered_root_policy_epoch,
 
     output logic                           memory_write_enable,
     output logic [ADDR_WIDTH-1:0]          memory_write_addr,
@@ -43,6 +49,8 @@ module capu_vcml_store_buffer #(
     output logic [TRANSITION_ID_WIDTH-1:0] retired_transition_id,
     output logic [PARENT_REF_WIDTH-1:0]    retired_parent_ref,
     output logic                           retired_root_authorized,
+    output logic [AUTHORIZATION_REF_WIDTH-1:0] retired_root_authorization_ref,
+    output logic [POLICY_EPOCH_WIDTH-1:0]      retired_root_policy_epoch,
 
     output logic                           ctag_semantic_accept,
     output logic                           sealed_chain,
@@ -64,6 +72,7 @@ module capu_vcml_store_buffer #(
     logic root_policy_accept;
     logic continuation_parent_accept;
     logic continuation_generation_accept;
+    logic authorization_ref_present;
 
     logic [3:0] decoded_dom;
     logic [3:0] decoded_class;
@@ -84,19 +93,24 @@ module capu_vcml_store_buffer #(
         .ctag_seal(decoded_seal)
     );
 
-    // Exact parent comparison is fail-closed; no implicit truncation/extension.
     initial begin
         if (TRANSITION_ID_WIDTH != PARENT_REF_WIDTH)
-            $error("CaPU v0.7 requires TRANSITION_ID_WIDTH == PARENT_REF_WIDTH");
+            $error("CaPU v0.8 requires TRANSITION_ID_WIDTH == PARENT_REF_WIDTH");
+        if (AUTHORIZATION_REF_WIDTH < 1)
+            $error("CaPU v0.8 requires AUTHORIZATION_REF_WIDTH >= 1");
+        if (POLICY_EPOCH_WIDTH < 1)
+            $error("CaPU v0.8 requires POLICY_EPOCH_WIDTH >= 1");
     end
 
-    // v0.7 adds an explicit upstream trust boundary for fresh roots. This
-    // signal is intentionally not called cryptographic authentication: it is a
-    // trusted authorization decision supplied to the hardware admission path.
-    assign root_authorization_accept = explicit_new_cause && root_authorized;
+    // v0.8 provenance boundary: a trusted YES is necessary but not sufficient.
+    // Every admitted root must also carry a non-zero opaque authorization ref.
+    // The policy epoch is bound as provenance metadata but is not interpreted as
+    // a freshness or anti-replay counter in this version.
+    assign authorization_ref_present = (root_authorization_ref != '0);
+    assign root_authorization_accept = explicit_new_cause
+                                     && root_authorized
+                                     && authorization_ref_present;
 
-    // Fresh roots still use the v0.6 structural convention parent=0, GEN=0,
-    // but that structure is no longer sufficient without root authorization.
     assign root_policy_accept = root_authorization_accept
                              && (store_parent_ref == '0)
                              && (decoded_gen == 4'h0);
@@ -108,8 +122,6 @@ module capu_vcml_store_buffer #(
                                       && causal_head_valid
                                       && (store_parent_ref == causal_head_transition_id);
 
-    // Automatic continuation must advance exactly one generation and never
-    // wrap F -> 0. GEN exhaustion requires a new authorized explicit root.
     assign continuation_generation_accept = !explicit_new_cause
                                           && causal_head_valid
                                           && !generation_exhausted
@@ -198,45 +210,61 @@ module capu_vcml_store_buffer #(
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            buffered_ctag               <= '0;
-            buffered_ctag_valid         <= 1'b0;
-            buffered_transition_id      <= '0;
-            buffered_parent_ref         <= '0;
-            buffered_explicit_new_cause <= 1'b0;
-            buffered_root_authorized    <= 1'b0;
-            retired_ctag                <= '0;
-            retired_transition_id       <= '0;
-            retired_parent_ref          <= '0;
-            retired_root_authorized     <= 1'b0;
+            buffered_ctag                    <= '0;
+            buffered_ctag_valid              <= 1'b0;
+            buffered_transition_id           <= '0;
+            buffered_parent_ref              <= '0;
+            buffered_explicit_new_cause      <= 1'b0;
+            buffered_root_authorized         <= 1'b0;
+            buffered_root_authorization_ref  <= '0;
+            buffered_root_policy_epoch       <= '0;
+            retired_ctag                     <= '0;
+            retired_transition_id            <= '0;
+            retired_parent_ref               <= '0;
+            retired_root_authorized          <= 1'b0;
+            retired_root_authorization_ref   <= '0;
+            retired_root_policy_epoch        <= '0;
         end else begin
             if (flush) begin
-                buffered_ctag               <= '0;
-                buffered_ctag_valid         <= 1'b0;
-                buffered_transition_id      <= '0;
-                buffered_parent_ref         <= '0;
-                buffered_explicit_new_cause <= 1'b0;
-                buffered_root_authorized    <= 1'b0;
+                buffered_ctag                    <= '0;
+                buffered_ctag_valid              <= 1'b0;
+                buffered_transition_id           <= '0;
+                buffered_parent_ref              <= '0;
+                buffered_explicit_new_cause      <= 1'b0;
+                buffered_root_authorized         <= 1'b0;
+                buffered_root_authorization_ref  <= '0;
+                buffered_root_policy_epoch       <= '0;
             end else if (retire_allowed) begin
-                retired_ctag            <= buffered_ctag;
-                retired_transition_id   <= buffered_transition_id;
-                retired_parent_ref      <= buffered_parent_ref;
-                retired_root_authorized <= buffered_root_authorized;
+                retired_ctag                    <= buffered_ctag;
+                retired_transition_id           <= buffered_transition_id;
+                retired_parent_ref              <= buffered_parent_ref;
+                retired_root_authorized         <= buffered_root_authorized;
+                retired_root_authorization_ref  <= buffered_root_authorization_ref;
+                retired_root_policy_epoch       <= buffered_root_policy_epoch;
 
-                buffered_ctag               <= '0;
-                buffered_ctag_valid         <= 1'b0;
-                buffered_transition_id      <= '0;
-                buffered_parent_ref         <= '0;
-                buffered_explicit_new_cause <= 1'b0;
-                buffered_root_authorized    <= 1'b0;
+                buffered_ctag                    <= '0;
+                buffered_ctag_valid              <= 1'b0;
+                buffered_transition_id           <= '0;
+                buffered_parent_ref              <= '0;
+                buffered_explicit_new_cause      <= 1'b0;
+                buffered_root_authorized         <= 1'b0;
+                buffered_root_authorization_ref  <= '0;
+                buffered_root_policy_epoch       <= '0;
             end else if (metadata_issue_allowed) begin
                 buffered_ctag               <= store_ctag;
                 buffered_ctag_valid         <= 1'b1;
                 buffered_transition_id      <= store_transition_id;
                 buffered_parent_ref         <= store_parent_ref;
                 buffered_explicit_new_cause <= explicit_new_cause;
-                // Continuations never acquire root authorization evidence even
-                // if the sideband is spuriously high; the bit is root-qualified.
-                buffered_root_authorized    <= explicit_new_cause && root_authorized;
+                if (explicit_new_cause) begin
+                    buffered_root_authorized        <= root_authorized;
+                    buffered_root_authorization_ref <= root_authorization_ref;
+                    buffered_root_policy_epoch      <= root_policy_epoch;
+                end else begin
+                    buffered_root_authorized        <= 1'b0;
+                    buffered_root_authorization_ref <= '0;
+                    buffered_root_policy_epoch      <= '0;
+                end
             end
         end
     end
@@ -265,18 +293,23 @@ module capu_vcml_store_buffer #(
     endproperty
     assert property (p_continuation_requires_exact_parent_and_next_gen);
 
-    property p_explicit_root_requires_authorization_zero_parent_and_zero_gen;
+    property p_explicit_root_requires_provenance;
         @(posedge clk) disable iff (!rst_n)
             (issue_valid && explicit_new_cause && !issue_rejected)
-            |-> (root_authorized && store_parent_ref == '0 && decoded_gen == 4'h0);
+            |-> (root_authorized
+                 && root_authorization_ref != '0
+                 && store_parent_ref == '0
+                 && decoded_gen == 4'h0);
     endproperty
-    assert property (p_explicit_root_requires_authorization_zero_parent_and_zero_gen);
+    assert property (p_explicit_root_requires_provenance);
 
-    property p_unauthorized_root_rejected;
+    property p_unauthorized_or_unreferenced_root_rejected;
         @(posedge clk) disable iff (!rst_n)
-            (issue_valid && explicit_new_cause && !root_authorized) |-> issue_rejected;
+            (issue_valid && explicit_new_cause
+             && (!root_authorized || root_authorization_ref == '0))
+            |-> issue_rejected;
     endproperty
-    assert property (p_unauthorized_root_rejected);
+    assert property (p_unauthorized_or_unreferenced_root_rejected);
 
     property p_generation_exhaustion_blocks_automatic_issue;
         @(posedge clk) disable iff (!rst_n)
@@ -285,15 +318,13 @@ module capu_vcml_store_buffer #(
     endproperty
     assert property (p_generation_exhaustion_blocks_automatic_issue);
 
-    // A visible GEN=0 / parent=0 root retirement must carry the root
-    // authorization fact that was latched at admission. The bit is meaningful
-    // only when qualified by the retirement event.
-    property p_visible_root_retains_authorization;
+    property p_visible_root_retains_authorization_provenance;
         @(posedge clk) disable iff (!rst_n)
             (vcml_event_valid && retired_parent_ref == '0 && retired_ctag[7:4] == 4'h0)
-            |-> retired_root_authorized;
+            |-> (retired_root_authorized
+                 && retired_root_authorization_ref != '0);
     endproperty
-    assert property (p_visible_root_retains_authorization);
+    assert property (p_visible_root_retains_authorization_provenance);
 `endif
 
 endmodule
