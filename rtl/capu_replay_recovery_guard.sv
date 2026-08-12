@@ -50,8 +50,6 @@ module capu_replay_recovery_guard #(
     logic recovery_gate_open;
 
     integer scan_idx;
-    integer check_i;
-    integer check_j;
     integer state_idx;
 
     initial begin
@@ -61,23 +59,36 @@ module capu_replay_recovery_guard #(
             $error("CaPU v0.10 requires SPENT_AUTHORIZATION_SLOTS >= 1");
     end
 
-    // Snapshot validity is deliberately structural, not cryptographic.
-    // Every occupied slot must be non-zero and occupied refs must be unique.
-    always_comb begin
-        restore_snapshot_well_formed = 1'b1;
-        for (check_i = 0; check_i < SPENT_AUTHORIZATION_SLOTS; check_i = check_i + 1) begin
-            if (restore_spent_valid[check_i]) begin
-                if (restore_spent_refs[(check_i*AUTHORIZATION_REF_WIDTH) +: AUTHORIZATION_REF_WIDTH] == '0)
-                    restore_snapshot_well_formed = 1'b0;
-                for (check_j = check_i + 1; check_j < SPENT_AUTHORIZATION_SLOTS; check_j = check_j + 1) begin
-                    if (restore_spent_valid[check_j]
-                        && restore_spent_refs[(check_i*AUTHORIZATION_REF_WIDTH) +: AUTHORIZATION_REF_WIDTH]
-                           == restore_spent_refs[(check_j*AUTHORIZATION_REF_WIDTH) +: AUTHORIZATION_REF_WIDTH])
-                        restore_snapshot_well_formed = 1'b0;
+    // Keep snapshot validation as a pure combinational function so simulation
+    // and Yosys formal elaboration share the same interpretation. Every
+    // occupied slot must be non-zero and occupied refs must be unique.
+    function automatic logic snapshot_well_formed_fn(
+        input logic [SPENT_AUTHORIZATION_SLOTS-1:0] valid_mask,
+        input logic [(SPENT_AUTHORIZATION_SLOTS*AUTHORIZATION_REF_WIDTH)-1:0] refs_flat
+    );
+        integer fi;
+        integer fj;
+        begin
+            snapshot_well_formed_fn = 1'b1;
+            for (fi = 0; fi < SPENT_AUTHORIZATION_SLOTS; fi = fi + 1) begin
+                if (valid_mask[fi]
+                    && refs_flat[(fi*AUTHORIZATION_REF_WIDTH) +: AUTHORIZATION_REF_WIDTH] == '0)
+                    snapshot_well_formed_fn = 1'b0;
+
+                for (fj = 0; fj < SPENT_AUTHORIZATION_SLOTS; fj = fj + 1) begin
+                    if ((fj > fi)
+                        && valid_mask[fi]
+                        && valid_mask[fj]
+                        && refs_flat[(fi*AUTHORIZATION_REF_WIDTH) +: AUTHORIZATION_REF_WIDTH]
+                           == refs_flat[(fj*AUTHORIZATION_REF_WIDTH) +: AUTHORIZATION_REF_WIDTH])
+                        snapshot_well_formed_fn = 1'b0;
                 end
             end
         end
-    end
+    endfunction
+
+    assign restore_snapshot_well_formed =
+        snapshot_well_formed_fn(restore_spent_valid, restore_spent_refs);
 
     always_comb begin
         authorization_ref_seen = 1'b0;
