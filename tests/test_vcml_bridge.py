@@ -11,6 +11,7 @@ from tools.vcml_bridge import (  # noqa: E402
     CausalStoreEvent,
     build_vcml_record,
     transition_ref,
+    verify_authorization_replay_window,
     verify_integrity,
     verify_parent_projection,
     verify_root_authorization_projection,
@@ -31,16 +32,34 @@ class VCMLBridgeTests(unittest.TestCase):
         )
         self.actor = {"pid": 4242, "uid": 1000, "comm": "capu-test"}
 
-    def make_root(self) -> CausalStoreEvent:
+    def make_root(
+        self,
+        *,
+        transition_id: int = 1,
+        auth_ref: int = 0xA101,
+        policy_epoch: int = 7,
+    ) -> CausalStoreEvent:
         return CausalStoreEvent(
-            address=1,
+            address=transition_id,
             data=2,
             ctag=0x4200,
-            transition_id=1,
+            transition_id=transition_id,
             parent_ref=0,
             root_authorized=True,
-            root_authorization_ref=0xA101,
-            root_policy_epoch=7,
+            root_authorization_ref=auth_ref,
+            root_policy_epoch=policy_epoch,
+        )
+
+    def root_record(self, *, transition_id: int, auth_ref: int, policy_epoch: int) -> dict:
+        return build_vcml_record(
+            self.make_root(
+                transition_id=transition_id,
+                auth_ref=auth_ref,
+                policy_epoch=policy_epoch,
+            ),
+            actor={"pid": 1, "uid": 0},
+            permitted_by="capu:trusted-root-boundary",
+            timestamp_ns=transition_id,
         )
 
     def test_retired_parent_ref_maps_exactly_to_parent_cause(self) -> None:
@@ -253,6 +272,38 @@ class VCMLBridgeTests(unittest.TestCase):
                 permitted_by="capu:causal_commit",
                 timestamp_ns=1,
             )
+
+    def test_replay_window_rejects_duplicate_root_ref_even_with_new_policy_epoch(self) -> None:
+        records = [
+            self.root_record(transition_id=1, auth_ref=0xA101, policy_epoch=1),
+            self.root_record(transition_id=2, auth_ref=0xA102, policy_epoch=2),
+            self.root_record(transition_id=3, auth_ref=0xA101, policy_epoch=99),
+        ]
+        self.assertFalse(verify_authorization_replay_window(records, capacity=4))
+
+    def test_replay_window_accepts_four_unique_refs_and_rejects_fifth(self) -> None:
+        first_four = [
+            self.root_record(transition_id=i, auth_ref=0xA100 + i, policy_epoch=i)
+            for i in range(1, 5)
+        ]
+        self.assertTrue(verify_authorization_replay_window(first_four, capacity=4))
+
+        fifth = self.root_record(transition_id=5, auth_ref=0xA105, policy_epoch=5)
+        self.assertFalse(verify_authorization_replay_window([*first_four, fifth], capacity=4))
+
+    def test_replay_window_allows_continuations_without_root_provenance(self) -> None:
+        root = self.root_record(transition_id=1, auth_ref=0xA101, policy_epoch=1)
+        continuation = build_vcml_record(
+            self.event,
+            actor=self.actor,
+            permitted_by="capu:causal_commit",
+            timestamp_ns=2,
+        )
+        self.assertTrue(verify_authorization_replay_window([root, continuation], capacity=4))
+
+    def test_replay_window_rejects_invalid_capacity(self) -> None:
+        with self.assertRaises(ValueError):
+            verify_authorization_replay_window([], capacity=0)
 
 
 if __name__ == "__main__":
