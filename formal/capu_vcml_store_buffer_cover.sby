@@ -1,7 +1,7 @@
 [options]
 mode cover
-depth 16
-timeout 120
+depth 40
+timeout 600
 
 [engines]
 smtbmc --unroll z3 -- --noincr
