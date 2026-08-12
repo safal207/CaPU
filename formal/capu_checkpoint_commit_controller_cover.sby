@@ -1,0 +1,15 @@
+[options]
+mode cover
+depth 28
+timeout 300
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_checkpoint_commit_controller.sv capu_checkpoint_commit_controller_formal.sv
+prep -top capu_checkpoint_commit_controller_formal
+
+[files]
+rtl/capu_checkpoint_commit_controller.sv
+formal/capu_checkpoint_commit_controller_formal.sv
