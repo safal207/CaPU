@@ -6,7 +6,8 @@ module capu_vcml_store_buffer #(
     parameter int AUTHORIZATION_REF_WIDTH = 16,
     parameter int POLICY_EPOCH_WIDTH = 8,
     parameter int SPENT_AUTHORIZATION_SLOTS = 4,
-    parameter bit REQUIRE_WRITE_CLASS = 1'b1
+    parameter bit REQUIRE_WRITE_CLASS = 1'b1,
+    parameter bit ENABLE_CAUSAL_STATE_RESTORE = 1'b0
 ) (
     input  logic                           clk,
     input  logic                           rst_n,
@@ -29,6 +30,14 @@ module capu_vcml_store_buffer #(
     input  logic                           causal_valid,
     input  logic                           commit_request,
     input  logic                           flush,
+
+    // v0.15 optional recovery sideband. With the default parameter disabled,
+    // all earlier v0.9-v0.14 instances retain their original semantics.
+    input  logic                           causal_state_restore_valid,
+    input  logic                           restore_causal_head_valid,
+    input  logic [TRANSITION_ID_WIDTH-1:0] restore_causal_head_transition_id,
+    input  logic [3:0]                     restore_causal_head_gen,
+    input  logic                           restore_sealed_chain,
 
     output logic                           buffer_valid,
     output logic [ADDR_WIDTH-1:0]          buffered_addr,
@@ -87,6 +96,7 @@ module capu_vcml_store_buffer #(
     logic first_free_spent_slot_valid;
     logic [SPENT_SLOT_INDEX_WIDTH-1:0] first_free_spent_slot;
     logic consume_root_authorization;
+    logic causal_state_restore_active;
 
     logic [AUTHORIZATION_REF_WIDTH-1:0]
         spent_authorization_refs [0:SPENT_AUTHORIZATION_SLOTS-1];
@@ -100,6 +110,9 @@ module capu_vcml_store_buffer #(
 
     integer scan_idx;
     integer reset_idx;
+
+    assign causal_state_restore_active = ENABLE_CAUSAL_STATE_RESTORE
+                                      && (causal_state_restore_valid === 1'b1);
 
     capu_ctag_validator #(
         .REQUIRE_WRITE_CLASS(REQUIRE_WRITE_CLASS)
@@ -203,20 +216,23 @@ module capu_vcml_store_buffer #(
                                  && execute_ok
                                  && ctag_semantic_accept
                                  && parent_policy_accept
-                                 && !buffer_valid;
+                                 && !buffer_valid
+                                 && !causal_state_restore_active;
 
     assign issue_rejected = issue_valid
                          && (!gate_allow
                              || !execute_ok
                              || !ctag_semantic_accept
                              || !parent_policy_accept
-                             || buffer_valid);
+                             || buffer_valid
+                             || causal_state_restore_active);
 
     assign retire_allowed = buffer_valid
                          && causal_valid
                          && buffered_ctag_valid
                          && commit_request
-                         && !flush;
+                         && !flush
+                         && !causal_state_restore_active;
 
     assign consume_root_authorization = retire_allowed
                                       && buffered_explicit_new_cause
@@ -225,24 +241,33 @@ module capu_vcml_store_buffer #(
 
     assign vcml_event_valid = memory_write_enable;
 
-    capu_seal_controller seal_controller (
+    capu_seal_controller #(
+        .ENABLE_RESTORE(ENABLE_CAUSAL_STATE_RESTORE)
+    ) seal_controller (
         .clk(clk),
         .rst_n(rst_n),
         .committed_event(retire_allowed),
         .committed_seal(buffered_ctag[0]),
         .committed_explicit_new_cause(buffered_explicit_new_cause),
+        .restore_valid(causal_state_restore_active),
+        .restore_sealed_chain(restore_sealed_chain),
         .sealed_chain(sealed_chain),
         .automatic_continuation_allowed(automatic_continuation_allowed)
     );
 
     capu_causal_head_controller #(
-        .TRANSITION_ID_WIDTH(TRANSITION_ID_WIDTH)
+        .TRANSITION_ID_WIDTH(TRANSITION_ID_WIDTH),
+        .ENABLE_RESTORE(ENABLE_CAUSAL_STATE_RESTORE)
     ) causal_head_controller (
         .clk(clk),
         .rst_n(rst_n),
         .committed_event(retire_allowed),
         .committed_transition_id(buffered_transition_id),
         .committed_gen(buffered_ctag[7:4]),
+        .restore_valid(causal_state_restore_active),
+        .restore_head_valid(restore_causal_head_valid),
+        .restore_transition_id(restore_causal_head_transition_id),
+        .restore_gen(restore_causal_head_gen),
         .head_valid(causal_head_valid),
         .causal_head_transition_id(causal_head_transition_id),
         .causal_head_gen(causal_head_gen)
@@ -261,7 +286,7 @@ module capu_vcml_store_buffer #(
         .store_data(store_data),
         .causal_valid(causal_valid && buffered_ctag_valid),
         .commit_request(commit_request),
-        .flush(flush),
+        .flush(flush || causal_state_restore_active),
         .buffer_valid(buffer_valid),
         .buffered_addr(buffered_addr),
         .buffered_data(buffered_data),
@@ -297,7 +322,7 @@ module capu_vcml_store_buffer #(
                 spent_authorization_refs[first_free_spent_slot] <= buffered_root_authorization_ref;
             end
 
-            if (flush) begin
+            if (flush || causal_state_restore_active) begin
                 buffered_ctag                    <= '0;
                 buffered_ctag_valid              <= 1'b0;
                 buffered_transition_id           <= '0;
@@ -415,6 +440,18 @@ module capu_vcml_store_buffer #(
                  && retired_authorization_ref_spent);
     endproperty
     assert property (p_visible_root_retains_spent_authorization_provenance);
+
+    property p_restore_never_publishes_effect;
+        @(posedge clk) disable iff (!rst_n)
+            causal_state_restore_active |-> (!memory_write_enable && !vcml_event_valid);
+    endproperty
+    assert property (p_restore_never_publishes_effect);
+
+    property p_restore_blocks_new_issue;
+        @(posedge clk) disable iff (!rst_n)
+            (causal_state_restore_active && issue_valid) |-> issue_rejected;
+    endproperty
+    assert property (p_restore_blocks_new_issue);
 `endif
 
 endmodule
