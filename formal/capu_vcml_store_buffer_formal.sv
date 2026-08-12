@@ -5,6 +5,8 @@ module capu_vcml_store_buffer_formal;
     localparam int PARENT_REF_WIDTH = 8;
     localparam int AUTHORIZATION_REF_WIDTH = 4;
     localparam int POLICY_EPOCH_WIDTH = 4;
+    localparam int SPENT_AUTHORIZATION_SLOTS = 4;
+    localparam int SPENT_COUNT_WIDTH = $clog2(SPENT_AUTHORIZATION_SLOTS + 1);
     localparam logic [3:0] DOM_RESERVED = 4'hF;
     localparam logic [3:0] CLASS_WRITE  = 4'h2;
 
@@ -48,6 +50,9 @@ module capu_vcml_store_buffer_formal;
     wire ctag_semantic_accept, sealed_chain, continuation_blocked;
     wire causal_head_valid, generation_policy_accept, generation_exhausted;
     wire root_authorization_accept, parent_policy_accept, issue_rejected;
+    wire authorization_ref_fresh, authorization_replay_detected;
+    wire authorization_capacity_exhausted, retired_authorization_ref_spent;
+    wire [SPENT_COUNT_WIDTH-1:0] spent_authorization_count;
     wire [TRANSITION_ID_WIDTH-1:0] causal_head_transition_id;
     wire [3:0] causal_head_gen;
 
@@ -57,6 +62,7 @@ module capu_vcml_store_buffer_formal;
         .PARENT_REF_WIDTH(PARENT_REF_WIDTH),
         .AUTHORIZATION_REF_WIDTH(AUTHORIZATION_REF_WIDTH),
         .POLICY_EPOCH_WIDTH(POLICY_EPOCH_WIDTH),
+        .SPENT_AUTHORIZATION_SLOTS(SPENT_AUTHORIZATION_SLOTS),
         .REQUIRE_WRITE_CLASS(1'b1)
     ) dut (
         .clk(clk), .rst_n(rst_n),
@@ -85,6 +91,11 @@ module capu_vcml_store_buffer_formal;
         .causal_head_gen(causal_head_gen), .generation_policy_accept(generation_policy_accept),
         .generation_exhausted(generation_exhausted),
         .root_authorization_accept(root_authorization_accept),
+        .authorization_ref_fresh(authorization_ref_fresh),
+        .authorization_replay_detected(authorization_replay_detected),
+        .authorization_capacity_exhausted(authorization_capacity_exhausted),
+        .spent_authorization_count(spent_authorization_count),
+        .retired_authorization_ref_spent(retired_authorization_ref_spent),
         .parent_policy_accept(parent_policy_accept), .issue_rejected(issue_rejected)
     );
 
@@ -107,15 +118,19 @@ module capu_vcml_store_buffer_formal;
     reg prev_retired_root_authorized = 1'b0;
     reg [AUTHORIZATION_REF_WIDTH-1:0] prev_retired_auth_ref = '0;
     reg [POLICY_EPOCH_WIDTH-1:0] prev_retired_policy_epoch = '0;
+    reg [SPENT_COUNT_WIDTH-1:0] prev_spent_count = '0;
 
     reg seen_authorized_root_commit = 1'b0;
     reg seen_unauthorized_root_reject = 1'b0;
     reg seen_zero_ref_root_reject = 1'b0;
+    reg seen_replay_root_reject = 1'b0;
     reg seen_normal_continuation = 1'b0;
     reg seen_sealed_commit = 1'b0;
     reg seen_authorized_root_under_seal = 1'b0;
     reg seen_epoch_exhaustion = 1'b0;
     reg seen_authorized_root_after_exhaustion = 1'b0;
+    reg seen_spent_capacity_full = 1'b0;
+    reg seen_capacity_reject = 1'b0;
 
     always @(posedge clk) begin
         if (!rst_n) begin
@@ -125,14 +140,19 @@ module capu_vcml_store_buffer_formal;
             ghost_root_authorization_ref <= '0; ghost_root_policy_epoch <= '0;
             prev_flush <= 0; prev_head_valid <= 0; prev_head <= '0;
             prev_head_gen <= 4'h0; prev_sealed <= 0; prev_retired_root_authorized <= 0;
-            prev_retired_auth_ref <= '0; prev_retired_policy_epoch <= '0;
+            prev_retired_auth_ref <= '0; prev_retired_policy_epoch <= '0; prev_spent_count <= '0;
             seen_authorized_root_commit <= 0; seen_unauthorized_root_reject <= 0;
-            seen_zero_ref_root_reject <= 0; seen_normal_continuation <= 0;
-            seen_sealed_commit <= 0; seen_authorized_root_under_seal <= 0;
-            seen_epoch_exhaustion <= 0; seen_authorized_root_after_exhaustion <= 0;
+            seen_zero_ref_root_reject <= 0; seen_replay_root_reject <= 0;
+            seen_normal_continuation <= 0; seen_sealed_commit <= 0;
+            seen_authorized_root_under_seal <= 0; seen_epoch_exhaustion <= 0;
+            seen_authorized_root_after_exhaustion <= 0; seen_spent_capacity_full <= 0;
+            seen_capacity_reject <= 0;
         end else begin
             assert(memory_write_enable == ghost_commit);
             assert(vcml_event_valid == memory_write_enable);
+            assert(spent_authorization_count <= SPENT_AUTHORIZATION_SLOTS);
+            assert(authorization_capacity_exhausted
+                   == (spent_authorization_count == SPENT_AUTHORIZATION_SLOTS));
 
             if (buffered_ctag_valid) begin
                 assert(buffered_ctag[15:12] != DOM_RESERVED);
@@ -164,11 +184,31 @@ module capu_vcml_store_buffer_formal;
                     assert(ghost_root_authorization_ref != '0);
                     assert(retired_root_authorized);
                     assert(retired_root_authorization_ref != '0);
+                    assert(retired_authorization_ref_spent);
+                    assert(spent_authorization_count == prev_spent_count + 1'b1);
                 end else begin
                     assert(!ghost_root_authorized);
                     assert(ghost_root_authorization_ref == '0);
                     assert(ghost_root_policy_epoch == '0);
+                    assert(spent_authorization_count == prev_spent_count);
                 end
+            end else begin
+                assert(spent_authorization_count == prev_spent_count);
+            end
+
+            // A fresh explicit root is admitted only with a nonzero, unspent
+            // reference while local no-eviction capacity remains available.
+            if (issue_valid && gate_allow && execute_ok && ctag_semantic_accept
+                && !buffer_valid && explicit_new_cause && parent_policy_accept) begin
+                assert(root_authorized);
+                assert(root_authorization_ref != '0);
+                assert(authorization_ref_fresh);
+                assert(!authorization_replay_detected);
+                assert(!authorization_capacity_exhausted);
+                assert(root_authorization_accept);
+                assert(store_parent_ref == '0);
+                assert(store_ctag[7:4] == 4'h0);
+                assert(generation_policy_accept);
             end
 
             if (issue_valid && gate_allow && execute_ok && ctag_semantic_accept
@@ -179,19 +219,6 @@ module capu_vcml_store_buffer_formal;
                 assert(causal_head_gen != 4'hF);
                 assert(store_parent_ref == causal_head_transition_id);
                 assert(store_ctag[7:4] == (causal_head_gen + 4'h1));
-                assert(generation_policy_accept);
-            end
-
-            // v0.8: root intent requires both trusted authorization and an
-            // opaque non-zero provenance/capability reference. policy_epoch is
-            // bound through retirement but deliberately not interpreted here.
-            if (issue_valid && gate_allow && execute_ok && ctag_semantic_accept
-                && !buffer_valid && explicit_new_cause && parent_policy_accept) begin
-                assert(root_authorized);
-                assert(root_authorization_ref != '0);
-                assert(root_authorization_accept);
-                assert(store_parent_ref == '0);
-                assert(store_ctag[7:4] == 4'h0);
                 assert(generation_policy_accept);
             end
 
@@ -208,6 +235,23 @@ module capu_vcml_store_buffer_formal;
                 assert(!parent_policy_accept);
                 assert(issue_rejected);
                 seen_zero_ref_root_reject <= 1'b1;
+            end
+
+            if (issue_valid && explicit_new_cause && authorization_replay_detected) begin
+                assert(!authorization_ref_fresh);
+                assert(!root_authorization_accept);
+                assert(!parent_policy_accept);
+                assert(issue_rejected);
+                seen_replay_root_reject <= 1'b1;
+            end
+
+            if (issue_valid && explicit_new_cause && root_authorized
+                && root_authorization_ref != '0 && authorization_capacity_exhausted) begin
+                assert(!root_authorization_accept);
+                assert(!parent_policy_accept);
+                assert(issue_rejected);
+                if (authorization_ref_fresh)
+                    seen_capacity_reject <= 1'b1;
             end
 
             if (sealed_chain && issue_valid && !explicit_new_cause) begin
@@ -230,6 +274,7 @@ module capu_vcml_store_buffer_formal;
                 assert(retired_root_authorized == prev_retired_root_authorized);
                 assert(retired_root_authorization_ref == prev_retired_auth_ref);
                 assert(retired_root_policy_epoch == prev_retired_policy_epoch);
+                assert(spent_authorization_count == prev_spent_count);
                 assert(!vcml_event_valid);
             end
 
@@ -242,6 +287,9 @@ module capu_vcml_store_buffer_formal;
                 if (ghost_ctag[0])
                     seen_sealed_commit <= 1'b1;
             end
+
+            if (seen_authorized_root_commit && authorization_replay_detected && issue_rejected)
+                seen_replay_root_reject <= 1'b1;
 
             if (seen_sealed_commit && sealed_chain && buffer_valid
                 && buffered_parent_ref == '0 && buffered_ctag[7:4] == 4'h0
@@ -256,12 +304,18 @@ module capu_vcml_store_buffer_formal;
                 && buffered_root_authorized && buffered_root_authorization_ref != '0)
                 seen_authorized_root_after_exhaustion <= 1'b1;
 
+            if (authorization_capacity_exhausted)
+                seen_spent_capacity_full <= 1'b1;
+
             cover(seen_authorized_root_commit);
             cover(seen_unauthorized_root_reject);
             cover(seen_zero_ref_root_reject);
+            cover(seen_authorized_root_commit && seen_replay_root_reject);
             cover(seen_authorized_root_commit && seen_normal_continuation && causal_head_valid);
             cover(seen_sealed_commit && seen_authorized_root_under_seal && sealed_chain);
             cover(seen_epoch_exhaustion && seen_authorized_root_after_exhaustion);
+            cover(seen_spent_capacity_full);
+            cover(seen_spent_capacity_full && seen_capacity_reject);
 
             ghost_commit <= buffer_valid
                          && causal_valid
@@ -286,6 +340,7 @@ module capu_vcml_store_buffer_formal;
             prev_retired_root_authorized <= retired_root_authorized;
             prev_retired_auth_ref <= retired_root_authorization_ref;
             prev_retired_policy_epoch <= retired_root_policy_epoch;
+            prev_spent_count <= spent_authorization_count;
         end
     end
 endmodule
