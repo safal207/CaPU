@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   rtl-and-semantic-bridge:
-    name: CTAG + SEAL + parent + GEN + auth provenance + vCML projection
+    name: CTAG + causal state + one-shot auth + vCML projection
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,7 +32,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y iverilog
-      - name: Compile v0.8 causal STORE bridge
+      - name: Compile v0.9 causal STORE bridge
         run: |
           iverilog -g2012 -o /tmp/capu-vcml-bridge \
             rtl/capu_store_buffer.sv \
@@ -45,16 +45,17 @@ jobs:
         run: |
           set -o pipefail
           vvp /tmp/capu-vcml-bridge | tee vcml-rtl.log
-          grep -F "CAPU_VCML_BRIDGE_V08_RTL_PASS" vcml-rtl.log
+          grep -F "CAPU_VCML_BRIDGE_V09_RTL_PASS" vcml-rtl.log
           grep -F "unauthorized_root rejected=1" vcml-rtl.log
           grep -F "zero_auth_ref rejected=1" vcml-rtl.log
-          grep -F "authorized_root_committed head=10 auth_ref=A110 policy_epoch=07" vcml-rtl.log
-          grep -F "continuation_spurious_auth ignored=1 gen=1" vcml-rtl.log
-          grep -F "zero_ref_root_under_seal rejected=1" vcml-rtl.log
-          grep -F "authorized_root_flush no_event=1 provenance_preserved=1" vcml-rtl.log
-          grep -F "epoch_exhausted head_gen=F" vcml-rtl.log
-          grep -F "exhausted_zero_ref_root rejected=1" vcml-rtl.log
-          grep -F "exhausted_root_committed head=62 auth_ref=A162 policy_epoch=0C" vcml-rtl.log
+          grep -F "authorized_root_committed head=10 auth_ref=A110 spent=1" vcml-rtl.log
+          grep -F "replay_A110 rejected=1 spent=1" vcml-rtl.log
+          grep -F "authorized_root_flush ref=A130 not_spent=1" vcml-rtl.log
+          grep -F "flushed_ref_reused_once head=31 auth_ref=A130 spent=2" vcml-rtl.log
+          grep -F "epoch_exhausted head_gen=F spent=2" vcml-rtl.log
+          grep -F "old_ref_replay_A110 rejected=1 spent=3" vcml-rtl.log
+          grep -F "spent_capacity_full count=4 last=A164" vcml-rtl.log
+          grep -F "capacity_exhausted fresh_root_rejected=1 count=4" vcml-rtl.log
       - name: Run software bridge tests
         run: |
           python3 -m py_compile tools/vcml_bridge.py
@@ -68,14 +69,14 @@ jobs:
           cat vcml-evidence.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-bridge-v08-evidence
+          name: capu-vcml-bridge-v09-evidence
           path: |
             vcml-rtl.log
             vcml-python.log
             vcml-evidence.sha256
 
   formal-causal-abi:
-    name: Bounded v0.8 root provenance + causal ABI proof
+    name: Bounded v0.9 one-shot authorization + causal ABI proof
     needs: rtl-and-semantic-bridge
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -97,7 +98,7 @@ jobs:
           git -C /tmp/sby checkout --detach FETCH_HEAD
           test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
           printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
-      - name: Prove v0.8 bounded safety
+      - name: Prove v0.9 bounded safety
         run: |
           set -euo pipefail
           mkdir -p target/capu-vcml-formal
@@ -106,7 +107,7 @@ jobs:
             formal/capu_vcml_store_buffer.sby 2>&1 | tee target/capu-vcml-formal/formal.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/formal.log
           ! grep -q 'DONE (ERROR' target/capu-vcml-formal/formal.log
-      - name: Prove root provenance and continuation paths are reachable
+      - name: Prove replay, capacity and causal paths are reachable
         run: |
           set -euo pipefail
           python3 /tmp/sby/sbysrc/sby.py -f \
@@ -114,7 +115,7 @@ jobs:
             formal/capu_vcml_store_buffer_cover.sby 2>&1 | tee target/capu-vcml-formal/cover.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/cover.log
           ! grep -q 'DONE (ERROR' target/capu-vcml-formal/cover.log
-      - name: Seal v0.8 formal evidence
+      - name: Seal v0.9 formal evidence
         run: |
           python3 - <<'PY'
           import hashlib, json, subprocess
@@ -132,26 +133,32 @@ jobs:
           h=hashlib.sha256()
           for p in inputs: h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
           proof={
-            'schema':'capu.hardware.vcml-formal-proof.v0.8','result':'PASS',
+            'schema':'capu.hardware.vcml-formal-proof.v0.9','result':'PASS',
             'depth':36,'cover_depth':40,'solver':'z3',
             'formal_instance':{
               'addr_width':4,'data_width':8,'ctag_width':16,
               'transition_id_width':8,'parent_ref_width':8,'gen_width':4,
-              'root_authorization_width':1,'authorization_ref_width':4,'policy_epoch_width':4},
-            'root_policy':'explicit_new_cause requires trusted root_authorized, non-zero root_authorization_ref, parent_ref==0 and GEN==0; root_policy_epoch is bound but opaque',
+              'root_authorization_width':1,'authorization_ref_width':4,
+              'policy_epoch_width':4,'spent_authorization_slots':4},
+            'root_policy':'explicit_new_cause requires trusted root_authorized, non-zero unspent root_authorization_ref, available spent-set capacity, parent_ref==0 and GEN==0; policy_epoch remains opaque',
+            'authorization_replay_policy':'authorization_ref is consumed only by successful root retirement; any spent ref is rejected; no eviction; full spent-set rejects fresh roots until reset',
             'generation_policy':'normal continuation requires GEN==committed_GEN+1; committed GEN==F blocks automatic continuation and forbids F->0 wrap',
             'invariants':[
               'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT && VALIDATOR_ACCEPTED_CTAG',
               'NORMAL_CONTINUATION_ADMISSION => HEAD_VALID && !SEALED_CHAIN && !GEN_EXHAUSTED && PARENT_REF==COMMITTED_HEAD && GEN==COMMITTED_GEN+1',
-              'EXPLICIT_NEW_CAUSE_ADMISSION => ROOT_AUTHORIZED && AUTHORIZATION_REF!=0 && PARENT_REF==0 && GEN==0',
+              'EXPLICIT_NEW_CAUSE_ADMISSION => ROOT_AUTHORIZED && AUTHORIZATION_REF!=0 && AUTHORIZATION_REF_FRESH && !AUTHORIZATION_CAPACITY_EXHAUSTED && PARENT_REF==0 && GEN==0',
               'UNAUTHORIZED_OR_ZERO_REF_EXPLICIT_ROOT => NO_ROOT_ADMISSION',
-              'VISIBLE_ROOT_COMMIT => RETIRED_ROOT_AUTHORIZED && RETIRED_AUTHORIZATION_REF!=0',
+              'SPENT_AUTHORIZATION_REF => NO_ROOT_ADMISSION',
+              'AUTHORIZATION_CAPACITY_EXHAUSTED => NO_FRESH_ROOT_ADMISSION',
+              'VISIBLE_ROOT_COMMIT => RETIRED_ROOT_AUTHORIZED && RETIRED_AUTHORIZATION_REF_SPENT && SPENT_COUNT_INCREMENTS_BY_ONE',
+              'NON_ROOT_RETIREMENT => SPENT_COUNT_UNCHANGED',
+              'NO_VISIBLE_ROOT_RETIREMENT => SPENT_COUNT_UNCHANGED',
               'VISIBLE_WRITE preserves CTAG/transition_id/parent_ref/root-authorization/ref/policy-epoch binding',
               'CONTINUATION_RETIREMENT => NO_ROOT_AUTHORIZATION_PROVENANCE',
               'SEALED_CHAIN && !EXPLICIT_NEW_CAUSE => NO_AUTOMATIC_CHILD_ADMISSION',
               'GEN_EXHAUSTED && !EXPLICIT_NEW_CAUSE => NO_AUTOMATIC_CHILD_ADMISSION',
-              'FLUSH => NO_RETIREMENT_EVENT && COMMITTED_HEAD_GEN_SEAL_AND_LAST_AUTH_PROVENANCE_UNCHANGED'],
-            'claim_boundary':'Bounded reduced-width proof. root_authorized is a trusted upstream decision; root_authorization_ref is an opaque provenance/capability reference and root_policy_epoch is an opaque policy-version field. Neither is cryptographically authenticated or freshness-checked. No signature, principal identity, nonce, capability validity, persistent/global replay protection, cryptographic lineage, persistent head/GEN/seal state, or complete CPU proof is claimed.',
+              'FLUSH => NO_RETIREMENT_EVENT && COMMITTED_HEAD_GEN_SEAL_LAST_AUTH_PROVENANCE_AND_SPENT_COUNT_UNCHANGED'],
+            'claim_boundary':'Bounded reduced-width proof with four volatile spent-reference slots. root_authorized is a trusted upstream decision; root_authorization_ref is opaque and not cryptographically authenticated. Replay protection is local to one reset lifetime and the finite no-eviction spent set. policy_epoch is not freshness. No persistence, global anti-replay, issuer authentication, signature/capability validation, distributed coherence, or complete CPU proof is claimed.',
             'formal_input_sha256':h.hexdigest(),
             'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
             'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
@@ -161,11 +168,11 @@ jobs:
           (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
           print(json.dumps(proof,indent=2,sort_keys=True))
           PY
-      - name: Upload v0.8 formal evidence
+      - name: Upload v0.9 formal evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-v08-formal-evidence
+          name: capu-vcml-v09-formal-evidence
           path: |
             target/capu-vcml-formal/formal.log
             target/capu-vcml-formal/cover.log
