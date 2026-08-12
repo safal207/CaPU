@@ -1,0 +1,26 @@
+[options]
+mode bmc
+depth 16
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_store_buffer.sv capu_ctag_validator.sv capu_seal_controller.sv capu_causal_head_controller.sv capu_vcml_store_buffer.sv capu_replay_recovery_guard.sv capu_vcml_store_buffer_v10.sv capu_checkpoint_freshness_guard.sv capu_vcml_store_buffer_v11.sv capu_checkpoint_commit_controller.sv capu_vcml_store_buffer_v12.sv capu_checkpoint_content_binding_v13.sv capu_checkpoint_full_state_binding_v14.sv capu_checkpoint_full_state_binding_v14_formal.sv
+prep -top capu_checkpoint_full_state_binding_v14_formal
+
+[files]
+rtl/capu_store_buffer.sv
+rtl/capu_ctag_validator.sv
+rtl/capu_seal_controller.sv
+rtl/capu_causal_head_controller.sv
+rtl/capu_vcml_store_buffer.sv
+rtl/capu_replay_recovery_guard.sv
+rtl/capu_vcml_store_buffer_v10.sv
+rtl/capu_checkpoint_freshness_guard.sv
+rtl/capu_vcml_store_buffer_v11.sv
+rtl/capu_checkpoint_commit_controller.sv
+rtl/capu_vcml_store_buffer_v12.sv
+rtl/capu_checkpoint_content_binding_v13.sv
+rtl/capu_checkpoint_full_state_binding_v14.sv
+formal/capu_checkpoint_full_state_binding_v14_formal.sv
