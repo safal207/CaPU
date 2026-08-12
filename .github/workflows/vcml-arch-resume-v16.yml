@@ -1,0 +1,149 @@
+name: CaPU vCML Architectural Causal Resume v0.16
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_vcml_store_buffer_v16.sv"
+      - "rtl/tb/capu_vcml_arch_resume_v16_tb.sv"
+      - "formal/capu_vcml_arch_resume_v16_formal.sv"
+      - "formal/capu_vcml_arch_resume_v16.sby"
+      - "formal/capu_vcml_arch_resume_v16_cover.sby"
+      - "docs/hardware/CAPU_VCML_ARCH_RESUME_V16.md"
+      - ".github/workflows/vcml-arch-resume-v16.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  arch-resume-rtl:
+    name: Architectural + causal resume trajectory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile v0.16 runtime
+        run: |
+          iverilog -g2012 -o /tmp/capu-vcml-arch-resume-v16 \
+            rtl/capu_store_buffer.sv \
+            rtl/capu_ctag_validator.sv \
+            rtl/capu_seal_controller.sv \
+            rtl/capu_causal_head_controller.sv \
+            rtl/capu_vcml_store_buffer.sv \
+            rtl/capu_replay_recovery_guard.sv \
+            rtl/capu_vcml_store_buffer_v15.sv \
+            rtl/capu_vcml_store_buffer_v16.sv \
+            rtl/tb/capu_vcml_arch_resume_v16_tb.sv
+      - name: Run deterministic v0.16 trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/capu-vcml-arch-resume-v16 | tee vcml-arch-resume-v16.log
+          grep -F "CAPU_VCML_ARCH_RESUME_V16_PASS" vcml-arch-resume-v16.log
+      - name: Capture executable evidence hashes
+        run: |
+          sha256sum \
+            rtl/capu_vcml_store_buffer_v15.sv \
+            rtl/capu_vcml_store_buffer_v16.sv \
+            rtl/tb/capu_vcml_arch_resume_v16_tb.sv \
+            vcml-arch-resume-v16.log > vcml-arch-resume-v16.sha256
+          cat vcml-arch-resume-v16.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v16-arch-resume-evidence
+          path: |
+            vcml-arch-resume-v16.log
+            vcml-arch-resume-v16.sha256
+
+  arch-resume-formal:
+    name: Bounded v0.16 architectural causal resume proof
+    needs: arch-resume-rtl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove bounded v0.16 safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-vcml-arch-resume-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-arch-resume-formal/safety-work \
+            formal/capu_vcml_arch_resume_v16.sby 2>&1 | tee target/capu-vcml-arch-resume-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-vcml-arch-resume-formal/formal.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-arch-resume-formal/formal.log
+      - name: Prove v0.16 negative and resumed paths reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-arch-resume-formal/cover-work \
+            formal/capu_vcml_arch_resume_v16_cover.sby 2>&1 | tee target/capu-vcml-arch-resume-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-vcml-arch-resume-formal/cover.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-arch-resume-formal/cover.log
+      - name: Seal v0.16 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          root=Path('target/capu-vcml-arch-resume-formal')
+          safety=(root/'formal.log').read_text(errors='replace')
+          cover=(root/'cover.log').read_text(errors='replace')
+          if 'DONE (PASS' not in safety or 'DONE (ERROR' in safety: raise SystemExit('v0.16 safety not PASS')
+          if 'DONE (PASS' not in cover or 'DONE (ERROR' in cover: raise SystemExit('v0.16 cover not PASS')
+          inputs=[Path(x) for x in [
+            'rtl/capu_vcml_store_buffer_v15.sv','rtl/capu_vcml_store_buffer_v16.sv',
+            'formal/capu_vcml_arch_resume_v16_formal.sv','formal/capu_vcml_arch_resume_v16.sby',
+            'formal/capu_vcml_arch_resume_v16_cover.sby']]
+          h=hashlib.sha256()
+          for p in inputs: h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof={
+            'schema':'capu.hardware.architectural-causal-resume-formal-proof.v0.16',
+            'result':'PASS','depth':28,'cover_depth':32,'solver':'z3',
+            'formal_instance':{'addr_width':4,'data_width':8,'transition_id_width':4,'authorization_ref_width':4,'policy_epoch_width':4,'spent_authorization_slots':2,'arch_epoch_width':3,'gpr_count':4},
+            'invariants':[
+              'SPLIT_STATE_EPOCH_MISMATCH => RESTORE_REJECT && NO_VISIBLE_EFFECT',
+              'RESTORE_ACCEPT => ARCH_STATE_AND_CAUSAL_STATE_BECOME_LIVE_AT_ONE_EPOCH',
+              'EXECUTION_PC != LIVE_PC => REJECT',
+              'VISIBLE_STORE => ADDRESS_AND_DATA_FROM_LIVE_RESTORED_GPRS',
+              'RECOVERY_OR_RESTORE_ACTIVITY => NO_VISIBLE_EFFECT',
+              'PRE_RECOVERY_SPECULATION => NEVER_POST_RECOVERY_RETIRE'],
+            'claim_boundary':'bounded reduced-width proof of a minimal architectural context (PC, four GPRs, status) atomically coupled to the already-proven v0.15 causal/replay runtime. It does not prove full ISA, CSR, exception, interrupt, register-file scale, cache, TLB, predictor, coherence, multicore, cryptographic verification, durable media, or unbounded correctness.',
+            'formal_input_sha256':h.hexdigest(),
+            'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
+            'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
+            'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),
+            'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),
+            'z3_version':subprocess.check_output(['z3','--version'],text=True).strip()}
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+      - name: Upload formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v16-arch-resume-formal-evidence
+          path: |
+            target/capu-vcml-arch-resume-formal/formal.log
+            target/capu-vcml-arch-resume-formal/cover.log
+            target/capu-vcml-arch-resume-formal/formal-proof.json
+            target/capu-vcml-arch-resume-formal/safety-work/
+            target/capu-vcml-arch-resume-formal/cover-work/
+          if-no-files-found: warn
