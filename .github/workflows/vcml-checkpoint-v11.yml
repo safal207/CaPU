@@ -9,6 +9,7 @@ on:
       - "formal/capu_checkpoint_freshness_guard.sv"
       - "formal/capu_checkpoint_freshness_guard_cover.sby"
       - "formal/capu_checkpoint_freshness_guard_formal.sv"
+      - "docs/hardware/CAPU_VCML_CHECKPOINT_V11.md"
       - ".github/workflows/vcml-checkpoint-v11.yml"
   workflow_dispatch:
 
