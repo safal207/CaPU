@@ -51,6 +51,7 @@ module capu_vcml_arch_resume_v16_formal;
     wire [DATA_W-1:0] memory_write_data;
     wire vcml_event_valid;
     wire issue_rejected;
+    wire speculative_buffer_valid;
     wire live_execution_ready;
     wire [EPOCH_W-1:0] live_restore_epoch;
     wire [ADDR_W-1:0] live_pc;
@@ -152,9 +153,6 @@ module capu_vcml_arch_resume_v16_formal;
                 seen_good_restore <= 1'b1;
             end
 
-            // The accepted snapshot becomes the registered architectural state.
-            // A new recovery/restore may immediately close readiness again, so
-            // readiness itself is only required when no new boundary is active.
             if (expect_restore) begin
                 assert(live_restore_epoch == expected_epoch);
                 assert(live_pc == expected_pc);
@@ -175,9 +173,6 @@ module capu_vcml_arch_resume_v16_formal;
                 seen_wrong_pc_reject <= 1'b1;
             end
 
-            // Snapshot operands at the architectural admission boundary. The
-            // selector inputs are free to change afterwards; retirement must
-            // reflect the values captured when the STORE was admitted.
             if (issue_valid && !issue_rejected && !recovery_begin && !restore_valid && !flush) begin
                 expected_store_pending <= 1'b1;
                 expected_store_addr <= selected_addr_at_issue(store_addr_reg);
@@ -196,12 +191,11 @@ module capu_vcml_arch_resume_v16_formal;
                 end
             end
 
-            // Recovery/restore/flush destroys the pending candidate model.
             if (recovery_begin || restore_valid || flush)
                 expected_store_pending <= 1'b0;
 
             if (prev_recovery_activity) begin
-                assert(!dut.buffer_valid);
+                assert(!speculative_buffer_valid);
                 assert(!memory_write_enable);
                 assert(!vcml_event_valid);
                 seen_recovery_flush <= 1'b1;
