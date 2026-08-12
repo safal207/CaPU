@@ -1,7 +1,7 @@
 [options]
 mode bmc
-depth 28
-timeout 300
+depth 36
+timeout 600
 
 [engines]
 smtbmc --unroll z3 -- --noincr
