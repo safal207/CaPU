@@ -1,6 +1,6 @@
 # CaPU ↔ vCML Bridge v0
 
-Status: experimental semantic/hardware bridge. Current hardware step: **CaPU Core v0.7 authorized root / epoch anchor**.
+Status: experimental semantic/hardware bridge. Current hardware step: **CaPU Core v0.8 root authorization provenance / capability anchor**.
 
 This layer connects the CaPU causal STORE retirement boundary to CML/vCML without embedding a full causal journal in RTL.
 
@@ -22,29 +22,29 @@ b0        SEAL   1 bit
 
 CTAG is compact causal metadata, not cryptography. `LHINT` is not parent identity, and `SEAL` is not a signature or authorization proof.
 
-## Architectural split
+## Hardware / software split
 
-Each speculative STORE carries:
+Each speculative STORE carries the compact execution fields:
 
 ```text
 address
 data
-ctag                    : 16 bits
-transition_id           : implementation-width reference
-parent_ref              : implementation-width reference
-explicit_new_cause      : 1 bit root intent
-buffered_root_authorized: 1 bit root-qualified admission evidence
+ctag                       : 16 bits
+transition_id              : implementation-width reference
+parent_ref                 : implementation-width reference
+explicit_new_cause         : 1 bit root intent
+buffered_root_authorized   : 1 bit root-qualified trusted decision
+buffered_authorization_ref : opaque provenance reference
+buffered_policy_epoch      : opaque policy-version field
 ```
 
-The input `root_authorized` sideband is sampled only for an explicit root. Continuations never acquire root authorization evidence even if that input is spuriously high.
+The full causal record remains a software projection after retirement. Exact local parent matching uses `transition_id / parent_ref`; `LHINT` remains only a hint.
 
-The full vCML-style record remains a software projection after retirement. Exact local parent matching uses `transition_id / parent_ref`; `LHINT` remains only a hint.
+## Retained boundaries
 
-## Retained layers
+### v0.3 — local CTAG validation
 
-### v0.3 local CTAG validation
-
-Strict STORE admission still requires:
+Strict STORE admission requires:
 
 ```text
 metadata_valid
@@ -52,22 +52,22 @@ metadata_valid
 && CLASS == WRITE(2)
 ```
 
-### v0.4 committed SEAL state
+### v0.4 — committed SEAL state
 
 `capu_seal_controller` maintains volatile `sealed_chain` state. A sealed chain blocks automatic continuation independently of otherwise-correct parent or generation metadata.
 
-### v0.5 committed causal head
+### v0.5 — committed causal head
 
-`capu_causal_head_controller` retains exact committed transition identity:
+`capu_causal_head_controller` retains:
 
 ```text
 causal_head_valid
 causal_head_transition_id
 ```
 
-An ordinary continuation must name that exact committed head. `TRANSITION_ID_WIDTH == PARENT_REF_WIDTH` is required so the comparison is not silently truncated or extended.
+An ordinary continuation must name the exact committed head. `TRANSITION_ID_WIDTH == PARENT_REF_WIDTH` is required so the comparison is not silently truncated or extended.
 
-### v0.6 committed causal generation
+### v0.6 — committed causal generation
 
 The committed head also carries:
 
@@ -89,88 +89,122 @@ COMMITTED_GEN == F
     => NO_AUTOMATIC_CHILD
 ```
 
-A new local epoch starts at `GEN=0`.
+A fresh local epoch starts at `GEN=0`.
 
-## v0.7 authorized root boundary
+### v0.7 — root intent versus root authorization
 
-v0.6 deliberately left one trust decision outside the hardware model: any caller that asserted `explicit_new_cause=1` could attempt a fresh root if the structural fields were valid.
-
-v0.7 separates **root intent** from **root authorization**:
+`explicit_new_cause` is root intent only. A separate upstream trust decision is required:
 
 ```text
-explicit_new_cause : caller asks to start a fresh chain
-root_authorized    : trusted upstream boundary permits that root
+explicit_new_cause
+&& root_authorized
 ```
 
-A fresh root is admitted only when all conditions agree:
+`root_authorized` is a trusted sideband, not cryptographic authentication.
+
+## v0.8 — authorization provenance anchor
+
+A trusted YES bit by itself does not identify which decision allowed the root. v0.8 adds two root-qualified provenance fields:
+
+```text
+root_authorization_ref : 16 bits by default
+root_policy_epoch      : 8 bits by default
+```
+
+`root_authorization_ref` is an **opaque provenance / capability reference**. Zero is reserved as “no authorization reference”.
+
+`root_policy_epoch` is an **opaque upstream policy-version field**. v0.8 binds it to the retired event, but does not interpret it as a freshness counter or anti-replay nonce.
+
+A fresh root may enter speculation only when:
 
 ```text
 EXPLICIT_NEW_CAUSE_ADMISSION
     => explicit_new_cause
     && root_authorized
+    && root_authorization_ref != 0
     && parent_ref == 0
     && GEN == 0
     && CTAG_SEMANTIC_ACCEPT
     && gate_allow
     && execute_ok
+    && !buffer_valid
 ```
 
-Therefore:
+Therefore both of these fail closed before speculation:
 
 ```text
-explicit_new_cause=1
-root_authorized=0
-    => reject before speculation
+root_authorized = 0
+authorization_ref != 0
+    => REJECT
+
+root_authorized = 1
+authorization_ref = 0
+    => REJECT
 ```
 
-`root_authorized` is intentionally a **trusted upstream authorization signal**, not a cryptographic signature, authenticated principal, capability token, freshness proof, or proof that the upstream policy itself is correct.
+The second case is the new v0.8 boundary: a bare trusted YES is no longer sufficient evidence to establish a fresh causal epoch.
 
-### Root authorization evidence binding
+## Root-only provenance binding
 
-When an authorized root enters speculation, the root-qualified fact is latched:
+On an admitted root:
 
 ```text
-buffered_root_authorized = explicit_new_cause && root_authorized
+buffered_root_authorized         = root_authorized
+buffered_root_authorization_ref  = root_authorization_ref
+buffered_root_policy_epoch       = root_policy_epoch
 ```
 
-On successful retirement it becomes:
+On an ordinary continuation all root provenance fields are forced to zero, even if the external root sideband inputs are spuriously high:
+
+```text
+NORMAL_CONTINUATION
+    => buffered_root_authorized = 0
+    && buffered_root_authorization_ref = 0
+    && buffered_root_policy_epoch = 0
+```
+
+On successful retirement, the latched values become event evidence:
 
 ```text
 retired_root_authorized
+retired_root_authorization_ref
+retired_root_policy_epoch
 ```
 
-The field is meaningful only when qualified by the retirement pulse:
+These historical registers are meaningful only when qualified by:
 
 ```text
 vcml_event_valid == memory_write_enable
 ```
 
-A visible structural root retirement (`parent_ref=0, GEN=0`) must carry:
+A visible structural root retirement must carry a nonzero provenance reference:
 
 ```text
-VISIBLE_ROOT_COMMIT => retired_root_authorized == 1
+VISIBLE_ROOT_COMMIT
+    => RETIRED_ROOT_AUTHORIZED
+    && RETIRED_AUTHORIZATION_REF != 0
 ```
 
-A continuation retirement carries `retired_root_authorized=0`.
+The policy epoch is preserved exactly but remains semantically opaque.
 
-### Flush semantics
+## Flush semantics
 
-Authorization admission is speculative until commit. A root may be authorized and buffered, then flushed:
+Authorization provenance is speculative until retirement:
 
 ```text
-old committed head/gen/seal
-      ↓
+old committed head/gen/seal + last retired evidence
+        ↓
 authorized root admitted
-      ↓
+        ↓
 flush
-      ↓
-NO vcml_event
+        ↓
 NO memory write
-old head/gen/seal unchanged
-last retired authorization field unchanged
+NO vcml_event
+old committed head/gen/seal unchanged
+last retired auth/ref/policy_epoch unchanged
 ```
 
-The last retired metadata registers are historical fields; they are not event pulses. Their current relevance is always qualified by `vcml_event_valid`.
+Thus an authorized-but-flushed root does not become history.
 
 ## Full admission policy
 
@@ -189,7 +223,7 @@ issue_valid
 && !buffer_valid
 ```
 
-Explicit root:
+Fresh root:
 
 ```text
 issue_valid
@@ -198,16 +232,17 @@ issue_valid
 && CTAG_SEMANTIC_ACCEPT
 && explicit_new_cause
 && root_authorized
+&& root_authorization_ref != 0
 && parent_ref == 0
 && GEN == 0
 && !buffer_valid
 ```
 
-The root authorization sideband is not required for ordinary continuation.
+Root authorization provenance is not required for ordinary continuation.
 
 ## Retirement boundary
 
-A memory-visible write still requires:
+Memory visibility still requires:
 
 ```text
 buffer_valid
@@ -217,7 +252,7 @@ buffer_valid
 && !flush
 ```
 
-Primary v0.7 invariants:
+Primary v0.8 invariants:
 
 ```text
 MEMORY_VISIBLE_WRITE
@@ -233,14 +268,19 @@ NORMAL_CONTINUATION_ADMISSION
 
 EXPLICIT_NEW_CAUSE_ADMISSION
     => ROOT_AUTHORIZED
+    && AUTHORIZATION_REF != 0
     && PARENT_REF == 0
     && GEN == 0
 
-UNAUTHORIZED_EXPLICIT_ROOT
+UNAUTHORIZED_OR_ZERO_REF_EXPLICIT_ROOT
     => NO_ROOT_ADMISSION
 
 VISIBLE_ROOT_COMMIT
     => RETIRED_ROOT_AUTHORIZED
+    && RETIRED_AUTHORIZATION_REF != 0
+
+CONTINUATION_RETIREMENT
+    => NO_ROOT_AUTHORIZATION_PROVENANCE
 
 SEALED_CHAIN && !EXPLICIT_NEW_CAUSE
     => NO_AUTOMATIC_CHILD_ADMISSION
@@ -251,56 +291,68 @@ GEN_EXHAUSTED && !EXPLICIT_NEW_CAUSE
 FLUSH
     => NO_RETIREMENT_EVENT
     && COMMITTED_HEAD_GEN_SEAL_UNCHANGED
-    && LAST_RETIRED_ROOT_AUTH_FIELD_UNCHANGED
+    && LAST_RETIRED_AUTH_PROVENANCE_UNCHANGED
 
 VISIBLE_WRITE
-    => exact CTAG / transition_id / parent_ref / root-authorization binding
+    => exact CTAG / transition_id / parent_ref
+       / root_authorized / authorization_ref / policy_epoch binding
 ```
 
 ## vCML software projection
 
-`tools/vcml_bridge.py` projects the retired hardware event into a vCML-style record and now includes:
+`tools/vcml_bridge.py` projects the retired provenance fields into the emitted record:
 
 ```json
 {
-  "ctag": 16896,
-  "parent_cause": null,
   "root_authorized": true,
+  "root_authorization_ref": 41217,
+  "root_policy_epoch": 7,
   "integrity": "sha256:..."
 }
 ```
 
-The integrity hash covers `root_authorized`, so post-projection tampering with that field is detectable. This only protects the emitted record bytes; it does not prove the truth or origin of the upstream authorization decision.
+The SHA-256 integrity field covers all three values. Post-projection modification of the decision, reference, or policy epoch is detectable.
+
+This protects the emitted bytes only. It does **not** prove who issued the authorization, whether the reference names a real capability, whether the capability is still valid, or whether the policy epoch is fresh.
+
+The software adapter rejects internally inconsistent retirement evidence such as:
+
+```text
+root_authorized = true, authorization_ref = 0
+```
+
+or unauthorized/non-root evidence carrying nonzero root provenance.
 
 ## Deterministic RTL verification
 
-The v0.7 trajectory covers:
+The v0.8 trajectory covers:
 
 - headless continuation rejection;
-- invalid CTAG root rejection;
-- malformed root parent rejection;
-- malformed root GEN rejection;
+- invalid CTAG and malformed root rejection;
 - unauthorized initial root rejection;
-- authorized initial root commit with retirement authorization evidence;
-- valid continuation with `root_authorized=0`;
+- trusted root with zero authorization reference rejection;
+- authorized root commit with exact auth-ref and policy-epoch retirement binding;
+- spurious root sideband/provenance on a continuation being ignored;
 - stale/skipped GEN and wrong-parent rejection;
-- continuation retirement carrying no root authorization evidence;
-- SEAL blocking an otherwise-correct continuation;
-- unauthorized replacement root under seal rejection;
-- authorized root under seal followed by flush with no event and unchanged committed state;
-- committed authorized replacement root;
-- continuation progression through GEN `1..F` with no root authorization bit;
+- continuation retirement carrying zero root provenance;
+- SEAL blocking otherwise-correct continuation;
+- unauthorized and zero-ref replacement roots under SEAL rejection;
+- authorized root under SEAL followed by flush with no event and unchanged committed/evidence state;
+- replacement root with a different authorization reference and policy epoch;
+- full GEN progression to `F`;
 - automatic `F -> 0` rejection;
-- unauthorized root rejection after GEN exhaustion;
-- authorized root commit after GEN exhaustion establishing a fresh local epoch.
+- unauthorized and zero-ref roots after exhaustion rejection;
+- authorized referenced root after exhaustion establishing a fresh local epoch.
 
 Expected marker:
 
-`CAPU_VCML_BRIDGE_V07_RTL_PASS`
+`CAPU_VCML_BRIDGE_V08_RTL_PASS`
+
+The Python semantic bridge has deterministic unit coverage for exact provenance projection, width validation, inconsistent evidence rejection, and integrity tamper detection.
 
 ## Formal verification envelope
 
-The v0.7 safety task explores arbitrary bounded inputs for **36 formal CPU sampling steps**. The cover task explores **40 steps**.
+Safety explores arbitrary bounded inputs for **36 formal CPU sampling steps**. Cover explores **40 steps**.
 
 Reduced-width formal instance:
 
@@ -312,37 +364,42 @@ TRANSITION_ID_WIDTH      = 8
 PARENT_REF_WIDTH         = 8
 GEN_WIDTH                = 4
 ROOT_AUTHORIZATION_WIDTH = 1
+AUTHORIZATION_REF_WIDTH  = 4
+POLICY_EPOCH_WIDTH       = 4
 REQUIRE_WRITE_CLASS      = true
 ```
 
-Safety checks include the retained CTAG, SEAL, exact-parent, GEN-successor, anti-wrap and retirement-binding invariants plus:
+Formal safety checks exact retirement binding for authorization decision, nonzero reference, and policy epoch while retaining the CTAG, parent, GEN, SEAL, anti-wrap, flush, and causal-commit invariants.
 
-```text
-ACCEPTED_EXPLICIT_ROOT => root_authorized
-UNAUTHORIZED_EXPLICIT_ROOT => rejected
-VISIBLE_ROOT_COMMIT => retired_root_authorized
-FLUSH => no retirement event and no mutation of last retired authorization field
-```
+Cover requires the following classes to be reachable rather than vacuous:
 
-The cover task requires authorized-root success, unauthorized-root rejection, valid normal continuation, authorized root under a sealed chain, and an authorized root path after generation exhaustion to be reachable rather than vacuous.
+1. authorized root commit with nonzero authorization reference;
+2. unauthorized explicit-root rejection;
+3. trusted-but-zero-reference root rejection;
+4. authorized root followed by a normal continuation;
+5. authorized referenced root under a sealed state;
+6. authorized referenced root after generation exhaustion.
 
-CI is fail-closed: formal evidence is sealed only after literal `DONE (PASS)` for both safety and cover and absence of `DONE (ERROR)`.
+CI remains fail-closed: evidence is sealed only after literal `DONE (PASS)` for safety and cover and absence of `DONE (ERROR)`.
 
 ## Non-goals / claim boundary
 
-v0.7 does **not** claim:
+v0.8 does **not** claim:
 
 - cryptographic root authorization;
-- identity or authenticity of the component driving `root_authorized`;
-- freshness, nonce, capability, signature, key, or certificate semantics for root authorization;
+- authenticated issuer/principal identity;
+- signature, MAC, key, certificate, or attestation verification;
+- that `root_authorization_ref` is globally unique, unforgeable, or a valid capability;
+- freshness or nonce semantics for `root_authorization_ref`;
+- freshness, monotonicity, or anti-replay semantics for `root_policy_epoch`;
 - correctness of the upstream authorization policy;
 - cryptographic lineage or authenticated parent identity;
 - globally unique or collision-resistant `transition_id`;
 - `LHINT` identity verification;
-- persistent head/GEN/SEAL/authorization state across reset or power loss;
+- persistent head/GEN/SEAL/provenance state across reset or power loss;
 - global or persistent replay protection;
-- protection against replay across separately authorized fresh roots;
-- a complete CPU/ISA/cache/coherence proof;
-- a parametric proof across every configured width.
+- protection against reuse of an otherwise accepted authorization reference;
+- complete CPU/ISA/cache/coherence proof;
+- parametric proof across every configured width.
 
-The narrow v0.7 result is: CaPU now distinguishes **requesting a new causal root** from **being allowed to establish one**, rejects unauthorized roots before speculation, and preserves the accepted root authorization fact through retirement and into the vCML-style evidence projection while retaining the v0.6 parent, generation, SEAL, anti-wrap and causal-commit boundaries.
+The narrow v0.8 result is: CaPU no longer accepts a fresh root based solely on a trusted YES bit. It requires a nonzero authorization provenance reference, binds that reference and an opaque policy epoch through speculation and retirement, prevents continuations from inheriting root provenance, and projects the exact retired provenance into vCML evidence while retaining the earlier parent, generation, SEAL, anti-wrap, and causal-commit boundaries.
