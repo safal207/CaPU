@@ -1,0 +1,21 @@
+[options]
+mode cover
+depth 32
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_store_buffer.sv capu_ctag_validator.sv capu_seal_controller.sv capu_causal_head_controller.sv capu_vcml_store_buffer.sv capu_replay_recovery_guard.sv capu_vcml_store_buffer_v15.sv capu_vcml_store_buffer_v16.sv capu_vcml_arch_resume_v16_formal.sv
+prep -top capu_vcml_arch_resume_v16_formal
+
+[files]
+rtl/capu_store_buffer.sv
+rtl/capu_ctag_validator.sv
+rtl/capu_seal_controller.sv
+rtl/capu_causal_head_controller.sv
+rtl/capu_vcml_store_buffer.sv
+rtl/capu_replay_recovery_guard.sv
+rtl/capu_vcml_store_buffer_v15.sv
+rtl/capu_vcml_store_buffer_v16.sv
+formal/capu_vcml_arch_resume_v16_formal.sv
