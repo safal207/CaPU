@@ -82,6 +82,10 @@ module capu_vcml_store_buffer_v16 #(
     logic inner_issue_valid;
     logic inner_issue_rejected;
     logic buffer_valid;
+    logic inner_memory_write_enable;
+    logic inner_vcml_event_valid;
+    logic [ADDR_WIDTH-1:0] inner_memory_write_addr;
+    logic [DATA_WIDTH-1:0] inner_memory_write_data;
     logic [TRANSITION_ID_WIDTH-1:0] retired_transition_id;
     logic [PARENT_REF_WIDTH-1:0] retired_parent_ref;
     logic retired_root_authorized;
@@ -103,13 +107,11 @@ module capu_vcml_store_buffer_v16 #(
     logic replay_retirement_without_recovery_fault;
     logic [ADDR_WIDTH-1:0] selected_store_addr;
     logic [DATA_WIDTH-1:0] selected_store_data;
+    logic visible_effect_blocked;
 
     assign epochs_match = restore_arch_epoch == restore_causal_epoch;
     assign split_state_restore_rejected = restore_valid && !epochs_match;
     assign inner_recovery_begin = recovery_begin || split_state_restore_rejected;
-    // Recovery has strict priority: a snapshot presented while recovery_begin is
-    // asserted cannot be reported as accepted because sequential state is being
-    // cleared on that edge.
     assign inner_restore_valid = restore_valid && epochs_match && !recovery_begin;
     assign live_execution_ready = arch_state_ready && live_causal_state_ready;
     assign inner_issue_valid = issue_valid
@@ -118,6 +120,16 @@ module capu_vcml_store_buffer_v16 #(
                             && !restore_valid
                             && (issue_pc == live_pc);
     assign speculative_buffer_valid = buffer_valid;
+
+    // Recovery and restore are visible-effect barriers. v0.15 may still have a
+    // combinational retirement candidate from the pre-boundary buffer, but the
+    // v0.16 architectural boundary must never expose it while state is being
+    // cleared or replaced.
+    assign visible_effect_blocked = inner_recovery_begin || restore_valid;
+    assign memory_write_enable = inner_memory_write_enable && !visible_effect_blocked;
+    assign vcml_event_valid = inner_vcml_event_valid && !visible_effect_blocked;
+    assign memory_write_addr = inner_memory_write_addr;
+    assign memory_write_data = inner_memory_write_data;
 
     always_comb begin
         case (store_addr_reg)
@@ -157,9 +169,9 @@ module capu_vcml_store_buffer_v16 #(
         .explicit_new_cause(explicit_new_cause), .root_authorized(root_authorized),
         .root_authorization_ref(root_authorization_ref), .root_policy_epoch(root_policy_epoch),
         .causal_valid(causal_valid), .commit_request(commit_request), .flush(flush),
-        .buffer_valid(buffer_valid), .memory_write_enable(memory_write_enable),
-        .memory_write_addr(memory_write_addr), .memory_write_data(memory_write_data),
-        .vcml_event_valid(vcml_event_valid), .retired_transition_id(retired_transition_id),
+        .buffer_valid(buffer_valid), .memory_write_enable(inner_memory_write_enable),
+        .memory_write_addr(inner_memory_write_addr), .memory_write_data(inner_memory_write_data),
+        .vcml_event_valid(inner_vcml_event_valid), .retired_transition_id(retired_transition_id),
         .retired_parent_ref(retired_parent_ref), .retired_root_authorized(retired_root_authorized),
         .retired_root_authorization_ref(retired_root_authorization_ref),
         .retired_root_policy_epoch(retired_root_policy_epoch), .issue_rejected(inner_issue_rejected),
@@ -219,7 +231,7 @@ module capu_vcml_store_buffer_v16 #(
 
     property p_recovery_has_priority;
         @(posedge clk) disable iff (!rst_n)
-            recovery_begin |-> (!architectural_restore_accept && (issue_valid -> issue_rejected));
+            recovery_begin |-> (!architectural_restore_accept && (!issue_valid || issue_rejected) && !memory_write_enable && !vcml_event_valid);
     endproperty
     assert property (p_recovery_has_priority);
 
