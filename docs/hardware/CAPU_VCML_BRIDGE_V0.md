@@ -1,6 +1,6 @@
 # CaPU ↔ vCML Bridge v0
 
-Status: experimental semantic/hardware bridge. Current hardware step: **CaPU Core v0.5 committed causal-head parent enforcement**.
+Status: experimental semantic/hardware bridge. Current hardware step: **CaPU Core v0.6 committed causal generation + anti-wrap enforcement**.
 
 This layer connects the CaPU causal STORE retirement boundary to CML/vCML without embedding a full causal journal in RTL.
 
@@ -20,11 +20,11 @@ b3..b1    LHINT  3 bits
 b0        SEAL   1 bit
 ```
 
-CTAG is compact causal metadata, not cryptography. `LHINT` is not parent identity, and `SEAL` is not a signature or proof of authorization.
+CTAG is compact causal metadata, not cryptography. `LHINT` is not parent identity, and `SEAL` is not a signature or authorization proof.
 
 ## Architectural split
 
-CaPU carries a compact projection with each speculative STORE:
+Each speculative STORE carries:
 
 ```text
 address
@@ -35,11 +35,13 @@ parent_ref         : implementation-width reference
 explicit_new_cause : 1 bit admission intent
 ```
 
-The full vCML-style record remains a software projection after retirement. Exact local parent matching uses `transition_id` / `parent_ref`; the 3-bit `LHINT` remains only a hint.
+The full vCML-style record remains a software projection after retirement. Exact local parent matching uses `transition_id / parent_ref`; `LHINT` remains only a hint.
 
-## v0.3 local CTAG validation retained
+## Retained layers
 
-Strict STORE admission requires:
+### v0.3 local CTAG validation
+
+Strict STORE admission still requires:
 
 ```text
 metadata_valid
@@ -47,111 +49,159 @@ metadata_valid
 && CLASS == WRITE(2)
 ```
 
-`GEN` remains opaque at this layer and `LHINT` is not recomputed.
+The CTAG validator only decodes `GEN`; it does not authenticate it. v0.6 interprets `GEN` in the outer causal admission policy.
 
-## v0.4 SEAL state retained
+### v0.4 committed SEAL state
 
-`capu_seal_controller` maintains the volatile committed continuation-control bit `sealed_chain`.
+`capu_seal_controller` maintains volatile `sealed_chain` state.
 
 ```text
 normal commit, SEAL=1      => sealed_chain = 1
-normal commit, SEAL=0      => does not weaken an existing seal
+normal commit, SEAL=0      => cannot weaken an existing seal
 explicit root commit, 0    => sealed_chain = 0
 explicit root commit, 1    => sealed_chain = 1
 speculative root + flush   => previous committed seal remains
 ```
 
-A sealed chain blocks an automatic child even if that candidate otherwise carries valid CTAG metadata.
+A sealed chain blocks automatic continuation independently of otherwise-correct parent or generation metadata.
 
-## v0.5 committed causal head
+### v0.5 committed causal head
 
-`capu_causal_head_controller` adds minimal committed causal identity state:
+`capu_causal_head_controller` retains exact committed transition identity:
 
 ```text
 causal_head_valid
 causal_head_transition_id
 ```
 
-Only retirement changes this state:
+An ordinary continuation must name that exact committed head. `TRANSITION_ID_WIDTH == PARENT_REF_WIDTH` is required so the comparison is not silently truncated or extended.
+
+## v0.6 committed causal generation
+
+v0.6 extends the committed head with:
 
 ```text
-COMMIT transition T
-    => causal_head_valid = 1
-    => causal_head_transition_id = T
+causal_head_gen : 4 bits
 ```
 
-Speculative admission and `flush` cannot update the committed head.
+Only successful retirement updates `causal_head_transition_id` and `causal_head_gen`. Speculative admission and `flush` cannot mutate either field.
+
+### Explicit root policy
+
+A fresh local causal chain starts structurally at:
+
+```text
+explicit_new_cause == 1
+parent_ref == 0
+GEN == 0
+```
+
+So:
+
+```text
+EXPLICIT_NEW_CAUSE_ADMISSION
+    => PARENT_REF == 0
+    && GEN == 0
+```
+
+This is a local fail-closed convention, not proof that the root is semantically authorized. `explicit_new_cause` remains unauthenticated in v0.6.
 
 ### Normal continuation policy
 
-An ordinary continuation is admitted only if a committed head exists, the chain is not sealed, and the candidate names that exact committed transition:
+An automatic child is admitted only if all committed continuity checks agree:
 
 ```text
 NORMAL_CONTINUATION_ADMISSION
     => causal_head_valid
     && !sealed_chain
+    && !generation_exhausted
     && parent_ref == causal_head_transition_id
+    && GEN == causal_head_gen + 1
 ```
 
-Thus a candidate with a stale, missing, or otherwise unequal `parent_ref` fails closed before the speculative STORE buffer.
+Thus exact parent identity is necessary but no longer sufficient: generation must also advance by exactly one.
 
-A sealed chain blocks automatic continuation independently of parent equality:
+The following fail before speculation:
 
 ```text
-sealed_chain && !explicit_new_cause
-    => NO_AUTOMATIC_CHILD_ADMISSION
+same parent, stale GEN       => reject
+same parent, skipped GEN     => reject
+next GEN, wrong parent       => reject
+sealed chain, exact child    => reject
 ```
 
-### Explicit root policy
+### Fail-closed 4-bit exhaustion
 
-v0.5 intentionally uses a narrow root rule:
+A 4-bit counter must not silently wrap.
 
 ```text
-explicit_new_cause == 1
-    => parent_ref == 0
+causal_head_gen == 4'hF
+    => generation_exhausted = 1
+    => no automatic continuation
 ```
 
-This allows a fresh root to be attempted when no head exists or when a previous chain is sealed. A speculative root does not replace the committed head or seal; only its successful commit does.
-
-Therefore:
+In particular:
 
 ```text
-explicit root admitted -> flush
-    => old head unchanged
-    => old seal unchanged
-
-explicit root commits as T
-    => causal_head = T
-    => seal state becomes that root's SEAL policy
+GEN F -> GEN 0 automatic child
+    => reject
 ```
 
-`explicit_new_cause` is an experimental admission signal, not authenticated authority. `parent_ref == 0` is a local structural root convention, not proof that the root is semantically legitimate.
+The only local structural escape is a new explicit root with `parent_ref=0, GEN=0`.
+
+A root plus generations `1..F` therefore gives at most 16 committed generation values in one local chain segment before a new explicit root is required. SEAL may close the chain earlier.
+
+This is intentionally fail-closed rather than modulo arithmetic: an old generation value is never made current merely because the 4-bit field wrapped.
+
+## Commit versus speculation
+
+Committed causal state is:
+
+```text
+causal_head_valid
+causal_head_transition_id
+causal_head_gen
+sealed_chain
+```
+
+A speculative explicit root may be flushed:
+
+```text
+old head/gen/seal
+    ↓
+explicit root admitted
+    ↓
+flush
+    ↓
+old head/gen/seal unchanged
+```
+
+Only commit replaces the committed causal state.
+
+Reset clears this experimental volatile state. v0.6 does not claim persistence across reset or power loss.
 
 ## STORE admission and retirement
 
-A STORE may enter speculation only when the local CTAG and parent policies accept it:
+A STORE may enter speculation only when:
 
 ```text
 issue_valid
 && gate_allow
 && execute_ok
 && CTAG_SEMANTIC_ACCEPT
-&& PARENT_POLICY_ACCEPT
+&& CAUSAL_PARENT_AND_GEN_POLICY_ACCEPT
 && !buffer_valid
 ```
 
-where:
+A memory-visible write still requires the existing causal retirement boundary:
 
 ```text
-PARENT_POLICY_ACCEPT =
-    explicit_new_cause
-      ? (parent_ref == 0)
-      : (causal_head_valid
-         && !sealed_chain
-         && parent_ref == causal_head_transition_id)
+buffer_valid
+&& causal_valid
+&& buffered_ctag_valid
+&& commit_request
+&& !flush
 ```
-
-A memory-visible write still requires the causal commit boundary over the exact buffered metadata.
 
 Primary invariants:
 
@@ -163,16 +213,22 @@ MEMORY_VISIBLE_WRITE
 NORMAL_CONTINUATION_ADMISSION
     => HEAD_VALID
     && !SEALED_CHAIN
+    && !GEN_EXHAUSTED
     && PARENT_REF == COMMITTED_HEAD
+    && GEN == COMMITTED_GEN + 1
 
 EXPLICIT_NEW_CAUSE_ADMISSION
     => PARENT_REF == 0
+    && GEN == 0
 
 SEALED_CHAIN && !EXPLICIT_NEW_CAUSE
     => NO_AUTOMATIC_CHILD_ADMISSION
 
+GEN_EXHAUSTED && !EXPLICIT_NEW_CAUSE
+    => NO_AUTOMATIC_CHILD_ADMISSION
+
 FLUSH
-    => COMMITTED_HEAD_AND_SEAL_UNCHANGED
+    => COMMITTED_HEAD_GEN_AND_SEAL_UNCHANGED
 
 VISIBLE_WRITE
     => RETIRED_CTAG == COMMITTED_CTAG
@@ -182,32 +238,38 @@ VISIBLE_WRITE
 VCML_EVENT_VALID == MEMORY_VISIBLE_WRITE
 ```
 
-The current v0.5 implementation requires `TRANSITION_ID_WIDTH == PARENT_REF_WIDTH` so the hardware comparison is exact and does not rely on implicit truncation or extension.
+## Deterministic RTL verification
 
-## Executable verification
+The v0.6 RTL trajectory covers:
 
-The deterministic RTL trajectory covers:
-
-- headless automatic child rejection;
+- headless continuation rejection;
 - invalid CTAG rejection;
-- malformed explicit root (`parent_ref != 0`) rejection;
-- first explicit root commit establishing the causal head;
-- exact-parent continuation admission;
-- speculative continuation flush preserving the committed head;
-- wrong-parent continuation rejection before speculation;
-- sealed exact-parent commit establishing both new head and seal;
-- exact-parent child rejected while sealed;
-- explicit root under seal followed by flush preserving old head and seal;
-- committed explicit root replacing the head and opening a fresh chain;
-- continuation from that fresh head.
+- explicit root with nonzero parent rejection;
+- explicit root with nonzero GEN rejection;
+- first root commit establishing `head + GEN=0`;
+- exact-parent `GEN+1` admission;
+- flush preserving committed head and GEN;
+- stale GEN rejection;
+- skipped GEN rejection;
+- wrong-parent rejection even with correct GEN;
+- committed GEN progression;
+- SEAL blocking an otherwise-correct parent+GEN child;
+- explicit root under seal and flush preserving old head/GEN/seal;
+- committed replacement root resetting local GEN to zero;
+- deterministic progression through GEN `1..F`;
+- `GEN=F` exhaustion;
+- forbidden `F -> 0` automatic wrap;
+- explicit root admission after exhaustion followed by flush preserving the exhausted committed state.
 
-Marker: `CAPU_VCML_BRIDGE_V05_RTL_PASS`.
+Marker:
+
+`CAPU_VCML_BRIDGE_V06_RTL_PASS`
 
 ## Formal verification envelope
 
-The v0.5 safety task explores arbitrary bounded inputs for **28 formal CPU sampling steps**. A separate cover task explores **16 steps**.
+The v0.6 safety task explores arbitrary bounded inputs for **36 formal CPU sampling steps**. The cover task explores **40 steps** so the complete `GEN=0 -> ... -> F -> rejected wrap` path is reachable rather than merely asserted abstractly.
 
-The reduced-width formal instance is:
+Reduced-width formal instance:
 
 ```text
 ADDR_WIDTH          = 4
@@ -215,27 +277,33 @@ DATA_WIDTH          = 8
 CTAG_WIDTH          = 16
 TRANSITION_ID_WIDTH = 8
 PARENT_REF_WIDTH    = 8
+GEN_WIDTH           = 4
 REQUIRE_WRITE_CLASS = true
 ```
 
-The safety proof checks the exact retirement metadata binding, local CTAG rules, exact committed-parent admission rule, root rule, sealed-chain rule, and preservation of committed head/seal across flush.
+The safety proof checks exact retirement metadata binding, CTAG acceptance, exact committed-parent matching, strict GEN successor policy, root `GEN=0`, SEAL blocking, generation exhaustion, and preservation of committed head/GEN/seal across flush.
 
-The reachability task separately demonstrates that both policy paths are non-vacuous: a committed root followed by a valid normal continuation, and an explicit root path reachable while a committed sealed state exists.
+The cover task requires three non-vacuity classes to be reachable:
 
-CI is fail-closed: formal evidence is sealed only after literal `DONE (PASS)` for both safety and cover and no `DONE (ERROR)`.
+1. root followed by a valid automatic continuation;
+2. explicit root path while a committed sealed state exists;
+3. committed progression to `GEN=F` followed by a rejected automatic continuation.
+
+CI is fail-closed: evidence is sealed only after literal `DONE (PASS)` for both safety and cover and absence of `DONE (ERROR)`.
 
 ## Non-goals / claim boundary
 
-v0.5 does **not** claim:
+v0.6 does **not** claim:
 
 - cryptographic lineage or authenticated parent identity;
-- that `transition_id` is globally collision-resistant;
-- `LHINT` identity verification;
-- validated `GEN` history;
+- globally unique or collision-resistant `transition_id`;
 - authentication of `explicit_new_cause`;
-- semantic proof that `parent_ref == 0` is an authorized root;
-- persistent causal-head or seal state across reset/power loss;
-- a complete CPU/ISA/cache/coherence model;
+- semantic authorization of `parent_ref==0, GEN==0` as a real-world root;
+- `LHINT` identity verification;
+- persistent head/GEN/SEAL state across reset or power loss;
+- a global or persistent replay counter;
+- protection against replay across a separately authorized explicit-root reset;
+- a complete CPU/ISA/cache/coherence proof;
 - a parametric proof across every configured width.
 
-The narrow v0.5 result is: CaPU now maintains the identity of the last committed causal transition and uses exact local `parent_ref` equality to reject stale/wrong automatic continuations before speculation, while preserving the existing CTAG, SEAL, causal-commit, retirement-binding, and vCML event boundaries.
+The narrow v0.6 result is: CaPU now binds ordinary continuation to both the exact last committed causal transition and the exact next local CTAG generation, and refuses automatic 4-bit generation wrap. This provides a mechanically checkable local stale-generation/anti-wrap boundary while preserving the existing causal commit, SEAL, retirement-binding, and vCML event semantics.
