@@ -28,7 +28,7 @@ module capu_vcml_arch_resume_v16_tb;
     logic memory_write_enable;
     logic [ADDR_W-1:0] memory_write_addr;
     logic [DATA_W-1:0] memory_write_data;
-    logic vcml_event_valid, issue_rejected;
+    logic vcml_event_valid, issue_rejected, speculative_buffer_valid;
     logic live_execution_ready;
     logic [EPOCH_W-1:0] live_restore_epoch;
     logic [ADDR_W-1:0] live_pc;
@@ -60,6 +60,7 @@ module capu_vcml_arch_resume_v16_tb;
     task automatic begin_recovery; begin
         recovery_begin=1; tick(); recovery_begin=0;
         if (live_execution_ready) $fatal(1,"execution remained ready across recovery_begin");
+        if (speculative_buffer_valid) $fatal(1,"speculation survived recovery_begin");
     end endtask
 
     task automatic restore_snapshot(input [EPOCH_W-1:0] epoch, input [ADDR_W-1:0] pc,
@@ -94,7 +95,6 @@ module capu_vcml_arch_resume_v16_tb;
         clear_issue();
         repeat(2) tick(); rst_n=1; tick();
 
-        // Split-State Recovery: independently plausible epochs must not compose.
         begin_recovery();
         restore_arch_epoch=8'h11; restore_causal_epoch=8'h12; restore_pc=8'h40;
         restore_gpr0=16'h0000; restore_gpr1=16'h0080; restore_gpr2=16'h0055; restore_gpr3=16'h0000;
@@ -104,17 +104,15 @@ module capu_vcml_arch_resume_v16_tb;
         if (!split_state_restore_rejected || architectural_restore_accept || memory_write_enable)
             $fatal(1,"split-state restore did not fail closed");
         tick(); restore_valid=0;
+        if (speculative_buffer_valid) $fatal(1,"split-state barrier did not flush speculation");
 
-        // One epoch restores PC + GPR + status + causal state atomically.
         restore_snapshot(8'h21,8'h40,16'h0000,16'h0080,16'h0055,16'h0000,16'h2201,4'h6);
 
-        // Correct causal metadata with the wrong architectural PC is rejected.
         issue_pc=8'h41; store_parent_ref=16'h2201; store_transition_id=16'h2202;
         store_ctag=write_ctag(4'h7); issue_valid=1; #1;
         if (!issue_rejected) $fatal(1,"wrong-PC continuation admitted");
         tick(); issue_valid=0;
 
-        // Correct post-recovery instruction sources address/data from restored GPRs.
         issue_pc=8'h40; store_addr_reg=2'd1; store_data_reg=2'd2;
         store_parent_ref=16'h2201; store_transition_id=16'h2202; store_ctag=write_ctag(4'h7);
         issue_valid=1; #1;
@@ -129,9 +127,9 @@ module capu_vcml_arch_resume_v16_tb;
         causal_valid=0; commit_request=0; tick();
         if (live_pc!==8'h41) $fatal(1,"architectural PC did not advance exactly once");
 
-        // Buffer speculation under epoch 0x21, then cross a recovery barrier.
         issue_pc=8'h41; store_parent_ref=16'h2202; store_transition_id=16'h2203; store_ctag=write_ctag(4'h8);
         issue_valid=1; tick(); issue_valid=0;
+        if (!speculative_buffer_valid) $fatal(1,"expected speculative STORE was not buffered");
         begin_recovery();
         restore_snapshot(8'h22,8'h60,16'h0000,16'h0090,16'h0066,16'h0000,16'h3301,4'h2);
         causal_valid=1; commit_request=1; tick();
