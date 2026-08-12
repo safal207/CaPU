@@ -93,12 +93,18 @@ module capu_vcml_recovery_v10_tb;
     end endtask
 
     task automatic restore_empty; begin
-        clear_inputs(); restore_valid=1; restore_spent_valid='0; restore_spent_refs='0; step();
+        clear_inputs(); restore_valid=1; restore_spent_valid='0; restore_spent_refs='0; #1;
+        if (!replay_restore_accept || !replay_restore_snapshot_well_formed)
+            $fatal(1,"empty restore handshake not accepted before edge");
+        step();
     end endtask
 
     task automatic restore_one(input [AUTH_W-1:0] ref0); begin
         clear_inputs(); restore_valid=1; restore_spent_valid=4'b0001;
-        restore_spent_refs='0; restore_spent_refs[0 +: AUTH_W]=ref0; step();
+        restore_spent_refs='0; restore_spent_refs[0 +: AUTH_W]=ref0; #1;
+        if (!replay_restore_accept || !replay_restore_snapshot_well_formed)
+            $fatal(1,"single-ref restore handshake not accepted before edge");
+        step();
     end endtask
 
     task automatic restore_two(input [AUTH_W-1:0] ref0, input [AUTH_W-1:0] ref1); begin
@@ -106,6 +112,7 @@ module capu_vcml_recovery_v10_tb;
         restore_spent_refs='0;
         restore_spent_refs[0 +: AUTH_W]=ref0;
         restore_spent_refs[AUTH_W +: AUTH_W]=ref1;
+        #1;
         step();
     end endtask
 
@@ -129,16 +136,14 @@ module capu_vcml_recovery_v10_tb;
             $fatal(1,"reset must start recovery fail-closed");
         $display("TRACE CAPU-V10 R0 reset recovery_ready=0 spent=0");
 
-        // No root may enter before a recovery snapshot (empty snapshot is an
-        // explicit trusted cold-start decision).
         issue_root(64'h10,16'hA110,8'h01);
         if (!issue_rejected || buffer_valid || replay_authorization_accept)
             $fatal(1,"root escaped before replay-state restore");
         $display("TRACE CAPU-V10 R1 pre_restore_root rejected=1");
 
         restore_empty();
-        if (!replay_restore_accept || !replay_recovery_ready || replay_spent_count != 0)
-            $fatal(1,"empty cold-start snapshot not accepted");
+        if (!replay_recovery_ready || replay_spent_count != 0)
+            $fatal(1,"empty cold-start snapshot did not establish ready state");
         $display("TRACE CAPU-V10 R2 empty_restore accepted=1 ready=1 spent=0");
 
         clear_inputs(); step();
@@ -151,8 +156,6 @@ module capu_vcml_recovery_v10_tb;
             $fatal(1,"root A110 retirement did not consume replay state");
         $display("TRACE CAPU-V10 R3 root_committed ref=A110 spent=1");
 
-        // Real hardware reset clears local RAM. v0.10 must fail closed until a
-        // replay snapshot is restored.
         clear_inputs(); rst_n=0; #2;
         if (replay_recovery_ready || replay_spent_count != 0)
             $fatal(1,"asynchronous reset did not clear local recovery state");
@@ -165,7 +168,7 @@ module capu_vcml_recovery_v10_tb;
         $display("TRACE CAPU-V10 R5 recovery_gap_old_ref rejected=1");
 
         restore_one(16'hA110);
-        if (!replay_restore_accept || !replay_recovery_ready || replay_spent_count != 1)
+        if (!replay_recovery_ready || replay_spent_count != 1)
             $fatal(1,"snapshot(A110) restore failed");
         $display("TRACE CAPU-V10 R6 snapshot_restored ref=A110 spent=1");
 
@@ -185,24 +188,34 @@ module capu_vcml_recovery_v10_tb;
             $fatal(1,"fresh A120 retirement not added to recovered set");
         $display("TRACE CAPU-V10 R8 fresh_after_restore ref=A120 spent=2");
 
-        // Warm recovery begins fail-closed. A duplicate snapshot is malformed
-        // and must not reopen the gate.
         clear_inputs(); recovery_begin=1; step();
         if (replay_recovery_ready || replay_spent_count != 0)
             $fatal(1,"recovery_begin did not close/clear local replay gate");
 
-        restore_two(16'hA110,16'hA110);
+        clear_inputs(); restore_valid=1; restore_spent_valid=4'b0011;
+        restore_spent_refs='0;
+        restore_spent_refs[0 +: AUTH_W]=16'hA110;
+        restore_spent_refs[AUTH_W +: AUTH_W]=16'hA110;
+        #1;
         if (replay_restore_snapshot_well_formed || !replay_restore_rejected
             || replay_restore_accept || replay_recovery_ready)
             $fatal(1,"duplicate-ref snapshot reopened recovery gate");
+        step();
         $display("TRACE CAPU-V10 R9 malformed_duplicate_snapshot rejected=1 ready=0");
 
         issue_root(64'h21,16'hA121,8'h05);
         if (!issue_rejected || buffer_valid)
             $fatal(1,"root escaped after rejected recovery snapshot");
 
-        restore_two(16'hA110,16'hA120);
-        if (!replay_restore_accept || !replay_recovery_ready || replay_spent_count != 2)
+        clear_inputs(); restore_valid=1; restore_spent_valid=4'b0011;
+        restore_spent_refs='0;
+        restore_spent_refs[0 +: AUTH_W]=16'hA110;
+        restore_spent_refs[AUTH_W +: AUTH_W]=16'hA120;
+        #1;
+        if (!replay_restore_accept || !replay_restore_snapshot_well_formed)
+            $fatal(1,"valid A110/A120 restore handshake not accepted");
+        step();
+        if (!replay_recovery_ready || replay_spent_count != 2)
             $fatal(1,"valid A110/A120 recovery snapshot failed");
         $display("TRACE CAPU-V10 R10 valid_snapshot_restored spent=2");
 
@@ -212,11 +225,12 @@ module capu_vcml_recovery_v10_tb;
             $fatal(1,"restored A120 replay admitted");
         $display("TRACE CAPU-V10 R11 restored_replay_A120 rejected=1");
 
-        // Once live, a second restore cannot overwrite/erase the recovered set.
-        clear_inputs(); restore_valid=1; restore_spent_valid='0; restore_spent_refs='0; step();
-        if (!replay_restore_rejected || replay_restore_accept
-            || !replay_recovery_ready || replay_spent_count != 2)
-            $fatal(1,"live replay state was overwriteable by restore");
+        clear_inputs(); restore_valid=1; restore_spent_valid='0; restore_spent_refs='0; #1;
+        if (!replay_restore_rejected || replay_restore_accept)
+            $fatal(1,"live restore overwrite was not rejected before edge");
+        step();
+        if (!replay_recovery_ready || replay_spent_count != 2)
+            $fatal(1,"live replay state was overwritten by restore");
         $display("TRACE CAPU-V10 R12 live_restore_overwrite rejected=1 spent=2");
 
         if (replay_retirement_fault || replay_retirement_without_recovery_fault)
