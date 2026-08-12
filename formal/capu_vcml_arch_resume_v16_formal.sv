@@ -79,26 +79,38 @@ module capu_vcml_arch_resume_v16_formal;
     reg [7:0] expected_status;
     reg prev_recovery_activity = 1'b0;
 
+    // Track an admitted candidate that could represent speculation. If recovery
+    // crosses while such a candidate is pending, no visible write may occur
+    // until a genuinely new post-recovery issue is admitted.
+    reg candidate_pending = 1'b0;
+    reg stale_candidate_barrier = 1'b0;
+
     reg seen_split_reject = 1'b0;
     reg seen_good_restore = 1'b0;
     reg seen_wrong_pc_reject = 1'b0;
     reg seen_restored_register_store = 1'b0;
     reg seen_post_recovery_retire = 1'b0;
+    reg seen_stale_speculation_barrier = 1'b0;
 
     always @(posedge clk) begin
         if (!rst_n) begin
             expect_restore <= 1'b0;
             prev_recovery_activity <= 1'b0;
+            candidate_pending <= 1'b0;
+            stale_candidate_barrier <= 1'b0;
             seen_split_reject <= 1'b0;
             seen_good_restore <= 1'b0;
             seen_wrong_pc_reject <= 1'b0;
             seen_restored_register_store <= 1'b0;
             seen_post_recovery_retire <= 1'b0;
+            seen_stale_speculation_barrier <= 1'b0;
         end else begin
             if (restore_valid && restore_arch_epoch != restore_causal_epoch) begin
                 assert(split_state_restore_rejected);
                 assert(!architectural_restore_accept);
                 assert(!memory_write_enable);
+                if (issue_valid)
+                    assert(issue_rejected);
                 seen_split_reject <= 1'b1;
             end
 
@@ -162,6 +174,27 @@ module capu_vcml_arch_resume_v16_formal;
             if ((recovery_begin || restore_valid) && issue_valid)
                 assert(issue_rejected);
 
+            // Admission tracking is deliberately based on the externally
+            // observable decision, not internal buffer implementation state.
+            if (issue_valid && !issue_rejected && !restore_valid && !recovery_begin) begin
+                candidate_pending <= 1'b1;
+                stale_candidate_barrier <= 1'b0;
+            end
+            if (memory_write_enable)
+                candidate_pending <= 1'b0;
+
+            // Both explicit recovery and a split-state restore are barriers.
+            if (recovery_begin || split_state_restore_rejected) begin
+                if (candidate_pending) begin
+                    stale_candidate_barrier <= 1'b1;
+                    seen_stale_speculation_barrier <= 1'b1;
+                end
+                candidate_pending <= 1'b0;
+            end
+
+            if (stale_candidate_barrier)
+                assert(!memory_write_enable);
+
             prev_recovery_activity <= recovery_begin || restore_valid;
 
             cover(seen_split_reject);
@@ -169,6 +202,7 @@ module capu_vcml_arch_resume_v16_formal;
             cover(seen_wrong_pc_reject);
             cover(seen_restored_register_store);
             cover(seen_post_recovery_retire);
+            cover(seen_stale_speculation_barrier);
         end
     end
 endmodule
