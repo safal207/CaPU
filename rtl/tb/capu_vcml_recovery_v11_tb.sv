@@ -69,7 +69,7 @@ module capu_vcml_recovery_v11_tb;
         end
     endtask
 
-    task expect(input logic cond, input [255:0] msg);
+    task check_cond(input logic cond, input [255:0] msg);
         begin
             if (!cond) begin
                 $display("FAIL %0s", msg);
@@ -107,7 +107,7 @@ module capu_vcml_recovery_v11_tb;
         execute_ok = 1;
         store_addr = 16'h0042;
         store_data = 32'hCAFE_0042;
-        store_ctag = 16'h4200; // USER / WRITE / GEN=0 / unsealed
+        store_ctag = 16'h4200;
         store_ctag_valid = 1;
         store_transition_id = 16'h0100;
         store_parent_ref = 0;
@@ -116,9 +116,8 @@ module capu_vcml_recovery_v11_tb;
         repeat (2) tick();
         rst_n = 1;
         tick();
-        expect(!replay_recovery_ready, "reset must start recovery fail-closed");
+        check_cond(!replay_recovery_ready, "reset must start recovery fail-closed");
 
-        // External anchor says C001/8 is the only restorable checkpoint.
         anchor_valid = 1;
         anchor_checkpoint_ref = 16'hC001;
         anchor_checkpoint_epoch = 8;
@@ -127,59 +126,53 @@ module capu_vcml_recovery_v11_tb;
         checkpoint_trusted = 1;
         restore_valid = 1;
 
-        // Older epoch must fail closed even if upstream marks it trusted.
         snapshot_checkpoint_ref = 16'hC000;
         snapshot_checkpoint_epoch = 7;
         #1;
-        expect(checkpoint_rollback_detected, "older checkpoint epoch must flag rollback");
-        expect(!checkpoint_restore_accept, "older checkpoint must not restore");
+        check_cond(checkpoint_rollback_detected, "older checkpoint epoch must flag rollback");
+        check_cond(!checkpoint_restore_accept, "older checkpoint must not restore");
         tick();
-        expect(!replay_recovery_ready, "rollback must not open replay recovery");
+        check_cond(!replay_recovery_ready, "rollback must not open replay recovery");
         $display("TRACE V11 stale_checkpoint rollback=1 ready=0");
 
-        // Same epoch but wrong checkpoint identity also fails.
         snapshot_checkpoint_ref = 16'hC002;
         snapshot_checkpoint_epoch = 8;
         #1;
-        expect(checkpoint_anchor_mismatch, "wrong checkpoint ref must mismatch anchor");
-        expect(!checkpoint_restore_accept, "wrong checkpoint ref must reject");
+        check_cond(checkpoint_anchor_mismatch, "wrong checkpoint ref must mismatch anchor");
+        check_cond(!checkpoint_restore_accept, "wrong checkpoint ref must reject");
         tick();
         $display("TRACE V11 wrong_ref rejected=1");
 
-        // Exact metadata without trusted binding decision still fails.
         snapshot_checkpoint_ref = 16'hC001;
         checkpoint_trusted = 0;
         #1;
-        expect(!checkpoint_restore_accept, "untrusted exact checkpoint must reject");
+        check_cond(!checkpoint_restore_accept, "untrusted exact checkpoint must reject");
         tick();
         $display("TRACE V11 untrusted_exact rejected=1");
 
-        // Exact trusted anchor opens the v0.10 restore path.
         checkpoint_trusted = 1;
         #1;
-        expect(checkpoint_restore_accept, "exact trusted checkpoint must pass freshness gate");
-        expect(replay_restore_accept, "exact trusted checkpoint must reach replay restore");
+        check_cond(checkpoint_restore_accept, "exact trusted checkpoint must pass freshness gate");
+        check_cond(replay_restore_accept, "exact trusted checkpoint must reach replay restore");
         tick();
         restore_valid = 0;
         #1;
-        expect(replay_recovery_ready, "accepted checkpoint must restore replay state");
-        expect(replay_spent_count == 1, "restored spent set must contain A110");
+        check_cond(replay_recovery_ready, "accepted checkpoint must restore replay state");
+        check_cond(replay_spent_count == 1, "restored spent set must contain A110");
         $display("TRACE V11 exact_anchor restored=1 spent=1");
 
-        // Restored A110 remains spent.
         issue_valid = 1;
         explicit_new_cause = 1;
         root_authorized = 1;
         root_authorization_ref = 16'hA110;
         root_policy_epoch = 8'h22;
         #1;
-        expect(replay_detected, "restored A110 must be detected as replay");
-        expect(issue_rejected, "restored A110 must not enter STORE buffer");
+        check_cond(replay_detected, "restored A110 must be detected as replay");
+        check_cond(issue_rejected, "restored A110 must not enter STORE buffer");
         tick();
         clear_issue();
         $display("TRACE V11 restored_replay_A110 rejected=1");
 
-        // Fresh A120 still flows through the existing v0.9 causal path.
         issue_valid = 1;
         explicit_new_cause = 1;
         root_authorized = 1;
@@ -187,7 +180,7 @@ module capu_vcml_recovery_v11_tb;
         root_policy_epoch = 8'h23;
         store_transition_id = 16'h0101;
         #1;
-        expect(replay_authorization_accept, "fresh ref must pass recovered replay guard");
+        check_cond(replay_authorization_accept, "fresh ref must pass recovered replay guard");
         tick();
         issue_valid = 0;
         explicit_new_cause = 0;
@@ -196,14 +189,13 @@ module capu_vcml_recovery_v11_tb;
         causal_valid = 1;
         commit_request = 1;
         tick();
-        expect(memory_write_enable && vcml_event_valid, "fresh root commit must publish STORE + vCML event");
-        expect(retired_root_authorization_ref == 16'hA120, "retired auth ref must bind exactly");
+        check_cond(memory_write_enable && vcml_event_valid, "fresh root commit must publish STORE + vCML event");
+        check_cond(retired_root_authorization_ref == 16'hA120, "retired auth ref must bind exactly");
         clear_issue();
         tick();
-        expect(replay_spent_count == 2, "fresh committed A120 must join spent set");
+        check_cond(replay_spent_count == 2, "fresh committed A120 must join spent set");
         $display("TRACE V11 fresh_after_restore ref=A120 spent=2");
 
-        // New recovery cycle: anchor advances to C002/9. Old C001/8 is rollback.
         recovery_begin = 1;
         tick();
         recovery_begin = 0;
@@ -217,21 +209,20 @@ module capu_vcml_recovery_v11_tb;
         snapshot_checkpoint_ref = 16'hC001;
         snapshot_checkpoint_epoch = 8;
         #1;
-        expect(checkpoint_rollback_detected, "old checkpoint after anchor advance must rollback-reject");
+        check_cond(checkpoint_rollback_detected, "old checkpoint after anchor advance must rollback-reject");
         tick();
-        expect(!replay_recovery_ready, "old checkpoint must leave recovery closed");
+        check_cond(!replay_recovery_ready, "old checkpoint must leave recovery closed");
         $display("TRACE V11 anchor_advanced old_checkpoint_rejected=1");
 
         snapshot_checkpoint_ref = 16'hC002;
         snapshot_checkpoint_epoch = 9;
         #1;
-        expect(checkpoint_restore_accept && replay_restore_accept, "new exact anchor must restore");
+        check_cond(checkpoint_restore_accept && replay_restore_accept, "new exact anchor must restore");
         tick();
         restore_valid = 0;
-        expect(replay_recovery_ready && replay_spent_count == 2, "new anchor snapshot must restore both refs");
+        check_cond(replay_recovery_ready && replay_spent_count == 2, "new anchor snapshot must restore both refs");
         $display("TRACE V11 new_anchor restored=1 spent=2");
 
-        // Explicit cold start exists only when no anchor exists.
         rst_n = 0;
         tick();
         rst_n = 1;
@@ -244,15 +235,15 @@ module capu_vcml_recovery_v11_tb;
         restore_valid = 1;
         cold_start_authorized = 0;
         #1;
-        expect(!checkpoint_restore_accept, "cold start without explicit authorization must reject");
+        check_cond(!checkpoint_restore_accept, "cold start without explicit authorization must reject");
         tick();
         cold_start_authorized = 1;
         #1;
-        expect(checkpoint_cold_start_accept, "explicit empty cold start must be reachable");
-        expect(replay_restore_accept, "authorized cold start must reach replay restore");
+        check_cond(checkpoint_cold_start_accept, "explicit empty cold start must be reachable");
+        check_cond(replay_restore_accept, "authorized cold start must reach replay restore");
         tick();
         restore_valid = 0;
-        expect(replay_recovery_ready && replay_spent_count == 0, "cold start opens empty replay window explicitly");
+        check_cond(replay_recovery_ready && replay_spent_count == 0, "cold start opens empty replay window explicitly");
         $display("TRACE V11 explicit_cold_start ready=1 spent=0");
 
         $display("CAPU_VCML_BRIDGE_V11_CHECKPOINT_PASS");
