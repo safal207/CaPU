@@ -10,6 +10,7 @@ prove durability, or make SHA-256 a hardware primitive.
 from __future__ import annotations
 
 import hashlib
+import hmac
 from typing import Any, Mapping
 
 from tools.vcml_replay_snapshot import validate_replay_snapshot
@@ -102,4 +103,4 @@ def verify_checkpoint_commitment(
     except ValueError:
         return False
     expected = checkpoint_commitment_bytes(snapshot, **kwargs)
-    return len(supplied) == len(expected) and hashlib.sha256(supplied).digest() == hashlib.sha256(expected).digest()
+    return len(supplied) == len(expected) and hmac.compare_digest(supplied, expected)
