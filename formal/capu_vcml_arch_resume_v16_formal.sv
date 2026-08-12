@@ -93,6 +93,12 @@ module capu_vcml_arch_resume_v16_formal;
     reg seen_post_recovery_retire = 1'b0;
     reg seen_recovery_flush = 1'b0;
 
+    wire issue_admitted = issue_valid
+                       && !issue_rejected
+                       && !recovery_begin
+                       && !restore_valid
+                       && !flush;
+
     function automatic [ADDR_W-1:0] selected_addr_at_issue;
         input [1:0] idx;
         begin
@@ -173,7 +179,7 @@ module capu_vcml_arch_resume_v16_formal;
                 seen_wrong_pc_reject <= 1'b1;
             end
 
-            if (issue_valid && !issue_rejected && !recovery_begin && !restore_valid && !flush) begin
+            if (issue_admitted) begin
                 expected_store_pending <= 1'b1;
                 expected_store_addr <= selected_addr_at_issue(store_addr_reg);
                 expected_store_data <= selected_data_at_issue(store_data_reg);
@@ -184,7 +190,12 @@ module capu_vcml_arch_resume_v16_formal;
                 assert(expected_store_pending);
                 assert(memory_write_addr == expected_store_addr);
                 assert(memory_write_data == expected_store_data);
-                expected_store_pending <= 1'b0;
+                // A registered retirement pulse may overlap admission of the
+                // next STORE after the single-entry buffer became free. Keep
+                // the new shadow entry live in that case; the issue_admitted
+                // block above has already captured its operands via NBA.
+                if (!issue_admitted)
+                    expected_store_pending <= 1'b0;
                 if (seen_good_restore) begin
                     seen_restored_register_store <= 1'b1;
                     seen_post_recovery_retire <= 1'b1;
