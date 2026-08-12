@@ -77,33 +77,57 @@ module capu_vcml_arch_resume_v16_formal;
     reg [ADDR_W-1:0] expected_pc;
     reg [DATA_W-1:0] expected_gpr0, expected_gpr1, expected_gpr2, expected_gpr3;
     reg [7:0] expected_status;
-    reg prev_recovery_activity = 1'b0;
 
-    // Track an admitted candidate that could represent speculation. If recovery
-    // crosses while such a candidate is pending, no visible write may occur
-    // until a genuinely new post-recovery issue is admitted.
-    reg candidate_pending = 1'b0;
-    reg stale_candidate_barrier = 1'b0;
+    reg expected_store_pending = 1'b0;
+    reg [ADDR_W-1:0] expected_store_addr;
+    reg [DATA_W-1:0] expected_store_data;
+
+    reg prev_recovery_activity = 1'b0;
+    reg prev_split_reject = 1'b0;
 
     reg seen_split_reject = 1'b0;
     reg seen_good_restore = 1'b0;
     reg seen_wrong_pc_reject = 1'b0;
     reg seen_restored_register_store = 1'b0;
     reg seen_post_recovery_retire = 1'b0;
-    reg seen_stale_speculation_barrier = 1'b0;
+    reg seen_recovery_flush = 1'b0;
+
+    function automatic [ADDR_W-1:0] selected_addr_at_issue;
+        input [1:0] idx;
+        begin
+            case (idx)
+                2'd0: selected_addr_at_issue = live_gpr0[ADDR_W-1:0];
+                2'd1: selected_addr_at_issue = live_gpr1[ADDR_W-1:0];
+                2'd2: selected_addr_at_issue = live_gpr2[ADDR_W-1:0];
+                default: selected_addr_at_issue = live_gpr3[ADDR_W-1:0];
+            endcase
+        end
+    endfunction
+
+    function automatic [DATA_W-1:0] selected_data_at_issue;
+        input [1:0] idx;
+        begin
+            case (idx)
+                2'd0: selected_data_at_issue = live_gpr0;
+                2'd1: selected_data_at_issue = live_gpr1;
+                2'd2: selected_data_at_issue = live_gpr2;
+                default: selected_data_at_issue = live_gpr3;
+            endcase
+        end
+    endfunction
 
     always @(posedge clk) begin
         if (!rst_n) begin
             expect_restore <= 1'b0;
+            expected_store_pending <= 1'b0;
             prev_recovery_activity <= 1'b0;
-            candidate_pending <= 1'b0;
-            stale_candidate_barrier <= 1'b0;
+            prev_split_reject <= 1'b0;
             seen_split_reject <= 1'b0;
             seen_good_restore <= 1'b0;
             seen_wrong_pc_reject <= 1'b0;
             seen_restored_register_store <= 1'b0;
             seen_post_recovery_retire <= 1'b0;
-            seen_stale_speculation_barrier <= 1'b0;
+            seen_recovery_flush <= 1'b0;
         end else begin
             if (restore_valid && restore_arch_epoch != restore_causal_epoch) begin
                 assert(split_state_restore_rejected);
@@ -128,9 +152,10 @@ module capu_vcml_arch_resume_v16_formal;
                 seen_good_restore <= 1'b1;
             end
 
+            // The accepted snapshot becomes the registered architectural state.
+            // A new recovery/restore may immediately close readiness again, so
+            // readiness itself is only required when no new boundary is active.
             if (expect_restore) begin
-                assert(live_execution_ready);
-                assert(live_causal_state_ready);
                 assert(live_restore_epoch == expected_epoch);
                 assert(live_pc == expected_pc);
                 assert(live_gpr0 == expected_gpr0);
@@ -138,6 +163,10 @@ module capu_vcml_arch_resume_v16_formal;
                 assert(live_gpr2 == expected_gpr2);
                 assert(live_gpr3 == expected_gpr3);
                 assert(live_status == expected_status);
+                if (!recovery_begin && !restore_valid) begin
+                    assert(live_execution_ready);
+                    assert(live_causal_state_ready);
+                end
                 expect_restore <= 1'b0;
             end
 
@@ -146,63 +175,55 @@ module capu_vcml_arch_resume_v16_formal;
                 seen_wrong_pc_reject <= 1'b1;
             end
 
+            // Snapshot operands at the architectural admission boundary. The
+            // selector inputs are free to change afterwards; retirement must
+            // reflect the values captured when the STORE was admitted.
+            if (issue_valid && !issue_rejected && !recovery_begin && !restore_valid && !flush) begin
+                expected_store_pending <= 1'b1;
+                expected_store_addr <= selected_addr_at_issue(store_addr_reg);
+                expected_store_data <= selected_data_at_issue(store_data_reg);
+            end
+
             if (memory_write_enable) begin
                 assert(vcml_event_valid);
-                case (store_addr_reg)
-                    2'd0: assert(memory_write_addr == live_gpr0[ADDR_W-1:0]);
-                    2'd1: assert(memory_write_addr == live_gpr1[ADDR_W-1:0]);
-                    2'd2: assert(memory_write_addr == live_gpr2[ADDR_W-1:0]);
-                    2'd3: assert(memory_write_addr == live_gpr3[ADDR_W-1:0]);
-                endcase
-                case (store_data_reg)
-                    2'd0: assert(memory_write_data == live_gpr0);
-                    2'd1: assert(memory_write_data == live_gpr1);
-                    2'd2: assert(memory_write_data == live_gpr2);
-                    2'd3: assert(memory_write_data == live_gpr3);
-                endcase
+                assert(expected_store_pending);
+                assert(memory_write_addr == expected_store_addr);
+                assert(memory_write_data == expected_store_data);
+                expected_store_pending <= 1'b0;
                 if (seen_good_restore) begin
                     seen_restored_register_store <= 1'b1;
                     seen_post_recovery_retire <= 1'b1;
                 end
             end
 
+            // Recovery/restore/flush destroys the pending candidate model.
+            if (recovery_begin || restore_valid || flush)
+                expected_store_pending <= 1'b0;
+
             if (prev_recovery_activity) begin
+                assert(!dut.buffer_valid);
                 assert(!memory_write_enable);
                 assert(!vcml_event_valid);
+                seen_recovery_flush <= 1'b1;
             end
+
+            if (prev_split_reject)
+                assert(!live_execution_ready);
 
             if ((recovery_begin || restore_valid) && issue_valid)
                 assert(issue_rejected);
 
-            // Admission tracking is deliberately based on the externally
-            // observable decision, not internal buffer implementation state.
-            if (issue_valid && !issue_rejected && !restore_valid && !recovery_begin) begin
-                candidate_pending <= 1'b1;
-                stale_candidate_barrier <= 1'b0;
-            end
-            if (memory_write_enable)
-                candidate_pending <= 1'b0;
-
-            // Both explicit recovery and a split-state restore are barriers.
-            if (recovery_begin || split_state_restore_rejected) begin
-                if (candidate_pending) begin
-                    stale_candidate_barrier <= 1'b1;
-                    seen_stale_speculation_barrier <= 1'b1;
-                end
-                candidate_pending <= 1'b0;
-            end
-
-            if (stale_candidate_barrier)
-                assert(!memory_write_enable);
+            assert(vcml_event_valid == memory_write_enable);
 
             prev_recovery_activity <= recovery_begin || restore_valid;
+            prev_split_reject <= split_state_restore_rejected;
 
             cover(seen_split_reject);
             cover(seen_good_restore);
             cover(seen_wrong_pc_reject);
             cover(seen_restored_register_store);
             cover(seen_post_recovery_retire);
-            cover(seen_stale_speculation_barrier);
+            cover(seen_recovery_flush);
         end
     end
 endmodule
