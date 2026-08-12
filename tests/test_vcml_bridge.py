@@ -13,6 +13,7 @@ from tools.vcml_bridge import (  # noqa: E402
     transition_ref,
     verify_integrity,
     verify_parent_projection,
+    verify_root_authorization_projection,
 )
 
 
@@ -24,6 +25,7 @@ class VCMLBridgeTests(unittest.TestCase):
             ctag=0x4210,
             transition_id=0x42,
             parent_ref=0x11,
+            root_authorized=False,
         )
         self.actor = {"pid": 4242, "uid": 1000, "comm": "capu-test"}
 
@@ -48,6 +50,56 @@ class VCMLBridgeTests(unittest.TestCase):
         self.assertEqual(record["ctag"], 0x4210)
         self.assertEqual(record["action"], "write")
         self.assertEqual(record["object"], {"address": 0x42, "data": 0xCAFE0042})
+
+    def test_root_authorization_projection_is_preserved(self) -> None:
+        root = CausalStoreEvent(
+            address=1,
+            data=2,
+            ctag=0x4200,
+            transition_id=1,
+            parent_ref=0,
+            root_authorized=True,
+        )
+        record = build_vcml_record(
+            root,
+            actor={"pid": 1, "uid": 0},
+            permitted_by="capu:trusted-root-boundary",
+            timestamp_ns=1,
+        )
+        self.assertTrue(record["root_authorized"])
+        self.assertTrue(verify_root_authorization_projection(root, record))
+        self.assertIsNone(record["parent_cause"])
+
+    def test_continuation_does_not_invent_root_authorization(self) -> None:
+        record = build_vcml_record(
+            self.event,
+            actor=self.actor,
+            permitted_by="capu:causal_commit",
+            timestamp_ns=123456789,
+        )
+        self.assertFalse(record["root_authorized"])
+        self.assertTrue(verify_root_authorization_projection(self.event, record))
+
+    def test_integrity_seals_emitted_record_including_root_authorization(self) -> None:
+        root = CausalStoreEvent(
+            address=1,
+            data=2,
+            ctag=0x4200,
+            transition_id=1,
+            parent_ref=0,
+            root_authorized=True,
+        )
+        record = build_vcml_record(
+            root,
+            actor={"pid": 1, "uid": 0},
+            permitted_by="capu:trusted-root-boundary",
+            timestamp_ns=1,
+        )
+        self.assertTrue(verify_integrity(record))
+
+        tampered = dict(record)
+        tampered["root_authorized"] = False
+        self.assertFalse(verify_integrity(tampered))
 
     def test_integrity_seals_emitted_record(self) -> None:
         record = build_vcml_record(
@@ -80,6 +132,7 @@ class VCMLBridgeTests(unittest.TestCase):
             ctag=0x4210,
             transition_id=1,
             parent_ref=0,
+            root_authorized=False,
         )
         record = build_vcml_record(
             rootish,
@@ -88,6 +141,7 @@ class VCMLBridgeTests(unittest.TestCase):
             timestamp_ns=1,
         )
         self.assertIsNone(record["parent_cause"])
+        self.assertFalse(record["root_authorized"])
         self.assertTrue(verify_parent_projection(rootish, record))
 
     def test_ctag_must_fit_canonical_16_bit_field(self) -> None:
@@ -104,6 +158,19 @@ class VCMLBridgeTests(unittest.TestCase):
                 actor={"pid": 1, "uid": 0},
                 permitted_by="root_event:test",
                 timestamp_ns=1,
+            )
+
+    def test_root_authorized_must_be_boolean_in_mapping(self) -> None:
+        with self.assertRaises(ValueError):
+            CausalStoreEvent.from_mapping(
+                {
+                    "address": 1,
+                    "data": 2,
+                    "ctag": 0x4200,
+                    "transition_id": 1,
+                    "parent_ref": 0,
+                    "root_authorized": "true",
+                }
             )
 
     def test_actor_requires_vcml_pid_and_uid(self) -> None:
