@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   rtl-and-semantic-bridge:
-    name: CTAG + SEAL + causal parent + vCML projection
+    name: CTAG + SEAL + causal parent + GEN + vCML projection
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,7 +32,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y iverilog
-      - name: Compile v0.5 causal STORE bridge
+      - name: Compile v0.6 causal STORE bridge
         run: |
           iverilog -g2012 -o /tmp/capu-vcml-bridge \
             rtl/capu_store_buffer.sv \
@@ -45,10 +45,12 @@ jobs:
         run: |
           set -o pipefail
           vvp /tmp/capu-vcml-bridge | tee vcml-rtl.log
-          grep -F "CAPU_VCML_BRIDGE_V05_RTL_PASS" vcml-rtl.log
-          grep -F "wrong_parent rejected=1 head=10" vcml-rtl.log
-          grep -F "sealed_correct_parent rejected=1" vcml-rtl.log
-          grep -F "root_flushed old_head=20 old_seal=1" vcml-rtl.log
+          grep -F "CAPU_VCML_BRIDGE_V06_RTL_PASS" vcml-rtl.log
+          grep -F "stale_gen rejected=1 head_gen=0" vcml-rtl.log
+          grep -F "sealed_correct_parent_gen rejected=1" vcml-rtl.log
+          grep -F "epoch_exhausted head_gen=F" vcml-rtl.log
+          grep -F "wrap_rejected head_gen=F" vcml-rtl.log
+          grep -F "exhausted_root_flush preserved=1" vcml-rtl.log
       - name: Run software bridge tests
         run: |
           python3 -m py_compile tools/vcml_bridge.py
@@ -61,17 +63,17 @@ jobs:
           cat vcml-evidence.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-bridge-v05-evidence
+          name: capu-vcml-bridge-v06-evidence
           path: |
             vcml-rtl.log
             vcml-python.log
             vcml-evidence.sha256
 
   formal-causal-abi:
-    name: Bounded v0.5 causal parent ABI proof
+    name: Bounded v0.6 causal parent + GEN proof
     needs: rtl-and-semantic-bridge
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Install Yosys and Z3
@@ -90,7 +92,7 @@ jobs:
           git -C /tmp/sby checkout --detach FETCH_HEAD
           test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
           printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
-      - name: Prove v0.5 bounded safety
+      - name: Prove v0.6 bounded safety
         run: |
           set -euo pipefail
           mkdir -p target/capu-vcml-formal
@@ -99,7 +101,7 @@ jobs:
             formal/capu_vcml_store_buffer.sby 2>&1 | tee target/capu-vcml-formal/formal.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/formal.log
           ! grep -q 'DONE (ERROR' target/capu-vcml-formal/formal.log
-      - name: Prove parent policy paths are reachable
+      - name: Prove successor, root, seal, and exhaustion paths are reachable
         run: |
           set -euo pipefail
           python3 /tmp/sby/sbysrc/sby.py -f \
@@ -107,7 +109,7 @@ jobs:
             formal/capu_vcml_store_buffer_cover.sby 2>&1 | tee target/capu-vcml-formal/cover.log
           grep -q 'DONE (PASS' target/capu-vcml-formal/cover.log
           ! grep -q 'DONE (ERROR' target/capu-vcml-formal/cover.log
-      - name: Seal v0.5 formal evidence
+      - name: Seal v0.6 formal evidence
         run: |
           python3 - <<'PY'
           import hashlib, json, subprocess
@@ -125,18 +127,20 @@ jobs:
           h=hashlib.sha256()
           for p in inputs: h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
           proof={
-            'schema':'capu.hardware.vcml-formal-proof.v0.5','result':'PASS',
-            'depth':28,'cover_depth':16,'solver':'z3',
-            'formal_instance':{'addr_width':4,'data_width':8,'ctag_width':16,'transition_id_width':8,'parent_ref_width':8},
-            'root_policy':'explicit_new_cause requires parent_ref==0',
+            'schema':'capu.hardware.vcml-formal-proof.v0.6','result':'PASS',
+            'depth':36,'cover_depth':40,'solver':'z3',
+            'formal_instance':{'addr_width':4,'data_width':8,'ctag_width':16,'transition_id_width':8,'parent_ref_width':8,'gen_width':4},
+            'root_policy':'explicit_new_cause requires parent_ref==0 and GEN==0',
+            'generation_policy':'normal continuation requires GEN==committed_GEN+1; committed GEN==F blocks automatic continuation and forbids F->0 wrap',
             'invariants':[
               'MEMORY_VISIBLE_WRITE => VALID_CAUSAL_COMMIT && VALIDATOR_ACCEPTED_CTAG',
-              'NORMAL_CONTINUATION_ADMISSION => HEAD_VALID && !SEALED_CHAIN && PARENT_REF==COMMITTED_HEAD',
-              'EXPLICIT_NEW_CAUSE_ADMISSION => PARENT_REF==0',
+              'NORMAL_CONTINUATION_ADMISSION => HEAD_VALID && !SEALED_CHAIN && !GEN_EXHAUSTED && PARENT_REF==COMMITTED_HEAD && GEN==COMMITTED_GEN+1',
+              'EXPLICIT_NEW_CAUSE_ADMISSION => PARENT_REF==0 && GEN==0',
               'SEALED_CHAIN && !EXPLICIT_NEW_CAUSE => NO_AUTOMATIC_CHILD_ADMISSION',
-              'FLUSH => COMMITTED_HEAD_AND_SEAL_UNCHANGED',
+              'GEN_EXHAUSTED && !EXPLICIT_NEW_CAUSE => NO_AUTOMATIC_CHILD_ADMISSION',
+              'FLUSH => COMMITTED_HEAD_GEN_AND_SEAL_UNCHANGED',
               'VISIBLE_WRITE preserves CTAG/transition_id/parent_ref'],
-            'claim_boundary':'Bounded reduced-width proof. Parent identity is exact only within the committed transition/reference field; no cryptographic lineage, LHINT identity proof, GEN-history proof, persistent head/seal state, or authentication of explicit_new_cause is claimed.',
+            'claim_boundary':'Bounded reduced-width proof. GEN is a local volatile 4-bit committed epoch with fail-closed exhaustion, not a persistent/global replay counter. No cryptographic lineage, authenticated root, LHINT identity proof, persistent head/GEN/seal state, globally unique transition identity, or global anti-replay guarantee is claimed.',
             'formal_input_sha256':h.hexdigest(),
             'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
             'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
@@ -146,11 +150,11 @@ jobs:
           (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
           print(json.dumps(proof,indent=2,sort_keys=True))
           PY
-      - name: Upload v0.5 formal evidence
+      - name: Upload v0.6 formal evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capu-vcml-v05-formal-evidence
+          name: capu-vcml-v06-formal-evidence
           path: |
             target/capu-vcml-formal/formal.log
             target/capu-vcml-formal/cover.log
