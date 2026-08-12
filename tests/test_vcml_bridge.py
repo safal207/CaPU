@@ -26,8 +26,22 @@ class VCMLBridgeTests(unittest.TestCase):
             transition_id=0x42,
             parent_ref=0x11,
             root_authorized=False,
+            root_authorization_ref=0,
+            root_policy_epoch=0,
         )
         self.actor = {"pid": 4242, "uid": 1000, "comm": "capu-test"}
+
+    def make_root(self) -> CausalStoreEvent:
+        return CausalStoreEvent(
+            address=1,
+            data=2,
+            ctag=0x4200,
+            transition_id=1,
+            parent_ref=0,
+            root_authorized=True,
+            root_authorization_ref=0xA101,
+            root_policy_epoch=7,
+        )
 
     def test_retired_parent_ref_maps_exactly_to_parent_cause(self) -> None:
         record = build_vcml_record(
@@ -51,15 +65,8 @@ class VCMLBridgeTests(unittest.TestCase):
         self.assertEqual(record["action"], "write")
         self.assertEqual(record["object"], {"address": 0x42, "data": 0xCAFE0042})
 
-    def test_root_authorization_projection_is_preserved(self) -> None:
-        root = CausalStoreEvent(
-            address=1,
-            data=2,
-            ctag=0x4200,
-            transition_id=1,
-            parent_ref=0,
-            root_authorized=True,
-        )
+    def test_root_authorization_provenance_projection_is_preserved(self) -> None:
+        root = self.make_root()
         record = build_vcml_record(
             root,
             actor={"pid": 1, "uid": 0},
@@ -67,10 +74,12 @@ class VCMLBridgeTests(unittest.TestCase):
             timestamp_ns=1,
         )
         self.assertTrue(record["root_authorized"])
+        self.assertEqual(record["root_authorization_ref"], 0xA101)
+        self.assertEqual(record["root_policy_epoch"], 7)
         self.assertTrue(verify_root_authorization_projection(root, record))
         self.assertIsNone(record["parent_cause"])
 
-    def test_continuation_does_not_invent_root_authorization(self) -> None:
+    def test_continuation_does_not_invent_root_authorization_provenance(self) -> None:
         record = build_vcml_record(
             self.event,
             actor=self.actor,
@@ -78,17 +87,12 @@ class VCMLBridgeTests(unittest.TestCase):
             timestamp_ns=123456789,
         )
         self.assertFalse(record["root_authorized"])
+        self.assertEqual(record["root_authorization_ref"], 0)
+        self.assertEqual(record["root_policy_epoch"], 0)
         self.assertTrue(verify_root_authorization_projection(self.event, record))
 
-    def test_integrity_seals_emitted_record_including_root_authorization(self) -> None:
-        root = CausalStoreEvent(
-            address=1,
-            data=2,
-            ctag=0x4200,
-            transition_id=1,
-            parent_ref=0,
-            root_authorized=True,
-        )
+    def test_integrity_seals_root_authorization_provenance(self) -> None:
+        root = self.make_root()
         record = build_vcml_record(
             root,
             actor={"pid": 1, "uid": 0},
@@ -97,9 +101,17 @@ class VCMLBridgeTests(unittest.TestCase):
         )
         self.assertTrue(verify_integrity(record))
 
-        tampered = dict(record)
-        tampered["root_authorized"] = False
-        self.assertFalse(verify_integrity(tampered))
+        tampered_ref = dict(record)
+        tampered_ref["root_authorization_ref"] = 0xA102
+        self.assertFalse(verify_integrity(tampered_ref))
+
+        tampered_epoch = dict(record)
+        tampered_epoch["root_policy_epoch"] = 8
+        self.assertFalse(verify_integrity(tampered_epoch))
+
+        tampered_decision = dict(record)
+        tampered_decision["root_authorized"] = False
+        self.assertFalse(verify_integrity(tampered_decision))
 
     def test_integrity_seals_emitted_record(self) -> None:
         record = build_vcml_record(
@@ -133,6 +145,8 @@ class VCMLBridgeTests(unittest.TestCase):
             transition_id=1,
             parent_ref=0,
             root_authorized=False,
+            root_authorization_ref=0,
+            root_policy_epoch=0,
         )
         record = build_vcml_record(
             rootish,
@@ -142,7 +156,36 @@ class VCMLBridgeTests(unittest.TestCase):
         )
         self.assertIsNone(record["parent_cause"])
         self.assertFalse(record["root_authorized"])
+        self.assertEqual(record["root_authorization_ref"], 0)
         self.assertTrue(verify_parent_projection(rootish, record))
+
+    def test_authorized_event_requires_nonzero_authorization_ref(self) -> None:
+        bad = CausalStoreEvent(
+            address=1,
+            data=2,
+            ctag=0x4200,
+            transition_id=1,
+            parent_ref=0,
+            root_authorized=True,
+            root_authorization_ref=0,
+            root_policy_epoch=1,
+        )
+        with self.assertRaises(ValueError):
+            bad.validate()
+
+    def test_unauthorized_event_cannot_carry_root_provenance(self) -> None:
+        bad = CausalStoreEvent(
+            address=1,
+            data=2,
+            ctag=0x4210,
+            transition_id=1,
+            parent_ref=1,
+            root_authorized=False,
+            root_authorization_ref=0x1234,
+            root_policy_epoch=1,
+        )
+        with self.assertRaises(ValueError):
+            bad.validate()
 
     def test_ctag_must_fit_canonical_16_bit_field(self) -> None:
         bad = CausalStoreEvent(
@@ -160,6 +203,18 @@ class VCMLBridgeTests(unittest.TestCase):
                 timestamp_ns=1,
             )
 
+    def test_authorization_ref_and_policy_epoch_widths_are_checked(self) -> None:
+        with self.assertRaises(ValueError):
+            CausalStoreEvent(
+                address=1, data=2, ctag=0x4200, transition_id=1, parent_ref=0,
+                root_authorized=True, root_authorization_ref=0x1_0000, root_policy_epoch=1,
+            ).validate()
+        with self.assertRaises(ValueError):
+            CausalStoreEvent(
+                address=1, data=2, ctag=0x4200, transition_id=1, parent_ref=0,
+                root_authorized=True, root_authorization_ref=1, root_policy_epoch=0x100,
+            ).validate()
+
     def test_root_authorized_must_be_boolean_in_mapping(self) -> None:
         with self.assertRaises(ValueError):
             CausalStoreEvent.from_mapping(
@@ -170,6 +225,23 @@ class VCMLBridgeTests(unittest.TestCase):
                     "transition_id": 1,
                     "parent_ref": 0,
                     "root_authorized": "true",
+                    "root_authorization_ref": 1,
+                    "root_policy_epoch": 0,
+                }
+            )
+
+    def test_mapping_rejects_authorized_zero_ref(self) -> None:
+        with self.assertRaises(ValueError):
+            CausalStoreEvent.from_mapping(
+                {
+                    "address": 1,
+                    "data": 2,
+                    "ctag": 0x4200,
+                    "transition_id": 1,
+                    "parent_ref": 0,
+                    "root_authorized": True,
+                    "root_authorization_ref": 0,
+                    "root_policy_epoch": 3,
                 }
             )
 
