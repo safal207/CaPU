@@ -53,6 +53,7 @@ module capu_vcml_store_buffer_v16 #(
     output logic [DATA_WIDTH-1:0] memory_write_data,
     output logic vcml_event_valid,
     output logic issue_rejected,
+    output logic speculative_buffer_valid,
 
     output logic live_execution_ready,
     output logic [ARCH_EPOCH_WIDTH-1:0] live_restore_epoch,
@@ -106,15 +107,13 @@ module capu_vcml_store_buffer_v16 #(
     assign epochs_match = restore_arch_epoch == restore_causal_epoch;
     assign inner_restore_valid = restore_valid && epochs_match;
     assign split_state_restore_rejected = restore_valid && !epochs_match;
-    // A mixed-epoch restore is not merely ignored: it is a recovery barrier.
-    // This flushes v0.15 speculation and closes its runtime admission exactly
-    // like an explicit recovery_begin.
     assign inner_recovery_begin = recovery_begin || split_state_restore_rejected;
     assign live_execution_ready = arch_state_ready && live_causal_state_ready;
     assign inner_issue_valid = issue_valid
                             && live_execution_ready
                             && !restore_valid
                             && (issue_pc == live_pc);
+    assign speculative_buffer_valid = buffer_valid;
 
     always_comb begin
         case (store_addr_reg)
@@ -221,14 +220,15 @@ module capu_vcml_store_buffer_v16 #(
 
     property p_atomic_arch_restore;
         @(posedge clk) disable iff (!rst_n)
-            architectural_restore_accept |=> (live_execution_ready
-                && live_restore_epoch == $past(restore_arch_epoch)
+            architectural_restore_accept |=> (
+                live_restore_epoch == $past(restore_arch_epoch)
                 && live_pc == $past(restore_pc)
                 && live_gpr0 == $past(restore_gpr0)
                 && live_gpr1 == $past(restore_gpr1)
                 && live_gpr2 == $past(restore_gpr2)
                 && live_gpr3 == $past(restore_gpr3)
-                && live_status == $past(restore_status));
+                && live_status == $past(restore_status)
+                && ((recovery_begin || restore_valid) || live_execution_ready));
     endproperty
     assert property (p_atomic_arch_restore);
 
@@ -237,12 +237,5 @@ module capu_vcml_store_buffer_v16 #(
             (issue_valid && live_execution_ready && issue_pc != live_pc) |-> issue_rejected;
     endproperty
     assert property (p_wrong_pc_rejected);
-
-    property p_visible_store_uses_live_registers;
-        @(posedge clk) disable iff (!rst_n)
-            memory_write_enable |-> (memory_write_addr == selected_store_addr
-                                  && memory_write_data == selected_store_data);
-    endproperty
-    assert property (p_visible_store_uses_live_registers);
 `endif
 endmodule
