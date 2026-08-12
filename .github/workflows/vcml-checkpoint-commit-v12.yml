@@ -1,0 +1,177 @@
+name: CaPU vCML Checkpoint Commit v0.12
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_checkpoint_commit_controller.sv"
+      - "rtl/capu_vcml_store_buffer_v12.sv"
+      - "rtl/tb/capu_vcml_checkpoint_commit_v12_tb.sv"
+      - "formal/capu_checkpoint_commit_controller.sv"
+      - "formal/capu_checkpoint_commit_controller_cover.sby"
+      - "formal/capu_checkpoint_commit_controller_formal.sv"
+      - "docs/hardware/CAPU_VCML_CHECKPOINT_COMMIT_V12.md"
+      - ".github/workflows/vcml-checkpoint-commit-v12.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkpoint-commit-rtl:
+    name: Persist-then-anchor commit protocol composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile v0.12 checkpoint commit path
+        run: |
+          iverilog -g2012 -o /tmp/capu-vcml-checkpoint-v12 \
+            rtl/capu_store_buffer.sv \
+            rtl/capu_ctag_validator.sv \
+            rtl/capu_seal_controller.sv \
+            rtl/capu_causal_head_controller.sv \
+            rtl/capu_vcml_store_buffer.sv \
+            rtl/capu_replay_recovery_guard.sv \
+            rtl/capu_vcml_store_buffer_v10.sv \
+            rtl/capu_checkpoint_freshness_guard.sv \
+            rtl/capu_vcml_store_buffer_v11.sv \
+            rtl/capu_checkpoint_commit_controller.sv \
+            rtl/capu_vcml_store_buffer_v12.sv \
+            rtl/tb/capu_vcml_checkpoint_commit_v12_tb.sv
+      - name: Run v0.12 checkpoint authority trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/capu-vcml-checkpoint-v12 | tee vcml-checkpoint-commit-v12.log
+          grep -F "CAPU_VCML_BRIDGE_V12_CHECKPOINT_COMMIT_PASS" vcml-checkpoint-commit-v12.log
+          grep -F "prepared ref=C001 epoch=1 durable=0" vcml-checkpoint-commit-v12.log
+          grep -F "early_anchor_ack rejected=1" vcml-checkpoint-commit-v12.log
+          grep -F "snapshot_durable anchor_request=1" vcml-checkpoint-commit-v12.log
+          grep -F "checkpoint_committed ref=C001 epoch=1" vcml-checkpoint-commit-v12.log
+          grep -F "committed_checkpoint_restored spent=1" vcml-checkpoint-commit-v12.log
+          grep -F "fresh_after_restore ref=A120 spent=2" vcml-checkpoint-commit-v12.log
+          grep -F "state_binding_tamper rejected=1 exact_restore=1" vcml-checkpoint-commit-v12.log
+          grep -F "concurrent_anchor_advance stale_candidate=1" vcml-checkpoint-commit-v12.log
+          grep -F "persisted_then_abort anchor_unchanged=C009/2" vcml-checkpoint-commit-v12.log
+          grep -F "checkpoint_committed ref=C010 epoch=3" vcml-checkpoint-commit-v12.log
+          grep -F "epoch_exhausted wrap_rejected=1" vcml-checkpoint-commit-v12.log
+      - name: Capture v0.12 executable evidence hashes
+        run: |
+          sha256sum \
+            rtl/capu_checkpoint_commit_controller.sv \
+            rtl/capu_vcml_store_buffer_v12.sv \
+            rtl/tb/capu_vcml_checkpoint_commit_v12_tb.sv \
+            vcml-checkpoint-commit-v12.log > vcml-checkpoint-commit-v12.sha256
+          cat vcml-checkpoint-commit-v12.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v12-checkpoint-commit-evidence
+          path: |
+            vcml-checkpoint-commit-v12.log
+            vcml-checkpoint-commit-v12.sha256
+
+  checkpoint-commit-formal:
+    name: Bounded v0.12 checkpoint commit proof
+    needs: checkpoint-commit-rtl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove v0.12 bounded checkpoint commit safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-vcml-checkpoint-commit-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-checkpoint-commit-formal/safety-work \
+            formal/capu_checkpoint_commit_controller.sby 2>&1 | tee target/capu-vcml-checkpoint-commit-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-vcml-checkpoint-commit-formal/formal.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-checkpoint-commit-formal/formal.log
+      - name: Prove commit and rejection paths are reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-checkpoint-commit-formal/cover-work \
+            formal/capu_checkpoint_commit_controller_cover.sby 2>&1 | tee target/capu-vcml-checkpoint-commit-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-vcml-checkpoint-commit-formal/cover.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-checkpoint-commit-formal/cover.log
+      - name: Seal v0.12 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          root = Path('target/capu-vcml-checkpoint-commit-formal')
+          safety = (root/'formal.log').read_text(errors='replace')
+          cover = (root/'cover.log').read_text(errors='replace')
+          if 'DONE (PASS' not in safety or 'DONE (ERROR' in safety:
+              raise SystemExit('v0.12 safety not PASS')
+          if 'DONE (PASS' not in cover or 'DONE (ERROR' in cover:
+              raise SystemExit('v0.12 cover not PASS')
+          inputs = [Path(x) for x in [
+              'rtl/capu_checkpoint_commit_controller.sv',
+              'formal/capu_checkpoint_commit_controller_formal.sv',
+              'formal/capu_checkpoint_commit_controller.sby',
+              'formal/capu_checkpoint_commit_controller_cover.sby']]
+          h = hashlib.sha256()
+          for p in inputs:
+              h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof = {
+              'schema':'capu.hardware.checkpoint-commit-formal-proof.v0.12',
+              'result':'PASS',
+              'depth':24,
+              'cover_depth':28,
+              'solver':'z3',
+              'formal_instance':{
+                  'checkpoint_ref_width':3,
+                  'checkpoint_epoch_width':3,
+                  'checkpoint_state_tag_width':3},
+              'commit_policy':'prepare exact next epoch against a latched base anchor; accept persistence only for the exact candidate while the base is current; request durable anchor CAS only after persistence; emit checkpoint commit only for an exact base+candidate acknowledgement',
+              'invariants':[
+                  'ANCHOR_COMMIT_REQUEST => CANDIDATE_PENDING && SNAPSHOT_DURABLE && BASE_STILL_CURRENT',
+                  'STALE_BASE => NO_ANCHOR_COMMIT_REQUEST',
+                  'CHECKPOINT_COMMIT_EVENT => EXACT_EXTERNAL_ACK && ANCHOR_COMMIT_REQUEST',
+                  'NO_SNAPSHOT_PERSISTENCE => NO_ANCHOR_COMMIT_REQUEST',
+                  'INVALID_OR_SKIPPED_EPOCH => NO_PREPARE_ACCEPT',
+                  'EPOCH_EXHAUSTED => NO_PREPARE_ACCEPT',
+                  'ABORT => NO_ANCHOR_COMMIT_REQUEST && NO_COMMIT_EVENT'],
+              'claim_boundary':'The proof covers the finite checkpoint commit controller only. The current anchor, persistence acknowledgement and external anchor compare-and-swap acknowledgement are trusted interface inputs. The RTL does not implement durable media, cryptographic authentication, atomic storage itself, checkpoint payload hashing, distributed consensus, crash-consistent storage internals, or a complete CPU proof.',
+              'formal_input_sha256':h.hexdigest(),
+              'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
+              'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),
+              'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),
+          }
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+      - name: Upload v0.12 formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v12-checkpoint-commit-formal-evidence
+          path: |
+            target/capu-vcml-checkpoint-commit-formal/formal.log
+            target/capu-vcml-checkpoint-commit-formal/cover.log
+            target/capu-vcml-checkpoint-commit-formal/formal-proof.json
+            target/capu-vcml-checkpoint-commit-formal/safety-work/
+            target/capu-vcml-checkpoint-commit-formal/cover-work/
+          if-no-files-found: warn
