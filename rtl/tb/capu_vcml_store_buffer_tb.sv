@@ -23,6 +23,9 @@ module capu_vcml_store_buffer_tb;
     logic ctag_semantic_accept, sealed_chain, continuation_blocked;
     logic causal_head_valid, generation_policy_accept, generation_exhausted;
     logic root_authorization_accept, parent_policy_accept, issue_rejected;
+    logic authorization_ref_fresh, authorization_replay_detected;
+    logic authorization_capacity_exhausted, retired_authorization_ref_spent;
+    logic [2:0] spent_authorization_count;
     logic [63:0] causal_head_transition_id;
     logic [3:0] causal_head_gen;
 
@@ -31,6 +34,7 @@ module capu_vcml_store_buffer_tb;
     logic prior_retired_auth;
     logic [15:0] prior_retired_auth_ref;
     logic [7:0] prior_retired_policy_epoch;
+    logic [2:0] prior_spent_count;
 
     capu_vcml_store_buffer dut (
         .clk(clk), .rst_n(rst_n),
@@ -59,6 +63,11 @@ module capu_vcml_store_buffer_tb;
         .causal_head_gen(causal_head_gen), .generation_policy_accept(generation_policy_accept),
         .generation_exhausted(generation_exhausted),
         .root_authorization_accept(root_authorization_accept),
+        .authorization_ref_fresh(authorization_ref_fresh),
+        .authorization_replay_detected(authorization_replay_detected),
+        .authorization_capacity_exhausted(authorization_capacity_exhausted),
+        .spent_authorization_count(spent_authorization_count),
+        .retired_authorization_ref_spent(retired_authorization_ref_spent),
         .parent_policy_accept(parent_policy_accept), .issue_rejected(issue_rejected)
     );
 
@@ -103,84 +112,92 @@ module capu_vcml_store_buffer_tb;
         clear_inputs(); repeat(2) @(posedge clk); rst_n=1; step();
         if (causal_head_valid || sealed_chain || buffer_valid || causal_head_gen != 4'h0
             || retired_root_authorized || retired_root_authorization_ref != 16'h0
-            || retired_root_policy_epoch != 8'h0)
+            || retired_root_policy_epoch != 8'h0 || spent_authorization_count != 0
+            || authorization_capacity_exhausted)
             $fatal(1,"reset state invalid");
-        $display("TRACE CAPU-V08 S0 reset head_valid=0 gen=0 sealed=0");
+        $display("TRACE CAPU-V09 S0 reset spent=0 head_valid=0 gen=0 sealed=0");
 
         issue_store(make_ctag(4'h1,0),64'h01,64'h00,0,0,16'h0000,8'h00);
         if (!issue_rejected || buffer_valid) $fatal(1,"headless continuation admitted");
-        $display("TRACE CAPU-V08 S1 headless_child rejected=1");
+        $display("TRACE CAPU-V09 S1 headless_child rejected=1");
 
         issue_store(16'hF200,64'h02,64'h00,1,1,16'hA002,8'h01);
         if (!issue_rejected || buffer_valid) $fatal(1,"invalid CTAG root admitted");
-        $display("TRACE CAPU-V08 S2 invalid_ctag rejected=1");
+        $display("TRACE CAPU-V09 S2 invalid_ctag rejected=1");
 
         issue_store(make_ctag(4'h0,0),64'h03,64'h99,1,1,16'hA003,8'h01);
         if (!issue_rejected || buffer_valid) $fatal(1,"nonzero-parent root admitted");
-        $display("TRACE CAPU-V08 S3 malformed_root_parent rejected=1");
+        $display("TRACE CAPU-V09 S3 malformed_root_parent rejected=1");
 
         issue_store(make_ctag(4'h1,0),64'h04,64'h00,1,1,16'hA004,8'h01);
         if (!issue_rejected || buffer_valid) $fatal(1,"nonzero-generation root admitted");
-        $display("TRACE CAPU-V08 S4 malformed_root_gen rejected=1");
+        $display("TRACE CAPU-V09 S4 malformed_root_gen rejected=1");
 
-        // Trust decision without authorization is rejected.
         issue_store(make_ctag(4'h0,0),64'h05,64'h00,1,0,16'hA005,8'h02);
         if (!issue_rejected || buffer_valid || root_authorization_accept)
             $fatal(1,"unauthorized initial root admitted");
-        $display("TRACE CAPU-V08 S5 unauthorized_root rejected=1");
+        $display("TRACE CAPU-V09 S5 unauthorized_root rejected=1");
 
-        // v0.8: trusted YES without a provenance reference also fails closed.
         issue_store(make_ctag(4'h0,0),64'h06,64'h00,1,1,16'h0000,8'h02);
         if (!issue_rejected || buffer_valid || root_authorization_accept)
             $fatal(1,"zero-ref authorized root admitted");
-        $display("TRACE CAPU-V08 S6 zero_auth_ref rejected=1");
+        $display("TRACE CAPU-V09 S6 zero_auth_ref rejected=1");
 
-        // Authorized root binds the non-zero auth ref and policy epoch through retirement.
         issue_store(make_ctag(4'h0,0),64'h10,64'h00,1,1,16'hA110,8'h07);
         if (!buffer_valid || !parent_policy_accept || !generation_policy_accept
-            || !root_authorization_accept || !buffered_root_authorized
-            || buffered_root_authorization_ref!==16'hA110 || buffered_root_policy_epoch!==8'h07)
+            || !root_authorization_accept || !authorization_ref_fresh
+            || !buffered_root_authorized || buffered_root_authorization_ref!==16'hA110
+            || buffered_root_policy_epoch!==8'h07 || spent_authorization_count != 0)
             $fatal(1,"authorized explicit root admission/provenance failed");
         commit_store();
         if (!memory_write_enable || !vcml_event_valid || !causal_head_valid
             || causal_head_transition_id!==64'h10 || causal_head_gen!==4'h0 || sealed_chain
             || !retired_root_authorized || retired_root_authorization_ref!==16'hA110
-            || retired_root_policy_epoch!==8'h07)
-            $fatal(1,"authorized root commit did not preserve provenance");
-        $display("TRACE CAPU-V08 S7 authorized_root_committed head=10 auth_ref=A110 policy_epoch=07");
+            || retired_root_policy_epoch!==8'h07 || spent_authorization_count != 1
+            || !retired_authorization_ref_spent)
+            $fatal(1,"authorized root commit did not consume provenance");
+        $display("TRACE CAPU-V09 S7 authorized_root_committed head=10 auth_ref=A110 spent=1");
 
         clear_inputs(); step();
 
-        // Root sideband/provenance is root-only: spurious values on a continuation are ignored.
+        // Immediate replay is rejected even if the caller changes policy_epoch.
+        issue_store(make_ctag(4'h0,0),64'h0F,64'h00,1,1,16'hA110,8'hFE);
+        if (!issue_rejected || buffer_valid || root_authorization_accept
+            || !authorization_replay_detected || authorization_ref_fresh
+            || spent_authorization_count != 1)
+            $fatal(1,"committed authorization ref replay admitted");
+        $display("TRACE CAPU-V09 S8 replay_A110 rejected=1 spent=1");
+
         issue_store(make_ctag(4'h1,0),64'h11,64'h10,0,1,16'hFFFF,8'hFE);
         if (!buffer_valid || !parent_policy_accept || !generation_policy_accept
             || buffered_root_authorized || buffered_root_authorization_ref!==16'h0
             || buffered_root_policy_epoch!==8'h0)
             $fatal(1,"continuation inherited root provenance");
-        $display("TRACE CAPU-V08 S8 continuation_spurious_auth ignored=1 gen=1");
+        $display("TRACE CAPU-V09 S9 continuation_spurious_auth ignored=1 gen=1");
         clear_inputs(); flush=1; step();
-        if (causal_head_transition_id!==64'h10 || causal_head_gen!==4'h0 || !causal_head_valid)
-            $fatal(1,"flush mutated committed head/gen");
+        if (causal_head_transition_id!==64'h10 || causal_head_gen!==4'h0 || !causal_head_valid
+            || spent_authorization_count != 1)
+            $fatal(1,"flush mutated committed head/gen/spent state");
 
         issue_store(make_ctag(4'h0,0),64'h12,64'h10,0,0,16'h0,8'h0);
         if (!issue_rejected || buffer_valid) $fatal(1,"stale generation admitted");
-        $display("TRACE CAPU-V08 S9 stale_gen rejected=1 head_gen=0");
+        $display("TRACE CAPU-V09 S10 stale_gen rejected=1 head_gen=0");
 
         issue_store(make_ctag(4'h2,0),64'h13,64'h10,0,0,16'h0,8'h0);
         if (!issue_rejected || buffer_valid) $fatal(1,"skipped generation admitted");
-        $display("TRACE CAPU-V08 S10 skipped_gen rejected=1 expected=1");
+        $display("TRACE CAPU-V09 S11 skipped_gen rejected=1 expected=1");
 
         issue_store(make_ctag(4'h1,0),64'h14,64'h09,0,0,16'h0,8'h0);
         if (!issue_rejected || buffer_valid) $fatal(1,"wrong parent admitted");
-        $display("TRACE CAPU-V08 S11 wrong_parent rejected=1 head=10");
+        $display("TRACE CAPU-V09 S12 wrong_parent rejected=1 head=10");
 
         issue_store(make_ctag(4'h1,0),64'h20,64'h10,0,0,16'h0,8'h0);
         if (!buffer_valid) $fatal(1,"gen1 child not admitted");
         commit_store();
         if (!memory_write_enable || causal_head_transition_id!==64'h20 || causal_head_gen!==4'h1
             || retired_root_authorized || retired_root_authorization_ref!==16'h0
-            || retired_root_policy_epoch!==8'h0)
-            $fatal(1,"continuation retirement carried root provenance");
+            || retired_root_policy_epoch!==8'h0 || spent_authorization_count != 1)
+            $fatal(1,"continuation retirement carried root provenance or spent ref");
 
         clear_inputs(); step();
         issue_store(make_ctag(4'h2,1),64'h21,64'h20,0,0,16'h0,8'h0);
@@ -188,55 +205,60 @@ module capu_vcml_store_buffer_tb;
         commit_store();
         if (!memory_write_enable || !sealed_chain || causal_head_transition_id!==64'h21
             || causal_head_gen!==4'h2 || retired_root_authorized
-            || retired_root_authorization_ref!==16'h0 || retired_root_policy_epoch!==8'h0)
+            || retired_root_authorization_ref!==16'h0 || retired_root_policy_epoch!==8'h0
+            || spent_authorization_count != 1)
             $fatal(1,"sealed continuation retirement mismatch");
-        $display("TRACE CAPU-V08 S12 sealed_commit head=21 gen=2 sealed=1");
+        $display("TRACE CAPU-V09 S13 sealed_commit head=21 gen=2 sealed=1 spent=1");
 
         clear_inputs(); step();
 
         issue_store(make_ctag(4'h3,0),64'h22,64'h21,0,0,16'h0,8'h0);
         if (!issue_rejected || buffer_valid || !continuation_blocked)
             $fatal(1,"sealed exact-parent next-gen child escaped");
-        $display("TRACE CAPU-V08 S13 sealed_correct_parent_gen rejected=1");
+        $display("TRACE CAPU-V09 S14 sealed_correct_parent_gen rejected=1");
 
         issue_store(make_ctag(4'h0,0),64'h2F,64'h00,1,0,16'hA12F,8'h08);
         if (!issue_rejected || buffer_valid)
             $fatal(1,"unauthorized replacement root under seal admitted");
-        $display("TRACE CAPU-V08 S14 unauthorized_root_under_seal rejected=1");
+        $display("TRACE CAPU-V09 S15 unauthorized_root_under_seal rejected=1");
 
         issue_store(make_ctag(4'h0,0),64'h2E,64'h00,1,1,16'h0000,8'h08);
         if (!issue_rejected || buffer_valid)
             $fatal(1,"unreferenced replacement root under seal admitted");
-        $display("TRACE CAPU-V08 S15 zero_ref_root_under_seal rejected=1");
+        $display("TRACE CAPU-V09 S16 zero_ref_root_under_seal rejected=1");
 
+        // A flushed root must not consume its authorization reference.
         prior_retired_auth = retired_root_authorized;
         prior_retired_auth_ref = retired_root_authorization_ref;
         prior_retired_policy_epoch = retired_root_policy_epoch;
+        prior_spent_count = spent_authorization_count;
         issue_store(make_ctag(4'h0,0),64'h30,64'h00,1,1,16'hA130,8'h09);
         if (!buffer_valid || !sealed_chain || !buffered_root_authorized
-            || buffered_root_authorization_ref!==16'hA130 || buffered_root_policy_epoch!==8'h09)
+            || buffered_root_authorization_ref!==16'hA130 || buffered_root_policy_epoch!==8'h09
+            || !authorization_ref_fresh)
             $fatal(1,"authorized root under seal not admitted");
         clear_inputs(); flush=1; step();
         if (!sealed_chain || causal_head_transition_id!==64'h21 || causal_head_gen!==4'h2
             || vcml_event_valid || retired_root_authorized!==prior_retired_auth
             || retired_root_authorization_ref!==prior_retired_auth_ref
-            || retired_root_policy_epoch!==prior_retired_policy_epoch)
-            $fatal(1,"flushed authorized root changed committed/evidence state");
-        $display("TRACE CAPU-V08 S16 authorized_root_flush no_event=1 provenance_preserved=1");
+            || retired_root_policy_epoch!==prior_retired_policy_epoch
+            || spent_authorization_count!==prior_spent_count)
+            $fatal(1,"flushed authorized root changed committed/evidence/spent state");
+        $display("TRACE CAPU-V09 S17 authorized_root_flush ref=A130 not_spent=1");
 
-        issue_store(make_ctag(4'h0,0),64'h31,64'h00,1,1,16'hA131,8'h0A);
-        if (!buffer_valid || !buffered_root_authorized
-            || buffered_root_authorization_ref!==16'hA131 || buffered_root_policy_epoch!==8'h0A)
-            $fatal(1,"replacement root not admitted");
+        // The same ref is still fresh because the previous candidate never retired.
+        issue_store(make_ctag(4'h0,0),64'h31,64'h00,1,1,16'hA130,8'h0A);
+        if (!buffer_valid || !buffered_root_authorized || !authorization_ref_fresh
+            || buffered_root_authorization_ref!==16'hA130 || buffered_root_policy_epoch!==8'h0A)
+            $fatal(1,"flushed authorization ref was incorrectly consumed");
         commit_store();
         if (!memory_write_enable || !vcml_event_valid || sealed_chain
             || causal_head_transition_id!==64'h31 || causal_head_gen!==4'h0
-            || !retired_root_authorized || retired_root_authorization_ref!==16'hA131
-            || retired_root_policy_epoch!==8'h0A)
-            $fatal(1,"authorized replacement root did not preserve fresh provenance");
-        if (retired_transition_id!==64'h31 || retired_parent_ref!==64'h00 || retired_ctag[7:4]!==4'h0)
-            $fatal(1,"replacement root retirement metadata mismatch");
-        $display("TRACE CAPU-V08 S17 replacement_root head=31 auth_ref=A131 policy_epoch=0A");
+            || !retired_root_authorized || retired_root_authorization_ref!==16'hA130
+            || retired_root_policy_epoch!==8'h0A || spent_authorization_count != 2
+            || !retired_authorization_ref_spent)
+            $fatal(1,"replacement root did not consume fresh authorization ref");
+        $display("TRACE CAPU-V09 S18 flushed_ref_reused_once head=31 auth_ref=A130 spent=2");
 
         clear_inputs(); step();
 
@@ -249,7 +271,8 @@ module capu_vcml_store_buffer_tb;
             commit_store();
             if (!memory_write_enable || causal_head_transition_id!==(64'h40 + i)
                 || causal_head_gen!==i[3:0] || retired_root_authorized
-                || retired_root_authorization_ref!==16'h0 || retired_root_policy_epoch!==8'h0)
+                || retired_root_authorization_ref!==16'h0 || retired_root_policy_epoch!==8'h0
+                || spent_authorization_count != 2)
                 $fatal(1,"committed continuation generation/provenance mismatch");
             last_tid = 64'h40 + i;
             clear_inputs(); step();
@@ -257,36 +280,67 @@ module capu_vcml_store_buffer_tb;
 
         if (!generation_exhausted || causal_head_gen!==4'hF)
             $fatal(1,"GEN=F did not mark generation exhaustion");
-        $display("TRACE CAPU-V08 S18 epoch_exhausted head_gen=F");
+        $display("TRACE CAPU-V09 S19 epoch_exhausted head_gen=F spent=2");
 
         issue_store(make_ctag(4'h0,0),64'h60,last_tid,0,0,16'h0,8'h0);
         if (!issue_rejected || buffer_valid || !continuation_blocked)
             $fatal(1,"generation wrap admitted");
-        $display("TRACE CAPU-V08 S19 wrap_rejected head_gen=F");
+        $display("TRACE CAPU-V09 S20 wrap_rejected head_gen=F");
 
         issue_store(make_ctag(4'h0,0),64'h61,64'h00,1,0,16'hA161,8'h0B);
         if (!issue_rejected || buffer_valid)
             $fatal(1,"unauthorized root escaped exhausted epoch");
-        $display("TRACE CAPU-V08 S20 exhausted_unauthorized_root rejected=1");
+        $display("TRACE CAPU-V09 S21 exhausted_unauthorized_root rejected=1");
 
         issue_store(make_ctag(4'h0,0),64'h61,64'h00,1,1,16'h0000,8'h0B);
         if (!issue_rejected || buffer_valid)
             $fatal(1,"zero-ref root escaped exhausted epoch");
-        $display("TRACE CAPU-V08 S21 exhausted_zero_ref_root rejected=1");
+        $display("TRACE CAPU-V09 S22 exhausted_zero_ref_root rejected=1");
 
         issue_store(make_ctag(4'h0,0),64'h62,64'h00,1,1,16'hA162,8'h0C);
-        if (!buffer_valid || !buffered_root_authorized
+        if (!buffer_valid || !buffered_root_authorized || !authorization_ref_fresh
             || buffered_root_authorization_ref!==16'hA162 || buffered_root_policy_epoch!==8'h0C)
             $fatal(1,"authorized root after exhaustion not admitted");
         commit_store();
         if (!memory_write_enable || !vcml_event_valid || generation_exhausted
             || causal_head_transition_id!==64'h62 || causal_head_gen!==4'h0
             || !retired_root_authorized || retired_root_authorization_ref!==16'hA162
-            || retired_root_policy_epoch!==8'h0C)
-            $fatal(1,"authorized root did not reset exhausted epoch with provenance");
-        $display("TRACE CAPU-V08 S22 exhausted_root_committed head=62 auth_ref=A162 policy_epoch=0C");
+            || retired_root_policy_epoch!==8'h0C || spent_authorization_count != 3
+            || !retired_authorization_ref_spent)
+            $fatal(1,"authorized root did not reset exhausted epoch with spent provenance");
+        $display("TRACE CAPU-V09 S23 exhausted_root_committed head=62 auth_ref=A162 spent=3");
 
-        $display("CAPU_VCML_BRIDGE_V08_RTL_PASS");
+        clear_inputs(); step();
+
+        // A -> B -> C -> A replay is still rejected: this is not a last-ref guard.
+        issue_store(make_ctag(4'h0,0),64'h63,64'h00,1,1,16'hA110,8'h55);
+        if (!issue_rejected || buffer_valid || !authorization_replay_detected
+            || authorization_ref_fresh || spent_authorization_count != 3)
+            $fatal(1,"old spent ref replay admitted after intervening roots");
+        $display("TRACE CAPU-V09 S24 old_ref_replay_A110 rejected=1 spent=3");
+
+        // Fourth unique committed ref fills the bounded no-eviction table.
+        issue_store(make_ctag(4'h0,0),64'h64,64'h00,1,1,16'hA164,8'h0D);
+        if (!buffer_valid || !authorization_ref_fresh || authorization_capacity_exhausted)
+            $fatal(1,"fourth unique root not admitted before capacity fills");
+        commit_store();
+        if (!memory_write_enable || spent_authorization_count != 4
+            || !authorization_capacity_exhausted || !retired_authorization_ref_spent
+            || retired_root_authorization_ref!==16'hA164)
+            $fatal(1,"fourth ref did not fill spent authorization table");
+        $display("TRACE CAPU-V09 S25 spent_capacity_full count=4 last=A164");
+
+        clear_inputs(); step();
+
+        // No eviction in v0.9: a fifth unique root fails closed until reset.
+        issue_store(make_ctag(4'h0,0),64'h65,64'h00,1,1,16'hA165,8'h0E);
+        if (!issue_rejected || buffer_valid || root_authorization_accept
+            || authorization_replay_detected || !authorization_ref_fresh
+            || !authorization_capacity_exhausted || spent_authorization_count != 4)
+            $fatal(1,"fresh root escaped full spent authorization table");
+        $display("TRACE CAPU-V09 S26 capacity_exhausted fresh_root_rejected=1 count=4");
+
+        $display("CAPU_VCML_BRIDGE_V09_RTL_PASS");
         $finish;
     end
 endmodule
