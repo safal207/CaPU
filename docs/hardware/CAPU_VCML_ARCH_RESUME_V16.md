@@ -123,4 +123,7 @@ live causal execution resumption
 causally bound architectural execution resumption
 ```
 
-A natural next boundary is v0.17: precise recovery across exception / interrupt / privilege state, while preserving the same atomic architectural+causal recovery epoch.
+The next boundary is v0.17 architectural checkpoint content binding: include
+the actual PC/GPR/status bytes in the same canonical checkpoint commitment as
+the causal/replay state. Precise exception, interrupt and privilege recovery
+then becomes v0.18.
