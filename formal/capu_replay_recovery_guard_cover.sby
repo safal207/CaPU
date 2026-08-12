@@ -1,0 +1,15 @@
+[options]
+mode cover
+depth 24
+timeout 300
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal -sv capu_replay_recovery_guard.sv capu_replay_recovery_guard_formal.sv
+prep -top capu_replay_recovery_guard_formal
+
+[files]
+rtl/capu_replay_recovery_guard.sv
+formal/capu_replay_recovery_guard_formal.sv
