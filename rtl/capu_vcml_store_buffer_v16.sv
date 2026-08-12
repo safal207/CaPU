@@ -105,12 +105,16 @@ module capu_vcml_store_buffer_v16 #(
     logic [DATA_WIDTH-1:0] selected_store_data;
 
     assign epochs_match = restore_arch_epoch == restore_causal_epoch;
-    assign inner_restore_valid = restore_valid && epochs_match;
     assign split_state_restore_rejected = restore_valid && !epochs_match;
     assign inner_recovery_begin = recovery_begin || split_state_restore_rejected;
+    // Recovery has strict priority: a snapshot presented while recovery_begin is
+    // asserted cannot be reported as accepted because sequential state is being
+    // cleared on that edge.
+    assign inner_restore_valid = restore_valid && epochs_match && !recovery_begin;
     assign live_execution_ready = arch_state_ready && live_causal_state_ready;
     assign inner_issue_valid = issue_valid
                             && live_execution_ready
+                            && !inner_recovery_begin
                             && !restore_valid
                             && (issue_pc == live_pc);
     assign speculative_buffer_valid = buffer_valid;
@@ -179,6 +183,7 @@ module capu_vcml_store_buffer_v16 #(
     assign architectural_restore_accept = causal_restore_accept && inner_restore_valid;
     assign issue_rejected = issue_valid
                          && (!live_execution_ready
+                             || inner_recovery_begin
                              || restore_valid
                              || issue_pc != live_pc
                              || inner_issue_rejected);
@@ -211,6 +216,12 @@ module capu_vcml_store_buffer_v16 #(
             |-> (!architectural_restore_accept && !memory_write_enable && issue_rejected == issue_valid);
     endproperty
     assert property (p_split_state_restore_fails_closed);
+
+    property p_recovery_has_priority;
+        @(posedge clk) disable iff (!rst_n)
+            recovery_begin |-> (!architectural_restore_accept && (issue_valid -> issue_rejected));
+    endproperty
+    assert property (p_recovery_has_priority);
 
     property p_split_state_restore_closes_runtime;
         @(posedge clk) disable iff (!rst_n)
