@@ -35,8 +35,10 @@ module capu_vcml_store_buffer_formal;
     wire [TRANSITION_ID_WIDTH-1:0] retired_transition_id;
     wire [PARENT_REF_WIDTH-1:0] retired_parent_ref;
     wire ctag_semantic_accept, sealed_chain, continuation_blocked;
-    wire causal_head_valid, parent_policy_accept, issue_rejected;
+    wire causal_head_valid, generation_policy_accept, generation_exhausted;
+    wire parent_policy_accept, issue_rejected;
     wire [TRANSITION_ID_WIDTH-1:0] causal_head_transition_id;
+    wire [3:0] causal_head_gen;
 
     capu_vcml_store_buffer #(
         .ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH),
@@ -59,6 +61,8 @@ module capu_vcml_store_buffer_formal;
         .retired_parent_ref(retired_parent_ref), .ctag_semantic_accept(ctag_semantic_accept),
         .sealed_chain(sealed_chain), .continuation_blocked(continuation_blocked),
         .causal_head_valid(causal_head_valid), .causal_head_transition_id(causal_head_transition_id),
+        .causal_head_gen(causal_head_gen), .generation_policy_accept(generation_policy_accept),
+        .generation_exhausted(generation_exhausted),
         .parent_policy_accept(parent_policy_accept), .issue_rejected(issue_rejected)
     );
 
@@ -73,21 +77,26 @@ module capu_vcml_store_buffer_formal;
     reg prev_flush = 1'b0;
     reg prev_head_valid = 1'b0;
     reg [TRANSITION_ID_WIDTH-1:0] prev_head = '0;
+    reg [3:0] prev_head_gen = 4'h0;
     reg prev_sealed = 1'b0;
 
     reg seen_root_commit = 1'b0;
     reg seen_normal_continuation = 1'b0;
     reg seen_sealed_commit = 1'b0;
     reg seen_explicit_root_under_seal = 1'b0;
+    reg seen_epoch_exhaustion = 1'b0;
+    reg seen_exhausted_reject = 1'b0;
 
     always @(posedge clk) begin
         if (!rst_n) begin
             ghost_commit <= 0;
             ghost_addr <= '0; ghost_data <= '0; ghost_ctag <= '0; ghost_ctag_valid <= 0;
             ghost_transition_id <= '0; ghost_parent_ref <= '0;
-            prev_flush <= 0; prev_head_valid <= 0; prev_head <= '0; prev_sealed <= 0;
+            prev_flush <= 0; prev_head_valid <= 0; prev_head <= '0;
+            prev_head_gen <= 4'h0; prev_sealed <= 0;
             seen_root_commit <= 0; seen_normal_continuation <= 0;
             seen_sealed_commit <= 0; seen_explicit_root_under_seal <= 0;
+            seen_epoch_exhaustion <= 0; seen_exhausted_reject <= 0;
         end else begin
             // Existing causal-retirement boundary remains exact.
             assert(memory_write_enable == ghost_commit);
@@ -110,38 +119,51 @@ module capu_vcml_store_buffer_formal;
                 assert(!buffer_valid);
             end
 
-            // v0.5: every admitted normal continuation must name the exact
-            // committed causal head and must not continue a sealed chain.
+            // v0.6 normal continuation requires exact parent identity plus the
+            // next committed 4-bit generation. F -> 0 wrap is forbidden.
             if (issue_valid && gate_allow && execute_ok && ctag_semantic_accept
                 && !buffer_valid && !explicit_new_cause && parent_policy_accept) begin
                 assert(causal_head_valid);
                 assert(!sealed_chain);
+                assert(!generation_exhausted);
+                assert(causal_head_gen != 4'hF);
                 assert(store_parent_ref == causal_head_transition_id);
+                assert(store_ctag[7:4] == (causal_head_gen + 4'h1));
+                assert(generation_policy_accept);
             end
 
-            // v0.5 explicit-root policy is intentionally narrow and fail-closed.
+            // Explicit root policy deliberately starts a fresh local epoch.
             if (issue_valid && gate_allow && execute_ok && ctag_semantic_accept
                 && !buffer_valid && explicit_new_cause && parent_policy_accept) begin
                 assert(store_parent_ref == '0);
+                assert(store_ctag[7:4] == 4'h0);
+                assert(generation_policy_accept);
             end
 
-            // A sealed chain cannot admit an automatic child even if the child
-            // names the exact current head.
+            // Seal and generation exhaustion independently block automatic child admission.
             if (sealed_chain && issue_valid && !explicit_new_cause) begin
                 assert(!parent_policy_accept);
                 assert(issue_rejected);
             end
 
-            // Flush is speculative-only: it cannot mutate committed head/seal.
+            if (generation_exhausted && issue_valid && !explicit_new_cause) begin
+                assert(!parent_policy_accept);
+                assert(!generation_policy_accept);
+                assert(issue_rejected);
+                assert(continuation_blocked);
+            end
+
+            // Flush is speculative-only: committed head identity, GEN, and SEAL survive.
             if (prev_flush) begin
                 assert(causal_head_valid == prev_head_valid);
                 assert(causal_head_transition_id == prev_head);
+                assert(causal_head_gen == prev_head_gen);
                 assert(sealed_chain == prev_sealed);
             end
 
-            // Reachability bookkeeping based on visible committed effects.
+            // Reachability bookkeeping based on committed/observable state.
             if (memory_write_enable) begin
-                if (ghost_parent_ref == '0)
+                if ((ghost_parent_ref == '0) && (ghost_ctag[7:4] == 4'h0))
                     seen_root_commit <= 1'b1;
                 else
                     seen_normal_continuation <= 1'b1;
@@ -149,12 +171,21 @@ module capu_vcml_store_buffer_formal;
                     seen_sealed_commit <= 1'b1;
             end
 
-            if (seen_sealed_commit && sealed_chain && buffer_valid && buffered_parent_ref == '0)
+            if (seen_sealed_commit && sealed_chain && buffer_valid
+                && buffered_parent_ref == '0 && buffered_ctag[7:4] == 4'h0)
                 seen_explicit_root_under_seal <= 1'b1;
 
-            // Non-vacuity: prove both policy paths can actually be reached.
+            if (causal_head_valid && causal_head_gen == 4'hF)
+                seen_epoch_exhaustion <= 1'b1;
+
+            if (generation_exhausted && issue_valid && !explicit_new_cause && issue_rejected)
+                seen_exhausted_reject <= 1'b1;
+
+            // Non-vacuity: ordinary successor, root-under-seal, and exhausted-epoch
+            // rejection must all be reachable in the bounded model.
             cover(seen_root_commit && seen_normal_continuation && causal_head_valid);
             cover(seen_sealed_commit && seen_explicit_root_under_seal && sealed_chain);
+            cover(seen_epoch_exhaustion && seen_exhausted_reject && generation_exhausted);
 
             ghost_commit <= buffer_valid
                          && causal_valid
@@ -171,6 +202,7 @@ module capu_vcml_store_buffer_formal;
             prev_flush <= flush;
             prev_head_valid <= causal_head_valid;
             prev_head <= causal_head_transition_id;
+            prev_head_gen <= causal_head_gen;
             prev_sealed <= sealed_chain;
         end
     end
