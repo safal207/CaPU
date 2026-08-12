@@ -77,6 +77,7 @@ module capu_vcml_store_buffer_v16 #(
     logic arch_state_ready;
     logic epochs_match;
     logic inner_restore_valid;
+    logic inner_recovery_begin;
     logic inner_issue_valid;
     logic inner_issue_rejected;
     logic buffer_valid;
@@ -105,8 +106,15 @@ module capu_vcml_store_buffer_v16 #(
     assign epochs_match = restore_arch_epoch == restore_causal_epoch;
     assign inner_restore_valid = restore_valid && epochs_match;
     assign split_state_restore_rejected = restore_valid && !epochs_match;
+    // A mixed-epoch restore is not merely ignored: it is a recovery barrier.
+    // This flushes v0.15 speculation and closes its runtime admission exactly
+    // like an explicit recovery_begin.
+    assign inner_recovery_begin = recovery_begin || split_state_restore_rejected;
     assign live_execution_ready = arch_state_ready && live_causal_state_ready;
-    assign inner_issue_valid = issue_valid && live_execution_ready && (issue_pc == live_pc);
+    assign inner_issue_valid = issue_valid
+                            && live_execution_ready
+                            && !restore_valid
+                            && (issue_pc == live_pc);
 
     always_comb begin
         case (store_addr_reg)
@@ -134,7 +142,7 @@ module capu_vcml_store_buffer_v16 #(
         .REQUIRE_WRITE_CLASS(REQUIRE_WRITE_CLASS)
     ) inner (
         .clk(clk), .rst_n(rst_n),
-        .recovery_begin(recovery_begin), .restore_valid(inner_restore_valid),
+        .recovery_begin(inner_recovery_begin), .restore_valid(inner_restore_valid),
         .restore_spent_valid(restore_spent_valid), .restore_spent_refs(restore_spent_refs),
         .restore_causal_head_valid(restore_causal_head_valid),
         .restore_causal_head_transition_id(restore_causal_head_transition_id),
@@ -170,7 +178,11 @@ module capu_vcml_store_buffer_v16 #(
     );
 
     assign architectural_restore_accept = causal_restore_accept && inner_restore_valid;
-    assign issue_rejected = issue_valid && (!live_execution_ready || issue_pc != live_pc || inner_issue_rejected);
+    assign issue_rejected = issue_valid
+                         && (!live_execution_ready
+                             || restore_valid
+                             || issue_pc != live_pc
+                             || inner_issue_rejected);
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -179,7 +191,7 @@ module capu_vcml_store_buffer_v16 #(
             live_pc <= '0;
             live_gpr0 <= '0; live_gpr1 <= '0; live_gpr2 <= '0; live_gpr3 <= '0;
             live_status <= '0;
-        end else if (recovery_begin) begin
+        end else if (inner_recovery_begin) begin
             arch_state_ready <= 1'b0;
         end else if (architectural_restore_accept) begin
             arch_state_ready <= 1'b1;
@@ -196,9 +208,16 @@ module capu_vcml_store_buffer_v16 #(
 `ifdef CAPU_ASSERTIONS
     property p_split_state_restore_fails_closed;
         @(posedge clk) disable iff (!rst_n)
-            (restore_valid && !epochs_match) |-> (!architectural_restore_accept && !memory_write_enable);
+            (restore_valid && !epochs_match)
+            |-> (!architectural_restore_accept && !memory_write_enable && issue_rejected == issue_valid);
     endproperty
     assert property (p_split_state_restore_fails_closed);
+
+    property p_split_state_restore_closes_runtime;
+        @(posedge clk) disable iff (!rst_n)
+            split_state_restore_rejected |=> !live_execution_ready;
+    endproperty
+    assert property (p_split_state_restore_closes_runtime);
 
     property p_atomic_arch_restore;
         @(posedge clk) disable iff (!rst_n)
