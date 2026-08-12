@@ -5,10 +5,14 @@ RTL carries compact causal metadata; this module expands a retired STORE event
 into the minimal vCML-style record used by the CaPU/CML experiment.
 
 This is a semantic adapter, not a policy engine and not cryptographic lineage
-proof. The integrity field seals emitted record bytes only. v0.8 carries a
-root-qualified trusted authorization decision plus an opaque authorization
-reference and policy epoch. Those fields provide provenance binding, not proof
-of signer identity, freshness, capability validity, or upstream policy quality.
+proof. The integrity field seals emitted record bytes only. v0.9 carries a
+root-qualified trusted authorization decision, opaque authorization reference,
+and policy epoch, and adds a bounded no-eviction one-shot rule for root
+authorization references inside one volatile controller lifetime.
+
+The software replay-window audit mirrors that local semantic boundary. It does
+not authenticate capability issuers, prove freshness outside the observed
+lifetime, or provide persistence across reset/power loss.
 """
 
 from __future__ import annotations
@@ -19,12 +23,13 @@ import json
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 
 U8_MAX = (1 << 8) - 1
 U16_MAX = (1 << 16) - 1
 U64_MAX = (1 << 64) - 1
+DEFAULT_SPENT_AUTHORIZATION_CAPACITY = 4
 
 
 @dataclass(frozen=True)
@@ -71,9 +76,9 @@ class CausalStoreEvent:
         if not isinstance(self.root_authorized, bool):
             raise ValueError("root_authorized must be boolean")
         if not 0 <= self.root_authorization_ref <= U16_MAX:
-            raise ValueError("root_authorization_ref must fit the v0.8 16-bit provenance reference")
+            raise ValueError("root_authorization_ref must fit the v0.9 16-bit provenance reference")
         if not 0 <= self.root_policy_epoch <= U8_MAX:
-            raise ValueError("root_policy_epoch must fit the v0.8 8-bit policy epoch")
+            raise ValueError("root_policy_epoch must fit the v0.9 8-bit policy epoch")
         if self.root_authorized and self.root_authorization_ref == 0:
             raise ValueError("authorized root evidence requires a non-zero root_authorization_ref")
         if not self.root_authorized and (
@@ -114,7 +119,7 @@ def build_vcml_record(
     `parent_ref == 0` maps to `parent_cause = None`. The caller remains
     responsible for interpreting whether that event is a legitimate root or a
     causal gap. Root authorization provenance mirrors the retirement evidence;
-    this adapter does not authenticate or freshness-check its upstream source.
+    this adapter does not authenticate its upstream source.
     """
 
     event.validate()
@@ -162,6 +167,53 @@ def verify_root_authorization_projection(
         and record.get("root_authorization_ref") == event.root_authorization_ref
         and record.get("root_policy_epoch") == event.root_policy_epoch
     )
+
+
+def verify_authorization_replay_window(
+    records: Iterable[Mapping[str, Any]],
+    *,
+    capacity: int = DEFAULT_SPENT_AUTHORIZATION_CAPACITY,
+) -> bool:
+    """Audit one volatile v0.9 controller-lifetime for root-ref reuse.
+
+    Root authorization references are one-shot within the supplied record
+    sequence. No eviction is modeled: once ``capacity`` unique roots have
+    committed, an additional root record is invalid for that lifetime.
+
+    A reset/power-cycle starts a new lifetime and therefore must be audited as a
+    separate sequence. This helper does not infer or authenticate reset events.
+    """
+
+    if capacity < 1:
+        raise ValueError("authorization replay-window capacity must be >= 1")
+
+    spent: set[int] = set()
+    for record in records:
+        authorized = record.get("root_authorized", False)
+        auth_ref = record.get("root_authorization_ref", 0)
+        policy_epoch = record.get("root_policy_epoch", 0)
+
+        if not isinstance(authorized, bool):
+            return False
+        if not isinstance(auth_ref, int) or not 0 <= auth_ref <= U16_MAX:
+            return False
+        if not isinstance(policy_epoch, int) or not 0 <= policy_epoch <= U8_MAX:
+            return False
+
+        if authorized:
+            if auth_ref == 0:
+                return False
+            if record.get("parent_cause") is not None:
+                return False
+            if auth_ref in spent:
+                return False
+            if len(spent) >= capacity:
+                return False
+            spent.add(auth_ref)
+        elif auth_ref != 0 or policy_epoch != 0:
+            return False
+
+    return True
 
 
 def verify_integrity(record: Mapping[str, Any]) -> bool:
