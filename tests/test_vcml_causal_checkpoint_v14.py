@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 
 from copy import deepcopy
+from pathlib import Path
+import sys
+
+# The test is executed as a script from tests/. Make the repository root an
+# explicit import root instead of relying on runner-specific PYTHONPATH state.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.vcml_causal_checkpoint_v14 import (
     build_causal_snapshot,
