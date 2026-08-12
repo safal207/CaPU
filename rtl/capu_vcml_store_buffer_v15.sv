@@ -78,6 +78,7 @@ module capu_vcml_store_buffer_v15 #(
     logic guarded_restore_valid;
     logic guarded_issue_valid;
     logic runtime_admission_ready;
+    logic runtime_flush;
     logic causal_runtime_ready;
     logic guarded_root_authorized;
     logic inner_issue_rejected;
@@ -119,6 +120,11 @@ module capu_vcml_store_buffer_v15 #(
                                   && !restore_valid;
     assign guarded_issue_valid = issue_valid && runtime_admission_ready;
 
+    // Recovery activity is also a speculation barrier. A candidate that was
+    // buffered before recovery_begin, or before any restore attempt, cannot
+    // retire across the recovery boundary.
+    assign runtime_flush = flush || recovery_begin || restore_valid;
+
     assign causal_restore_accept = replay_restore_accept;
     assign causal_restore_rejected = restore_valid && !causal_restore_accept;
 
@@ -132,7 +138,7 @@ module capu_vcml_store_buffer_v15 #(
                                 && causal_valid
                                 && inner_buffered_ctag_valid
                                 && commit_request
-                                && !flush
+                                && !runtime_flush
                                 && inner_buffered_root_authorized;
 
     capu_replay_recovery_guard #(
@@ -191,7 +197,7 @@ module capu_vcml_store_buffer_v15 #(
         .root_policy_epoch(root_policy_epoch),
         .causal_valid(causal_valid),
         .commit_request(commit_request),
-        .flush(flush),
+        .flush(runtime_flush),
         .causal_state_restore_valid(replay_restore_accept),
         .restore_causal_head_valid(restore_causal_head_valid),
         .restore_causal_head_transition_id(restore_causal_head_transition_id),
@@ -236,6 +242,12 @@ module capu_vcml_store_buffer_v15 #(
             (issue_valid && !live_causal_state_ready) |-> issue_rejected;
     endproperty
     assert property (p_fail_closed_until_full_runtime_restore);
+
+    property p_recovery_activity_flushes_speculation;
+        @(posedge clk) disable iff (!rst_n)
+            (recovery_begin || restore_valid) |=> (!buffer_valid && !memory_write_enable);
+    endproperty
+    assert property (p_recovery_activity_flushes_speculation);
 
     property p_restore_never_executes_store;
         @(posedge clk) disable iff (!rst_n)
