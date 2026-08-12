@@ -3,10 +3,12 @@
 
 The bridge intentionally keeps hardware and semantic responsibilities separate:
 RTL carries compact causal metadata; this module expands a retired STORE event
-into the minimal vCML record shape used by Causal-Memory-Layer.
+into the minimal vCML-style record used by the CaPU/CML experiment.
 
 This is a semantic adapter, not a policy engine and not cryptographic lineage
 proof. The record integrity field seals the emitted record bytes only.
+`root_authorized` is a projection of the trusted hardware sideband observed at
+root admission; it is not a signature or proof of who authorized the root.
 """
 
 from __future__ import annotations
@@ -31,15 +33,21 @@ class CausalStoreEvent:
     ctag: int
     transition_id: int
     parent_ref: int
+    root_authorized: bool = False
 
     @staticmethod
     def from_mapping(raw: Mapping[str, Any]) -> "CausalStoreEvent":
+        raw_root_authorized = raw.get("root_authorized", False)
+        if not isinstance(raw_root_authorized, bool):
+            raise ValueError("root_authorized must be a JSON boolean")
+
         event = CausalStoreEvent(
             address=int(raw["address"]),
             data=int(raw["data"]),
             ctag=int(raw["ctag"]),
             transition_id=int(raw["transition_id"]),
             parent_ref=int(raw["parent_ref"]),
+            root_authorized=raw_root_authorized,
         )
         event.validate()
         return event
@@ -55,6 +63,8 @@ class CausalStoreEvent:
             raise ValueError("transition_id must fit the v0 64-bit hardware reference")
         if not 0 <= self.parent_ref <= U64_MAX:
             raise ValueError("parent_ref must fit the v0 64-bit hardware reference")
+        if not isinstance(self.root_authorized, bool):
+            raise ValueError("root_authorized must be boolean")
 
 
 def transition_ref(value: int) -> str:
@@ -87,8 +97,9 @@ def build_vcml_record(
     """Expand a retired CaPU STORE event into a vCML-style causal record.
 
     `parent_ref == 0` maps to `parent_cause = None`. The caller remains
-    responsible for deciding whether that represents an explicit root event or
-    an observed causal gap; the bridge does not invent policy semantics.
+    responsible for deciding whether that represents a legitimate explicit root
+    or an observed causal gap. `root_authorized` only mirrors the trusted
+    hardware retirement field; this adapter does not authenticate its source.
     """
 
     event.validate()
@@ -115,6 +126,7 @@ def build_vcml_record(
         "permitted_by": permitted_by,
         "parent_cause": parent_cause,
         "ctag": event.ctag,
+        "root_authorized": event.root_authorized,
     }
     record["integrity"] = _integrity(record)
     return record
@@ -123,6 +135,12 @@ def build_vcml_record(
 def verify_parent_projection(event: CausalStoreEvent, record: Mapping[str, Any]) -> bool:
     expected = None if event.parent_ref == 0 else transition_ref(event.parent_ref)
     return record.get("parent_cause") == expected
+
+
+def verify_root_authorization_projection(
+    event: CausalStoreEvent, record: Mapping[str, Any]
+) -> bool:
+    return record.get("root_authorized") is event.root_authorized
 
 
 def verify_integrity(record: Mapping[str, Any]) -> bool:
