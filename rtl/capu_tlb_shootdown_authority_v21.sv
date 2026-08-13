@@ -45,7 +45,14 @@ module capu_tlb_shootdown_authority_v21 #(
     output logic shootdown_ack_accept,
     output logic shootdown_ack_rejected,
     output logic [PPN_WIDTH+PAGE_OFFSET_WIDTH-1:0] paddr,
-    output logic speculation_kill
+    output logic speculation_kill,
+    output logic [ASID_WIDTH-1:0] live_tlb_asid,
+    output logic [EPOCH_WIDTH-1:0] live_tlb_epoch,
+    output logic [VPN_WIDTH-1:0] live_tlb_vpn,
+    output logic [PPN_WIDTH-1:0] live_tlb_ppn,
+    output logic [ASID_WIDTH-1:0] live_shootdown_asid,
+    output logic [EPOCH_WIDTH-1:0] live_shootdown_epoch,
+    output logic [VPN_WIDTH-1:0] live_shootdown_vpn
 );
     logic [ASID_WIDTH-1:0] tlb_asid;
     logic [EPOCH_WIDTH-1:0] tlb_epoch;
@@ -57,6 +64,8 @@ module capu_tlb_shootdown_authority_v21 #(
     logic [VPN_WIDTH-1:0] pending_vpn;
     logic fresh_match, permission_ok, ack_exact;
 
+    assign live_tlb_asid=tlb_asid; assign live_tlb_epoch=tlb_epoch; assign live_tlb_vpn=tlb_vpn; assign live_tlb_ppn=tlb_ppn;
+    assign live_shootdown_asid=pending_asid; assign live_shootdown_epoch=pending_epoch; assign live_shootdown_vpn=pending_vpn;
     assign fresh_match = tlb_valid && tlb_asid==live_asid && tlb_epoch==live_epoch && tlb_vpn==lookup_vpn;
     assign permission_ok = (!access_write || tlb_w) && (!access_exec || tlb_x) && (!access_user || tlb_u) && ((access_write||access_exec) || tlb_r);
     assign tlb_hit = lookup_valid && fresh_match && permission_ok && !shootdown_pending && !recovery_begin && !restore_valid;
