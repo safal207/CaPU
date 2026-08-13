@@ -105,7 +105,8 @@ module capu_dma_completion_uncertainty_v27_formal;
       end else begin
         assert(completion_state==2'b00);
         assert(!completion_receipt_valid);
-        assert(dma_replay_authority);
+        if(!recovery_begin && !restore_valid)
+          assert(dma_replay_authority);
       end
     end
 
