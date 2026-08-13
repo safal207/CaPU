@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 26
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_overlapping_dma_fragment_recovery_v30.sv capu_overlapping_dma_fragment_recovery_v30_formal.sv
+prep -top capu_overlapping_dma_fragment_recovery_v30_formal
+
+[files]
+rtl/capu_overlapping_dma_fragment_recovery_v30.sv
+formal/capu_overlapping_dma_fragment_recovery_v30_formal.sv
