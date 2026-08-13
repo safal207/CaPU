@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 24
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal -sv capu_queue_epoch_wrap_incarnation_v33.sv capu_queue_epoch_wrap_incarnation_v33_live_formal.sv
+prep -top capu_queue_epoch_wrap_incarnation_v33_live_formal
+
+[files]
+rtl/capu_queue_epoch_wrap_incarnation_v33.sv
+formal/capu_queue_epoch_wrap_incarnation_v33_live_formal.sv
