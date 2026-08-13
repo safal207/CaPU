@@ -40,12 +40,12 @@ jobs:
           git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
           git -C /tmp/sby fetch --depth 1 origin b1a1e98cba941ec8433f8dc27f416cd7bb7f14be
           git -C /tmp/sby checkout --detach FETCH_HEAD
-      - name: v0.33 safety cover and v0.32 regression
+      - name: v0.33 live safety cover and v0.32 regression
         run: |
           set -euo pipefail
-          python3 /tmp/sby/sbysrc/sby.py -f -d /tmp/v33-safety formal/capu_queue_epoch_wrap_incarnation_v33.sby | tee /tmp/v33-formal.log
+          python3 /tmp/sby/sbysrc/sby.py -f -d /tmp/v33-safety formal/capu_queue_epoch_wrap_incarnation_v33_live.sby | tee /tmp/v33-formal.log
           grep -q 'DONE (PASS' /tmp/v33-formal.log
-          python3 /tmp/sby/sbysrc/sby.py -f -d /tmp/v33-cover formal/capu_queue_epoch_wrap_incarnation_v33_cover.sby | tee /tmp/v33-cover.log
+          python3 /tmp/sby/sbysrc/sby.py -f -d /tmp/v33-cover formal/capu_queue_epoch_wrap_incarnation_v33_live_cover.sby | tee /tmp/v33-cover.log
           grep -q 'DONE (PASS' /tmp/v33-cover.log
           test "$(find /tmp/v33-cover -name 'trace*.vcd' | wc -l)" -ge 1
           python3 /tmp/sby/sbysrc/sby.py -f -d /tmp/v32-safety formal/capu_queue_epoch_slot_reuse_v32.sby | tee /tmp/v32-formal.log
