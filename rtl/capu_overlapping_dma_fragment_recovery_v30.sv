@@ -90,10 +90,10 @@ module capu_overlapping_dma_fragment_recovery_v30 #(
   function automatic logic [3:0] fragment_mask(input logic [1:0] idx);
     begin
       case (idx)
-        2'd0: fragment_mask = 4'b0011; // lanes 0,1
-        2'd1: fragment_mask = 4'b0110; // lanes 1,2
-        2'd2: fragment_mask = 4'b1100; // lanes 2,3
-        default: fragment_mask = 4'b1001; // lanes 3,0
+        2'd0: fragment_mask = 4'b0011;
+        2'd1: fragment_mask = 4'b0110;
+        2'd2: fragment_mask = 4'b1100;
+        default: fragment_mask = 4'b1001;
       endcase
     end
   endfunction
@@ -104,8 +104,10 @@ module capu_overlapping_dma_fragment_recovery_v30 #(
     all_fragments_committed = 1'b1;
     for (i = 0; i < 4; i = i + 1) begin
       case (fragment_states[i*2 +: 2])
-        FRAG_UNISSUED, FRAG_NOT_COMMITTED: replay_authority_bitmap[i] = runtime_ready && command_pending;
-        FRAG_UNKNOWN: evidence_required_bitmap[i] = runtime_ready && command_pending;
+        FRAG_UNISSUED, FRAG_NOT_COMMITTED:
+          replay_authority_bitmap[i] = runtime_ready && command_pending && !recovery_begin && !restore_valid;
+        FRAG_UNKNOWN:
+          evidence_required_bitmap[i] = runtime_ready && command_pending;
         default: begin end
       endcase
       if (fragment_states[i*2 +: 2] != FRAG_COMMITTED)
@@ -247,7 +249,7 @@ module capu_overlapping_dma_fragment_recovery_v30 #(
           completion_receipt_bitmap[resolution_fragment_index] <= 1'b1;
           negative_receipt_bitmap[resolution_fragment_index] <= 1'b0;
           for (i = 0; i < 4; i = i + 1) begin
-            if (fragment_mask(resolution_fragment_index)[i]) begin
+            if ((fragment_mask(resolution_fragment_index) & (4'b0001 << i)) != 4'b0000) begin
               durable_owner_valid[i] <= 1'b1;
               durable_owner_map[i*2 +: 2] <= resolution_fragment_index;
               visible_owner_valid[i] <= 1'b1;
