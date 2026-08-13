@@ -1,0 +1,52 @@
+name: CaPU vCML Queue-Epoch Wrap Incarnation v0.33
+on:
+  pull_request:
+    paths:
+      - 'rtl/capu_queue_epoch_wrap_incarnation_v33.sv'
+      - 'rtl/tb/capu_queue_epoch_wrap_incarnation_v33_tb.sv'
+      - 'tools/vcml_queue_epoch_wrap_checkpoint_v33.py'
+      - 'tests/test_vcml_queue_epoch_wrap_checkpoint_v33.py'
+      - 'formal/capu_queue_epoch_wrap_incarnation_v33*'
+      - '.github/workflows/vcml-queue-epoch-wrap-incarnation-v33.yml'
+jobs:
+  deterministic:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y iverilog
+      - name: v0.33 executable and canonical
+        run: |
+          set -euo pipefail
+          iverilog -g2012 -o /tmp/v33 rtl/capu_queue_epoch_wrap_incarnation_v33.sv rtl/tb/capu_queue_epoch_wrap_incarnation_v33_tb.sv
+          vvp /tmp/v33 | tee /tmp/v33.log
+          grep -F 'CAPU_VCML_QUEUE_EPOCH_WRAP_INCARNATION_V33_PASS' /tmp/v33.log
+          grep -F 'ancient_same_epoch_evidence quarantined=1' /tmp/v33.log
+          grep -F 'incarnation_namespace_exhausted' /tmp/v33.log
+          python3 tests/test_vcml_queue_epoch_wrap_checkpoint_v33.py | tee /tmp/v33-python.log
+          grep -F 'VCML_QUEUE_EPOCH_WRAP_CHECKPOINT_V33_PASS' /tmp/v33-python.log
+      - name: v0.32 executable regression
+        run: |
+          iverilog -g2012 -o /tmp/v32 rtl/capu_queue_epoch_slot_reuse_v32.sv rtl/tb/capu_queue_epoch_slot_reuse_v32_tb.sv
+          vvp /tmp/v32 | grep -F 'CAPU_VCML_QUEUE_EPOCH_SLOT_REUSE_V32_PASS'
+          python3 tests/test_vcml_queue_epoch_slot_checkpoint_v32.py | grep -F 'VCML_QUEUE_EPOCH_SLOT_CHECKPOINT_V32_PASS'
+  formal:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y yosys z3 git
+      - name: Install pinned SBY
+        run: |
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin b1a1e98cba941ec8433f8dc27f416cd7bb7f14be
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+      - name: v0.33 safety cover and v0.32 regression
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f -d /tmp/v33-safety formal/capu_queue_epoch_wrap_incarnation_v33.sby | tee /tmp/v33-formal.log
+          grep -q 'DONE (PASS' /tmp/v33-formal.log
+          python3 /tmp/sby/sbysrc/sby.py -f -d /tmp/v33-cover formal/capu_queue_epoch_wrap_incarnation_v33_cover.sby | tee /tmp/v33-cover.log
+          grep -q 'DONE (PASS' /tmp/v33-cover.log
+          test "$(find /tmp/v33-cover -name 'trace*.vcd' | wc -l)" -ge 1
+          python3 /tmp/sby/sbysrc/sby.py -f -d /tmp/v32-safety formal/capu_queue_epoch_slot_reuse_v32.sby | tee /tmp/v32-formal.log
+          grep -q 'DONE (PASS' /tmp/v32-formal.log
