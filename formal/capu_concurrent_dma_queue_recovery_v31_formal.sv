@@ -52,11 +52,36 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
     end
   endfunction
 
+  // Formal-side durable slot ledger. It records only externally accepted
+  // transaction submissions and intentionally survives recovery. This lets
+  // the proof check the durable-slot contract through observable behavior
+  // instead of relying on unsupported hierarchical references to DUT locals.
+  logic [1:0] ghost_slot_valid;
+  logic [1:0] ghost_queue_epoch;
+  logic [3:0] ghost_command_ids;
+  logic [3:0] ghost_execution_epochs;
+  logic [3:0] ghost_effect_ids;
+
   logic past_valid=0;
   integer i;
   always @(posedge clk) begin
     past_valid <= 1;
     if(!past_valid) assume(!rst_n); else assume(rst_n);
+
+    if(!rst_n) begin
+      ghost_slot_valid <= 2'b00;
+      ghost_queue_epoch <= 2'b00;
+      ghost_command_ids <= 4'b0000;
+      ghost_execution_epochs <= 4'b0000;
+      ghost_effect_ids <= 4'b0000;
+    end else if(submit_accept) begin
+      ghost_slot_valid[submit_tx_index] <= 1'b1;
+      ghost_command_ids[submit_tx_index*2 +: 2] <= submit_command_id;
+      ghost_execution_epochs[submit_tx_index*2 +: 2] <= submit_execution_epoch;
+      ghost_effect_ids[submit_tx_index*2 +: 2] <= submit_effect_id;
+      if(!submit_tx_index)
+        ghost_queue_epoch <= submit_queue_epoch;
+    end
 
     if(rst_n) begin
       assert(!(fragment_issue_accept && fragment_issue_rejected));
@@ -64,26 +89,32 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
       assert(!(restore_accept && restore_rejected));
       assert(!(retire_accept && retire_rejected));
       assert(!(tx_retired[1] && !tx_retired[0]));
-      assert(!(dut.durable_tx_valid[1] && !dut.durable_tx_valid[0]));
+      assert(!(ghost_slot_valid[1] && !ghost_slot_valid[0]));
 
       if(tx_pending[0] || tx_retired[0] || (issue_receipt_bitmap[1:0] != 0) ||
          (negative_receipt_bitmap[1:0] != 0) || (completion_receipt_bitmap[1:0] != 0))
-        assert(dut.durable_tx_valid[0]);
+        assert(ghost_slot_valid[0]);
       if(tx_pending[1] || tx_retired[1] || (issue_receipt_bitmap[3:2] != 0) ||
          (negative_receipt_bitmap[3:2] != 0) || (completion_receipt_bitmap[3:2] != 0))
-        assert(dut.durable_tx_valid[1]);
+        assert(ghost_slot_valid[1]);
 
-      if(dut.durable_tx_valid[0]) begin
-        assert(live_queue_epoch==dut.durable_queue_epoch);
-        assert(live_command_ids[1:0]==dut.durable_command_ids[1:0]);
-        assert(live_execution_epochs[1:0]==dut.durable_execution_epochs[1:0]);
-        assert(live_effect_ids[1:0]==dut.durable_effect_ids[1:0]);
+      // A slot accepted once is non-reusable within this modeled queue epoch.
+      if(submit_valid && ghost_slot_valid[submit_tx_index])
+        assert(!submit_accept);
+
+      // Historical accepted identity remains the externally visible live
+      // identity, including across recovery and stale-checkpoint restore.
+      if(ghost_slot_valid[0]) begin
+        assert(live_queue_epoch==ghost_queue_epoch);
+        assert(live_command_ids[1:0]==ghost_command_ids[1:0]);
+        assert(live_execution_epochs[1:0]==ghost_execution_epochs[1:0]);
+        assert(live_effect_ids[1:0]==ghost_effect_ids[1:0]);
       end
-      if(dut.durable_tx_valid[1]) begin
-        assert(live_queue_epoch==dut.durable_queue_epoch);
-        assert(live_command_ids[3:2]==dut.durable_command_ids[3:2]);
-        assert(live_execution_epochs[3:2]==dut.durable_execution_epochs[3:2]);
-        assert(live_effect_ids[3:2]==dut.durable_effect_ids[3:2]);
+      if(ghost_slot_valid[1]) begin
+        assert(live_queue_epoch==ghost_queue_epoch);
+        assert(live_command_ids[3:2]==ghost_command_ids[3:2]);
+        assert(live_execution_epochs[3:2]==ghost_execution_epochs[3:2]);
+        assert(live_effect_ids[3:2]==ghost_effect_ids[3:2]);
       end
 
       for(i=0;i<4;i=i+1) begin
@@ -99,7 +130,7 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
         end
         if(durable_owner_valid[i]) begin
           assert(completion_receipt_bitmap[durable_owner_map[i*2 +: 2]]);
-          assert(dut.durable_tx_valid[durable_owner_map[i*2 +: 2] >= 2]);
+          assert(ghost_slot_valid[durable_owner_map[i*2 +: 2] >= 2]);
           assert(lane_in_fragment(durable_owner_map[i*2 +: 2],i));
         end
       end
@@ -123,9 +154,12 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
     end
 
     if(past_valid && $past(rst_n) && $past(submit_accept)) begin
-      assert(dut.durable_tx_valid[$past(submit_tx_index)]);
+      assert(ghost_slot_valid[$past(submit_tx_index)]);
       assert(tx_pending[$past(submit_tx_index)]);
-      if(!$past(submit_tx_index)) assert(dut.durable_queue_epoch==$past(submit_queue_epoch));
+      assert(live_command_ids[$past(submit_tx_index)*2 +: 2]==$past(submit_command_id));
+      assert(live_execution_epochs[$past(submit_tx_index)*2 +: 2]==$past(submit_execution_epoch));
+      assert(live_effect_ids[$past(submit_tx_index)*2 +: 2]==$past(submit_effect_id));
+      if(!$past(submit_tx_index)) assert(ghost_queue_epoch==$past(submit_queue_epoch));
     end
 
     if(past_valid && $past(rst_n) && $past(fragment_issue_accept)) begin
@@ -152,11 +186,11 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
       assert(durable_owner_valid==$past(durable_owner_valid));
       assert(durable_owner_map==$past(durable_owner_map));
       assert(tx_retired==$past(tx_retired));
-      assert(dut.durable_tx_valid==$past(dut.durable_tx_valid));
-      assert(dut.durable_queue_epoch==$past(dut.durable_queue_epoch));
-      assert(dut.durable_command_ids==$past(dut.durable_command_ids));
-      assert(dut.durable_execution_epochs==$past(dut.durable_execution_epochs));
-      assert(dut.durable_effect_ids==$past(dut.durable_effect_ids));
+      assert(ghost_slot_valid==$past(ghost_slot_valid));
+      assert(ghost_queue_epoch==$past(ghost_queue_epoch));
+      assert(ghost_command_ids==$past(ghost_command_ids));
+      assert(ghost_execution_epochs==$past(ghost_execution_epochs));
+      assert(ghost_effect_ids==$past(ghost_effect_ids));
     end
 
     if(past_valid && $past(rst_n) && $past(restore_accept)) begin
@@ -170,15 +204,19 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
           assert(visible_owner_map[i*2 +: 2]==$past(durable_owner_map[i*2 +: 2]));
         end
       end
-      if($past(dut.durable_tx_valid[0])) begin
+      if($past(ghost_slot_valid[0])) begin
         assert(tx_pending[0]==!$past(tx_retired[0]));
-        assert(live_command_ids[1:0]==$past(dut.durable_command_ids[1:0]));
-        assert(live_effect_ids[1:0]==$past(dut.durable_effect_ids[1:0]));
+        assert(live_queue_epoch==$past(ghost_queue_epoch));
+        assert(live_command_ids[1:0]==$past(ghost_command_ids[1:0]));
+        assert(live_execution_epochs[1:0]==$past(ghost_execution_epochs[1:0]));
+        assert(live_effect_ids[1:0]==$past(ghost_effect_ids[1:0]));
       end
-      if($past(dut.durable_tx_valid[1])) begin
+      if($past(ghost_slot_valid[1])) begin
         assert(tx_pending[1]==!$past(tx_retired[1]));
-        assert(live_command_ids[3:2]==$past(dut.durable_command_ids[3:2]));
-        assert(live_effect_ids[3:2]==$past(dut.durable_effect_ids[3:2]));
+        assert(live_queue_epoch==$past(ghost_queue_epoch));
+        assert(live_command_ids[3:2]==$past(ghost_command_ids[3:2]));
+        assert(live_execution_epochs[3:2]==$past(ghost_execution_epochs[3:2]));
+        assert(live_effect_ids[3:2]==$past(ghost_effect_ids[3:2]));
       end
     end
 
@@ -188,7 +226,7 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
     end
 
     cover(rst_n && submit_accept && !submit_tx_index);
-    cover(rst_n && checkpoint_valid && checkpoint_tx_pending==2'b01 && dut.durable_tx_valid==2'b11 && tx_pending==2'b11);
+    cover(rst_n && checkpoint_valid && checkpoint_tx_pending==2'b01 && ghost_slot_valid==2'b11 && tx_pending==2'b11);
     cover(rst_n && submit_accept && submit_tx_index);
     cover(rst_n && fragment_issue_accept && fragment_issue_tx_index && !fragment_issue_index && fragment_states[1:0]==X);
     cover(rst_n && completion_receipt_bitmap[2] && fragment_states[1:0]==X);
