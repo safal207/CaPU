@@ -102,6 +102,15 @@ module capu_concurrent_dma_queue_recovery_v31 #(
   logic retire_identity_matches;
   logic younger_overlap_ready;
 
+  // Durable transaction-slot authority. A stale checkpoint may predate a
+  // younger transaction, so fragment receipts alone are not enough: the slot
+  // identity itself must survive recovery and prevent identity resurrection.
+  logic [1:0] durable_tx_valid;
+  logic [ID_WIDTH-1:0] durable_queue_epoch;
+  logic [2*ID_WIDTH-1:0] durable_command_ids;
+  logic [2*ID_WIDTH-1:0] durable_execution_epochs;
+  logic [2*ID_WIDTH-1:0] durable_effect_ids;
+
   function automatic logic [3:0] fragment_mask(input logic [1:0] idx);
     begin
       case (idx)
@@ -128,9 +137,6 @@ module capu_concurrent_dma_queue_recovery_v31 #(
     all_tx1_fragments_committed =
       fragment_states[5:4] == FRAG_COMMITTED && fragment_states[7:6] == FRAG_COMMITTED;
 
-    // In this fixed two-transaction model only TX1.F1 overlaps older TX0 effects.
-    // Replacing the nested loop with this explicit relation avoids synthesizing a
-    // conditional loop variable while preserving the exact authority relation.
     younger_overlap_ready = tx_retired[0] || all_tx0_fragments_committed;
 
     replay_authority_bitmap = 4'b0000;
@@ -149,9 +155,10 @@ module capu_concurrent_dma_queue_recovery_v31 #(
     end
 
     submit_accept = submit_valid && runtime_ready && !recovery_begin && !restore_valid &&
-      !tx_pending[submit_tx_index] && !tx_retired[submit_tx_index] &&
-      ((!submit_tx_index && tx_pending == 2'b00 && tx_retired == 2'b00) ||
-       (submit_tx_index && (tx_pending[0] || tx_retired[0]) && submit_queue_epoch == live_queue_epoch));
+      !durable_tx_valid[submit_tx_index] && !tx_pending[submit_tx_index] && !tx_retired[submit_tx_index] &&
+      ((!submit_tx_index && tx_pending == 2'b00 && tx_retired == 2'b00 && durable_tx_valid == 2'b00) ||
+       (submit_tx_index && durable_tx_valid[0] && (tx_pending[0] || tx_retired[0]) &&
+        submit_queue_epoch == durable_queue_epoch));
 
     issue_identity_matches =
       fragment_issue_queue_epoch == live_queue_epoch &&
@@ -160,7 +167,7 @@ module capu_concurrent_dma_queue_recovery_v31 #(
       fragment_issue_effect_id == slot_id(live_effect_ids,fragment_issue_tx_index);
 
     fragment_issue_accept = fragment_issue_valid && runtime_ready && !recovery_begin && !restore_valid &&
-      tx_pending[fragment_issue_tx_index] && issue_identity_matches &&
+      tx_pending[fragment_issue_tx_index] && durable_tx_valid[fragment_issue_tx_index] && issue_identity_matches &&
       replay_authority_bitmap[issue_global_index];
     fragment_issue_rejected = fragment_issue_valid && !fragment_issue_accept;
 
@@ -171,7 +178,7 @@ module capu_concurrent_dma_queue_recovery_v31 #(
       resolution_effect_id == slot_id(live_effect_ids,resolution_tx_index);
 
     resolution_accept = resolution_valid && runtime_ready && !recovery_begin && !restore_valid &&
-      tx_pending[resolution_tx_index] && resolution_identity_matches &&
+      tx_pending[resolution_tx_index] && durable_tx_valid[resolution_tx_index] && resolution_identity_matches &&
       fragment_states[resolution_global_index*2 +: 2] == FRAG_UNKNOWN &&
       issue_receipt_bitmap[resolution_global_index];
     resolution_rejected = resolution_valid && !resolution_accept;
@@ -188,7 +195,7 @@ module capu_concurrent_dma_queue_recovery_v31 #(
       retire_effect_id == slot_id(live_effect_ids,retire_tx_index);
 
     retire_accept = retire_valid && runtime_ready && !recovery_begin && !restore_valid &&
-      tx_pending[retire_tx_index] && retire_identity_matches &&
+      tx_pending[retire_tx_index] && durable_tx_valid[retire_tx_index] && retire_identity_matches &&
       ((!retire_tx_index && all_tx0_fragments_committed && completion_receipt_bitmap[1:0] == 2'b11) ||
        (retire_tx_index && tx_retired[0] && all_tx1_fragments_committed && completion_receipt_bitmap[3:2] == 2'b11));
     retire_rejected = retire_valid && !retire_accept;
@@ -206,6 +213,12 @@ module capu_concurrent_dma_queue_recovery_v31 #(
       live_execution_epochs <= '0;
       live_effect_ids <= '0;
       fragment_states <= '0;
+
+      durable_tx_valid <= 2'b00;
+      durable_queue_epoch <= '0;
+      durable_command_ids <= '0;
+      durable_execution_epochs <= '0;
+      durable_effect_ids <= '0;
 
       checkpoint_valid <= 1'b0;
       checkpoint_tx_pending <= 2'b00;
@@ -233,12 +246,17 @@ module capu_concurrent_dma_queue_recovery_v31 #(
       visible_owner_map <= '0;
     end else if (restore_accept) begin
       runtime_ready <= 1'b1;
-      live_queue_epoch <= checkpoint_queue_epoch;
-      live_command_ids <= checkpoint_command_ids;
-      live_execution_epochs <= checkpoint_execution_epochs;
-      live_effect_ids <= checkpoint_effect_ids;
-      tx_pending[0] <= tx_retired[0] ? 1'b0 : checkpoint_tx_pending[0];
-      tx_pending[1] <= tx_retired[1] ? 1'b0 : checkpoint_tx_pending[1];
+      live_queue_epoch <= durable_tx_valid[0] ? durable_queue_epoch : checkpoint_queue_epoch;
+
+      live_command_ids[ID_WIDTH-1:0] <= durable_tx_valid[0] ? durable_command_ids[ID_WIDTH-1:0] : checkpoint_command_ids[ID_WIDTH-1:0];
+      live_command_ids[2*ID_WIDTH-1:ID_WIDTH] <= durable_tx_valid[1] ? durable_command_ids[2*ID_WIDTH-1:ID_WIDTH] : checkpoint_command_ids[2*ID_WIDTH-1:ID_WIDTH];
+      live_execution_epochs[ID_WIDTH-1:0] <= durable_tx_valid[0] ? durable_execution_epochs[ID_WIDTH-1:0] : checkpoint_execution_epochs[ID_WIDTH-1:0];
+      live_execution_epochs[2*ID_WIDTH-1:ID_WIDTH] <= durable_tx_valid[1] ? durable_execution_epochs[2*ID_WIDTH-1:ID_WIDTH] : checkpoint_execution_epochs[2*ID_WIDTH-1:ID_WIDTH];
+      live_effect_ids[ID_WIDTH-1:0] <= durable_tx_valid[0] ? durable_effect_ids[ID_WIDTH-1:0] : checkpoint_effect_ids[ID_WIDTH-1:0];
+      live_effect_ids[2*ID_WIDTH-1:ID_WIDTH] <= durable_tx_valid[1] ? durable_effect_ids[2*ID_WIDTH-1:ID_WIDTH] : checkpoint_effect_ids[2*ID_WIDTH-1:ID_WIDTH];
+
+      tx_pending[0] <= durable_tx_valid[0] ? !tx_retired[0] : (tx_retired[0] ? 1'b0 : checkpoint_tx_pending[0]);
+      tx_pending[1] <= durable_tx_valid[1] ? !tx_retired[1] : (tx_retired[1] ? 1'b0 : checkpoint_tx_pending[1]);
 
       for (i = 0; i < 4; i = i + 1) begin
         if (completion_receipt_bitmap[i])
@@ -264,8 +282,17 @@ module capu_concurrent_dma_queue_recovery_v31 #(
         live_command_ids[submit_tx_index*ID_WIDTH +: ID_WIDTH] <= submit_command_id;
         live_execution_epochs[submit_tx_index*ID_WIDTH +: ID_WIDTH] <= submit_execution_epoch;
         live_effect_ids[submit_tx_index*ID_WIDTH +: ID_WIDTH] <= submit_effect_id;
-        if (!submit_tx_index)
+
+        durable_tx_valid[submit_tx_index] <= 1'b1;
+        durable_command_ids[submit_tx_index*ID_WIDTH +: ID_WIDTH] <= submit_command_id;
+        durable_execution_epochs[submit_tx_index*ID_WIDTH +: ID_WIDTH] <= submit_execution_epoch;
+        durable_effect_ids[submit_tx_index*ID_WIDTH +: ID_WIDTH] <= submit_effect_id;
+
+        if (!submit_tx_index) begin
           live_queue_epoch <= submit_queue_epoch;
+          durable_queue_epoch <= submit_queue_epoch;
+        end
+
         fragment_states[{submit_tx_index,1'b0}*2 +: 4] <= 4'b0000;
         issue_receipt_bitmap[{submit_tx_index,1'b0} +: 2] <= 2'b00;
         negative_receipt_bitmap[{submit_tx_index,1'b0} +: 2] <= 2'b00;
