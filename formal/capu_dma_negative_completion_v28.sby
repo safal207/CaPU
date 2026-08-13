@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 18
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_dma_negative_completion_v28.sv capu_dma_negative_completion_v28_formal.sv
+prep -top capu_dma_negative_completion_v28_formal
+
+[files]
+rtl/capu_dma_negative_completion_v28.sv
+formal/capu_dma_negative_completion_v28_formal.sv
