@@ -28,7 +28,11 @@ jobs:
           set -euo pipefail
           vvp /tmp/capu-v31 | tee vcml-concurrent-dma-queue-v31.log
           grep -F 'CAPU_VCML_CONCURRENT_DMA_QUEUE_RECOVERY_V31_PASS' vcml-concurrent-dma-queue-v31.log
+          grep -F 'pre_tx1_checkpoint tx_pending=01 younger_slot_absent=1' vcml-concurrent-dma-queue-v31.log
+          grep -F 'queue_submit tx0=1 tx1=1 queue_epoch=3 order=TX0_before_TX1 durable_slots=11' vcml-concurrent-dma-queue-v31.log
           grep -F 'younger_nonoverlap_commit tx1_f0=COMMITTED older_tx0_f0=UNKNOWN lane3_owner=TX1_F0 concurrent_safe=1' vcml-concurrent-dma-queue-v31.log
+          grep -F 'stale_pre_tx1_restore durable_tx1_slot_wins=1 tx_pending=11 tx1_identity_preserved=1 fragment_evidence_preserved=1' vcml-concurrent-dma-queue-v31.log
+          grep -F 'stale_slot_resubmit rejected=1 durable_slot_identity=1 completion_evidence_preserved=1' vcml-concurrent-dma-queue-v31.log
           grep -F 'younger_overlap_blocked tx1_f1=1 older_overlap_unresolved=1 no_issue_authority=1' vcml-concurrent-dma-queue-v31.log
           grep -F 'queue_restore exact_tx_slots=1 younger_nonoverlap_commit_preserved=1 overlap_unknown_preserved=1 owner_provenance_preserved=1' vcml-concurrent-dma-queue-v31.log
           grep -F 'younger_retire_before_older rejected=1 queue_order_preserved=1' vcml-concurrent-dma-queue-v31.log
@@ -42,6 +46,9 @@ jobs:
           grep -F 'younger_retired_before_older_rejected=1' vcml-concurrent-dma-queue-checkpoint-v31-python.log
           grep -F 'owner_without_fragment_commit_rejected=1' vcml-concurrent-dma-queue-checkpoint-v31-python.log
           grep -F 'younger_overlap_without_older_completion_rejected=1' vcml-concurrent-dma-queue-checkpoint-v31-python.log
+          grep -F 'younger_fragment_evidence_without_durable_slot_rejected=1' vcml-concurrent-dma-queue-checkpoint-v31-python.log
+          grep -F 'durable_slot_identity_mismatch_rejected=1' vcml-concurrent-dma-queue-checkpoint-v31-python.log
+          grep -F 'stale_checkpoint_predates_younger_slot_preserved=1' vcml-concurrent-dma-queue-checkpoint-v31-python.log
       - name: Regress v0.30 deterministic and canonical paths
         run: |
           set -euo pipefail
@@ -112,7 +119,7 @@ jobs:
           inputs=[Path(x) for x in ['rtl/capu_concurrent_dma_queue_recovery_v31.sv','formal/capu_concurrent_dma_queue_recovery_v31_formal.sv','formal/capu_concurrent_dma_queue_recovery_v31.sby','formal/capu_concurrent_dma_queue_recovery_v31_cover.sby','tools/vcml_concurrent_dma_queue_checkpoint_v31.py']]
           h=hashlib.sha256()
           for p in inputs: h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
-          proof={'schema':'capu.hardware.concurrent-dma-queue-recovery-formal-proof.v0.31','result':'PASS','proof_method':'bounded model checking','depth':12,'cover_depth':24,'cover_witnesses':len(list((root/'cover-work').rglob('trace*.vcd'))),'formal_identity_width_bits':2,'transaction_count':2,'fragments_per_transaction':2,'byte_lane_count':4,'v0_30_safety_regression':'PASS','formal_input_sha256':h.hexdigest(),'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),'v0_30_regression_log_sha256':hashlib.sha256(v30.encode()).hexdigest(),'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),'claim_boundary':'bounded reduced-width two-transaction one-queue-epoch model with two fragments per transaction, fixed overlap, overlap-aware younger issue authority, durable visible-owner provenance and ordered retirement'}
+          proof={'schema':'capu.hardware.concurrent-dma-queue-recovery-formal-proof.v0.31','result':'PASS','proof_method':'bounded model checking','depth':12,'cover_depth':24,'cover_witnesses':len(list((root/'cover-work').rglob('trace*.vcd'))),'formal_identity_width_bits':2,'transaction_count':2,'fragments_per_transaction':2,'byte_lane_count':4,'v0_30_safety_regression':'PASS','formal_input_sha256':h.hexdigest(),'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),'v0_30_regression_log_sha256':hashlib.sha256(v30.encode()).hexdigest(),'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),'claim_boundary':'bounded reduced-width two-transaction one-queue-epoch model with two fragments per transaction, fixed overlap, durable non-reusable transaction-slot authority, overlap-aware younger issue authority, durable visible-owner provenance and ordered retirement'}
           (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n'); print(json.dumps(proof,indent=2,sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
