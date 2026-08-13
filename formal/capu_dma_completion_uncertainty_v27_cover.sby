@@ -1,6 +1,6 @@
 [options]
 mode cover
-depth 60
+depth 48
 
 [engines]
 smtbmc --unroll z3 -- --noincr

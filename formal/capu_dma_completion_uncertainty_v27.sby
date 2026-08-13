@@ -1,6 +1,6 @@
 [options]
 mode prove
-depth 44
+depth 32
 wait on
 
 [engines]
