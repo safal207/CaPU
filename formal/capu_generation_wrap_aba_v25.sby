@@ -1,0 +1,14 @@
+[options]
+mode prove
+depth 40
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_generation_wrap_aba_v25.sv capu_generation_wrap_aba_v25_formal.sv
+prep -top capu_generation_wrap_aba_v25_formal
+
+[files]
+rtl/capu_generation_wrap_aba_v25.sv
+formal/capu_generation_wrap_aba_v25_formal.sv
