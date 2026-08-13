@@ -95,14 +95,12 @@ module capu_concurrent_dma_queue_recovery_v31 #(
   localparam logic [1:0] FRAG_NOT_COMMITTED = 2'b11;
 
   integer i;
-  integer j;
   logic [1:0] issue_global_index;
   logic [1:0] resolution_global_index;
-  logic [1:0] retire_base_index;
   logic issue_identity_matches;
   logic resolution_identity_matches;
   logic retire_identity_matches;
-  logic older_overlap_clear;
+  logic younger_overlap_ready;
 
   function automatic logic [3:0] fragment_mask(input logic [1:0] idx);
     begin
@@ -124,36 +122,29 @@ module capu_concurrent_dma_queue_recovery_v31 #(
   always_comb begin
     issue_global_index = {fragment_issue_tx_index,fragment_issue_index};
     resolution_global_index = {resolution_tx_index,resolution_fragment_index};
-    retire_base_index = retire_tx_index ? 2'd2 : 2'd0;
 
     all_tx0_fragments_committed =
       fragment_states[1:0] == FRAG_COMMITTED && fragment_states[3:2] == FRAG_COMMITTED;
     all_tx1_fragments_committed =
       fragment_states[5:4] == FRAG_COMMITTED && fragment_states[7:6] == FRAG_COMMITTED;
 
+    // In this fixed two-transaction model only TX1.F1 overlaps older TX0 effects.
+    // Replacing the nested loop with this explicit relation avoids synthesizing a
+    // conditional loop variable while preserving the exact authority relation.
+    younger_overlap_ready = tx_retired[0] || all_tx0_fragments_committed;
+
     replay_authority_bitmap = 4'b0000;
     evidence_required_bitmap = 4'b0000;
     queue_blocked_bitmap = 4'b0000;
+    queue_blocked_bitmap[3] = !younger_overlap_ready;
 
     for (i = 0; i < 4; i = i + 1) begin
       if (fragment_states[i*2 +: 2] == FRAG_UNKNOWN)
         evidence_required_bitmap[i] = runtime_ready && tx_pending[i/2];
 
-      older_overlap_clear = 1'b1;
-      if (i >= 2 && !tx_retired[0]) begin
-        for (j = 0; j < 2; j = j + 1) begin
-          if (((fragment_mask(i[1:0]) & fragment_mask(j[1:0])) != 4'b0000) &&
-              fragment_states[j*2 +: 2] != FRAG_COMMITTED)
-            older_overlap_clear = 1'b0;
-        end
-      end
-
-      if (i >= 2 && !older_overlap_clear)
-        queue_blocked_bitmap[i] = 1'b1;
-
       if (runtime_ready && tx_pending[i/2] && !recovery_begin && !restore_valid &&
           (fragment_states[i*2 +: 2] == FRAG_UNISSUED || fragment_states[i*2 +: 2] == FRAG_NOT_COMMITTED) &&
-          (i < 2 || older_overlap_clear))
+          (i < 3 || younger_overlap_ready))
         replay_authority_bitmap[i] = 1'b1;
     end
 
