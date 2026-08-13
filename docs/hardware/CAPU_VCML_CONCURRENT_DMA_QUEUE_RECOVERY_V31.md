@@ -34,15 +34,38 @@ visible owner of lane
 permission for younger transaction to overtake older overlapping effects
 ```
 
-The model therefore binds:
+Formal exploration exposed one additional distinction that must also be durable:
 
-- exact TX0/TX1 slot identities;
-- one queue epoch;
+```text
+fragment evidence
+!=
+transaction-slot existence / identity
+```
+
+A checkpoint may predate a younger transaction. If that younger transaction later produces durable fragment completion/owner evidence, recovery must not restore the old checkpoint as if the younger queue slot never existed. Otherwise the slot can be re-submitted and its old fragment evidence can become detached from the transaction identity that created it.
+
+v0.31 therefore carries **durable transaction-slot authority**:
+
+- two durable slot-valid bits;
+- one durable queue epoch;
+- exact per-slot command ID;
+- exact per-slot execution epoch;
+- exact per-slot effect ID.
+
+A durable slot is not reusable within this modeled queue epoch. Restore reconstructs the live slot identity from the durable record before interpreting fragment receipts.
+
+## Bound authority state
+
+The model binds:
+
+- exact TX0/TX1 live slot identities;
+- durable TX0/TX1 slot identities;
+- one durable queue epoch;
 - transaction pending/retired state;
 - per-fragment state;
 - per-fragment issue/negative/completion evidence;
 - durable visible-owner provenance;
-- stale checkpoint state.
+- stale checkpoint transaction state and owner state.
 
 ## Queue-order invariants
 
@@ -64,32 +87,70 @@ TX1_RETIRE_ACCEPT
 
 DURABLE_OWNER(LANE)=FRAGMENT
 => COMPLETION_RECEIPT(FRAGMENT)
+&& DURABLE_TX_SLOT(OWNER_TX)
 && LANE IN MASK(FRAGMENT)
 ```
 
-Recovery/restore preserves queue semantics:
+## Durable slot invariants
 
 ```text
-RECOVERY
-=> volatile transaction state cleared
-&& durable fragment evidence preserved
-&& durable owner provenance preserved
-&& retired-order state preserved
+TX_PENDING(tx)
+|| TX_RETIRED(tx)
+|| ANY_FRAGMENT_RECEIPT(tx)
+=> DURABLE_TX_SLOT(tx)
 
-RESTORE
-=> durable completion/issue/negative evidence dominates stale fragment state
-&& durable owner provenance dominates stale owner state
-&& retired transactions cannot be reopened from a stale checkpoint
+DURABLE_TX_SLOT(tx)
+=> LIVE_IDENTITY(tx) == DURABLE_IDENTITY(tx)
+
+DURABLE_TX1
+=> DURABLE_TX0
+
+STALE_CHECKPOINT_PREDATES_TX1
+&& DURABLE_TX1
+=> RESTORE_TX1_FROM_DURABLE_SLOT
+&& NO_TX1_SLOT_RESUBMIT
+
+RECOVERY
+=> DURABLE_TX_SLOTS_PRESERVED
+&& DURABLE_FRAGMENT_EVIDENCE_PRESERVED
+&& DURABLE_OWNER_PROVENANCE_PRESERVED
 ```
+
+## Recovery / restore precedence
+
+```text
+transaction identity:
+  durable transaction-slot record
+  > stale checkpoint slot identity
+
+fragment state:
+  durable completion receipt
+  > current issue receipt
+  > durable negative receipt
+  > checkpoint fragment state
+
+visible lane owner:
+  durable owner provenance
+  > checkpoint owner state
+```
+
+A retired durable transaction cannot be reopened by a stale checkpoint.
 
 ## Deterministic target path
 
 ```text
 submit TX0
+checkpoint                         # checkpoint predates TX1
 submit TX1
 TX0.F0 -> UNKNOWN
-TX1.F0 -> COMMITTED       # non-overlap concurrency allowed
-TX1.F1 issue -> REJECT    # overlap with unresolved older effects
+TX1.F0 -> COMMITTED                # non-overlap concurrency allowed
+recovery
+restore pre-TX1 checkpoint
+  -> durable TX1 slot wins
+  -> TX1 identity/pending reconstructed
+  -> TX1 completion/owner evidence preserved
+re-submit TX1 -> REJECT
+TX1.F1 issue -> REJECT             # overlap with unresolved older effects
 TX0.F0 -> COMMITTED
 TX0.F1 -> COMMITTED
 TX1.F1 issue -> UNKNOWN
@@ -97,11 +158,20 @@ checkpoint
 recovery / restore
 TX1.F1 -> NOT_COMMITTED
 retry TX1.F1 -> COMMITTED
-stale restore -> completion evidence + owner provenance win
+stale restore -> completion evidence + owner provenance + durable slots win
 retire TX1 before TX0 -> REJECT
 retire TX0
 retire TX1
 ```
+
+## Verification history
+
+Two pre-verification failures materially improved this milestone:
+
+1. An initial formal run stopped during Yosys elaboration because a conditional nested-loop variable in the fixed overlap gate inferred a latch. The fixed two-transaction overlap relation was rewritten explicitly. No solver counterexample existed in that run.
+2. The next formal run reached bounded solving and found a genuine step-9 counterexample: a checkpoint captured before TX1 could later erase the TX1 slot on restore while TX1 fragment completion/owner evidence survived. The apparently free slot could then be re-submitted, clearing completion receipts while old owner provenance remained. v0.31 now closes this identity-resurrection / evidence-split path with durable transaction-slot authority.
+
+Only a later fully green exact-head run is authoritative for the verified milestone.
 
 ## Formal method
 
@@ -110,6 +180,7 @@ v0.31 deliberately uses bounded model checking.
 - transactions: 2;
 - fragments: 2 per transaction;
 - byte lanes: 4;
+- queue epochs in flight: 1;
 - transaction identity width in formal instance: 2 bits;
 - safety depth: 12;
 - cover depth: 24;
@@ -118,10 +189,10 @@ v0.31 deliberately uses bounded model checking.
 
 ## Claim boundary
 
-This is a bounded reduced-width two-transaction queue model with fixed fragment/lane overlap and one queue epoch.
+This is a bounded reduced-width two-transaction queue model with fixed fragment/lane overlap, one queue epoch and non-reusable durable transaction slots within that epoch.
 
-It verifies modeled non-overlap concurrency, fail-closed younger overlap, exact queue-epoch/transaction identity binding, durable per-fragment completion evidence, visible-owner provenance, stale-checkpoint reconciliation, and ordered transaction retirement.
+It verifies modeled non-overlap concurrency, fail-closed younger overlap, exact queue-epoch/transaction-slot identity binding, durable transaction-slot recovery, durable per-fragment completion evidence, visible-owner provenance, stale-checkpoint reconciliation, rejection of slot identity resurrection, and ordered transaction retirement.
 
-It does **not** prove arbitrary queue depth, arbitrary overlap graphs, real PCIe/CXL/NoC transport, payload values, cache/coherence/IOMMU behavior, arbitration fairness, dynamic priorities, cancellation, transaction dependencies beyond the modeled two-slot order, multiple queue epochs in flight, production persistence, evidence authenticity, production widths, liveness/fairness or unbounded correctness.
+It does **not** prove arbitrary queue depth, slot reuse, arbitrary overlap graphs, real PCIe/CXL/NoC transport, payload values, cache/coherence/IOMMU behavior, arbitration fairness, dynamic priorities, cancellation, transaction dependencies beyond the modeled two-slot order, multiple queue epochs in flight, production persistence, evidence authenticity, production widths, liveness/fairness or unbounded correctness.
 
 A natural next boundary is queue cancellation / priority reordering, where the authority relation itself changes while transactions remain in flight.
