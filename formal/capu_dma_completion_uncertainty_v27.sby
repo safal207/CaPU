@@ -1,0 +1,15 @@
+[options]
+mode prove
+depth 44
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_dma_completion_uncertainty_v27.sv
+read -formal capu_dma_completion_uncertainty_v27_formal.sv
+prep -top capu_dma_completion_uncertainty_v27_formal
+
+[files]
+../rtl/capu_dma_completion_uncertainty_v27.sv
+capu_dma_completion_uncertainty_v27_formal.sv
