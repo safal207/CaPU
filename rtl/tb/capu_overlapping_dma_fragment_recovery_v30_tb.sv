@@ -64,7 +64,7 @@ module capu_overlapping_dma_fragment_recovery_v30_tb;
 
     issue(2'd0); resolve(2'd0,1'b1);
     issue(2'd2); resolve(2'd2,1'b1);
-    if(fragment_states!==8'h88) $fatal(1,"expected non-prefix committed set f0,f2");
+    if(fragment_states!==8'h22) $fatal(1,"expected non-prefix committed set f0,f2");
     if(visible_owner_map!==8'hA0) $fatal(1,"initial owner map mismatch %h",visible_owner_map);
     $display("out_of_order_commit committed_set=0101 owner_map=A0 prefix_assumption=0");
 
