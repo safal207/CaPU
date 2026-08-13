@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 from copy import deepcopy
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.vcml_multihart_shootdown_checkpoint_v22 import checkpoint_digest, verify
 
 base = {
