@@ -66,7 +66,10 @@ module capu_queue_epoch_slot_reuse_v32_formal;
         assert(negative_receipt);
         assert(!issue_receipt);
       end
-      if(effect_state==U)
+      // Recovery intentionally clears volatile effect_state to UNISSUED while
+      // durable receipts survive. The no-receipt invariant applies only once
+      // the runtime is live again.
+      if(effect_state==U && runtime_ready)
         assert(!issue_receipt && !negative_receipt && !completion_receipt);
 
       assert(!(issue_receipt && negative_receipt));
