@@ -45,7 +45,11 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
   endfunction
 
   function automatic logic lane_in_fragment(input [1:0] frag,input integer lane);
-    begin lane_in_fragment=mask(frag)[lane]; end
+    logic [3:0] m;
+    begin
+      m=mask(frag);
+      lane_in_fragment=m[lane];
+    end
   endfunction
 
   logic past_valid=0;
