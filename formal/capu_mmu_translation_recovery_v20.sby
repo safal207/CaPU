@@ -6,7 +6,7 @@ depth 30
 smtbmc --unroll z3 -- --noincr
 
 [script]
-read -formal rtl/capu_mmu_translation_recovery_v20.sv formal/capu_mmu_translation_recovery_v20_formal.sv
+read -formal capu_mmu_translation_recovery_v20.sv capu_mmu_translation_recovery_v20_formal.sv
 prep -top capu_mmu_translation_recovery_v20_formal
 
 [files]
