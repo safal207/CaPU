@@ -28,24 +28,31 @@ module capu_overlapping_dma_fragment_recovery_v30_tb;
 
   task automatic submit;
     begin
-      @(negedge clk); submit_command_id=4'd12; submit_execution_epoch=4'd7; submit_effect_id=4'd14; submit_valid=1;
-      @(posedge clk); #1; if(!submit_accept) $fatal(1,"submit not accepted");
+      @(negedge clk); submit_command_id=4'd12; submit_execution_epoch=4'd7; submit_effect_id=4'd14; submit_valid=1; #1;
+      if(!submit_accept) $fatal(1,"submit not accepted");
+      @(posedge clk); #1;
+      if(!command_pending) $fatal(1,"submit did not commit state");
       @(negedge clk); submit_valid=0;
     end
   endtask
 
   task automatic issue(input [1:0] idx);
     begin
-      @(negedge clk); fragment_issue_index=idx; fragment_issue_command_id=4'd12; fragment_issue_execution_epoch=4'd7; fragment_issue_effect_id=4'd14; fragment_issue_valid=1;
-      @(posedge clk); #1; if(!fragment_issue_accept) $fatal(1,"fragment issue not accepted idx=%0d",idx);
+      @(negedge clk); fragment_issue_index=idx; fragment_issue_command_id=4'd12; fragment_issue_execution_epoch=4'd7; fragment_issue_effect_id=4'd14; fragment_issue_valid=1; #1;
+      if(!fragment_issue_accept) $fatal(1,"fragment issue not accepted idx=%0d",idx);
+      @(posedge clk); #1;
+      if(fragment_states[idx*2 +: 2]!==2'b01) $fatal(1,"fragment issue state not UNKNOWN idx=%0d",idx);
       @(negedge clk); fragment_issue_valid=0;
     end
   endtask
 
   task automatic resolve(input [1:0] idx,input logic committed);
     begin
-      @(negedge clk); resolution_fragment_index=idx; resolution_command_id=4'd12; resolution_execution_epoch=4'd7; resolution_effect_id=4'd14; resolution_committed=committed; resolution_valid=1;
-      @(posedge clk); #1; if(!resolution_accept) $fatal(1,"resolution not accepted idx=%0d",idx);
+      @(negedge clk); resolution_fragment_index=idx; resolution_command_id=4'd12; resolution_execution_epoch=4'd7; resolution_effect_id=4'd14; resolution_committed=committed; resolution_valid=1; #1;
+      if(!resolution_accept) $fatal(1,"resolution not accepted idx=%0d",idx);
+      @(posedge clk); #1;
+      if(committed && fragment_states[idx*2 +: 2]!==2'b10) $fatal(1,"committed resolution state mismatch idx=%0d",idx);
+      if(!committed && fragment_states[idx*2 +: 2]!==2'b11) $fatal(1,"negative resolution state mismatch idx=%0d",idx);
       @(negedge clk); resolution_valid=0;
     end
   endtask
@@ -63,27 +70,31 @@ module capu_overlapping_dma_fragment_recovery_v30_tb;
 
     issue(2'd1); issue(2'd3);
     if(fragment_states!==8'h66) $fatal(1,"expected C,U,C,U got %h",fragment_states);
-    @(negedge clk); checkpoint_capture_valid=1;
-    @(posedge clk); #1; if(!checkpoint_capture_accept) $fatal(1,"checkpoint capture failed");
+    @(negedge clk); checkpoint_capture_valid=1; #1;
+    if(!checkpoint_capture_accept) $fatal(1,"checkpoint capture not accepted");
+    @(posedge clk); #1;
+    if(!checkpoint_valid) $fatal(1,"checkpoint capture failed");
     @(negedge clk); checkpoint_capture_valid=0;
     $display("overlap_checkpoint states=COMMITTED,UNKNOWN,COMMITTED,UNKNOWN owners=A0");
 
-    @(negedge clk); recovery_begin=1;
+    @(negedge clk); recovery_begin=1; #1;
+    if(replay_authority_bitmap!==4'b0000) $fatal(1,"replay authority not closed during recovery");
     @(posedge clk); #1;
     @(negedge clk); recovery_begin=0;
     if(runtime_ready) $fatal(1,"recovery did not close runtime");
     $display("recovery volatile_fragment_state_cleared=1 durable_receipts_preserved=1 durable_owner_preserved=1");
 
-    @(negedge clk); restore_valid=1;
-    @(posedge clk); #1; if(!restore_accept) $fatal(1,"restore failed");
-    @(negedge clk); restore_valid=0;
-    #1;
+    @(negedge clk); restore_valid=1; #1;
+    if(!restore_accept) $fatal(1,"restore not accepted");
+    @(posedge clk); #1;
+    @(negedge clk); restore_valid=0; #1;
     if(fragment_states!==8'h66 || evidence_required_bitmap!==4'b1010) $fatal(1,"restore state mismatch states=%h evidence=%b",fragment_states,evidence_required_bitmap);
     if(visible_owner_map!==8'hA0) $fatal(1,"restore owner mismatch");
     $display("partial_set_restore committed_nonprefix=0101 unknown=1010 replay_committed_blocked=1");
 
-    @(negedge clk); resolution_fragment_index=2'd1; resolution_command_id=4'd12; resolution_execution_epoch=4'd7; resolution_effect_id=4'd13; resolution_committed=0; resolution_valid=1;
-    @(posedge clk); #1; if(!resolution_rejected) $fatal(1,"foreign evidence accepted");
+    @(negedge clk); resolution_fragment_index=2'd1; resolution_command_id=4'd12; resolution_execution_epoch=4'd7; resolution_effect_id=4'd13; resolution_committed=0; resolution_valid=1; #1;
+    if(!resolution_rejected) $fatal(1,"foreign evidence accepted");
+    @(posedge clk); #1;
     @(negedge clk); resolution_valid=0;
     $display("foreign_fragment_evidence rejected=1 exact_transaction_identity_required=1");
 
@@ -101,18 +112,21 @@ module capu_overlapping_dma_fragment_recovery_v30_tb;
     if(fragment_states!==8'hAA || completion_receipt_bitmap!==4'b1111) $fatal(1,"all fragments not committed");
     $display("final_overlap_commit fragment=1 owners=D7 completion_bitmap=1111 all_fragments_committed=1");
 
-    @(negedge clk); recovery_begin=1;
+    @(negedge clk); recovery_begin=1; #1;
+    if(replay_authority_bitmap!==4'b0000) $fatal(1,"late recovery replay authority not closed");
     @(posedge clk); #1;
     @(negedge clk); recovery_begin=0;
-    @(negedge clk); restore_valid=1;
-    @(posedge clk); #1; if(!restore_accept) $fatal(1,"late restore failed");
-    @(negedge clk); restore_valid=0;
-    #1;
+    @(negedge clk); restore_valid=1; #1;
+    if(!restore_accept) $fatal(1,"late restore not accepted");
+    @(posedge clk); #1;
+    @(negedge clk); restore_valid=0; #1;
     if(fragment_states!==8'hAA || visible_owner_map!==8'hD7 || replay_authority_bitmap!==4'b0000) $fatal(1,"durable evidence failed to dominate stale checkpoint");
     $display("late_stale_restore completion_receipts_win=1 durable_owner_map_wins=1 states=ALL_COMMITTED owners=D7 replay=0000");
 
-    @(negedge clk); retire_command_id=4'd12; retire_execution_epoch=4'd7; retire_effect_id=4'd14; retire_valid=1;
-    @(posedge clk); #1; if(!retire_accept) $fatal(1,"retire failed");
+    @(negedge clk); retire_command_id=4'd12; retire_execution_epoch=4'd7; retire_effect_id=4'd14; retire_valid=1; #1;
+    if(!retire_accept) $fatal(1,"retire not accepted");
+    @(posedge clk); #1;
+    if(command_pending) $fatal(1,"retire did not clear pending command");
     @(negedge clk); retire_valid=0;
     $display("fragment_command_retire accepted=1 exact_fragment_set_completion=1");
     $display("CAPU_VCML_OVERLAPPING_DMA_FRAGMENT_RECOVERY_V30_PASS");
