@@ -11,6 +11,8 @@ module capu_tlb_shootdown_authority_v21_tb;
   logic shootdown_valid=0,shootdown_ack_valid=0;
   logic tlb_valid,tlb_hit,stale_rejected,permission_rejected,shootdown_pending,shootdown_ack_accept,shootdown_ack_rejected,speculation_kill;
   logic [5:0] paddr;
+  logic [2:0] live_tlb_asid,live_shootdown_asid;
+  logic [3:0] live_tlb_epoch,live_tlb_vpn,live_tlb_ppn,live_shootdown_epoch,live_shootdown_vpn;
   capu_tlb_shootdown_authority_v21 dut(.*);
   always #5 clk=~clk;
   task tick; begin @(posedge clk); #1; end endtask
