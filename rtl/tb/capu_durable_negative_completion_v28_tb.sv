@@ -40,7 +40,7 @@ module capu_durable_negative_completion_v28_tb;
     if(runtime_ready || command_pending || !checkpoint_valid) $fatal(1,"recovery failed");
     restore_valid=1; #1;
     if(!restore_accept) $fatal(1,"restore rejected");
-    tick; restore_valid=0;
+    tick; restore_valid=0; #1;
   end endtask
 
   initial begin
@@ -79,7 +79,7 @@ module capu_durable_negative_completion_v28_tb;
 
     restore_valid=1; #1;
     if(!restore_accept) $fatal(1,"negative convergence restore rejected");
-    tick; restore_valid=0;
+    tick; restore_valid=0; #1;
     if(!runtime_ready || !command_pending || completion_state!=2'b00 || evidence_required || dma_issued || !negative_receipt_valid || !dma_replay_authority)
       $fatal(1,"durable negative receipt did not dominate stale UNKNOWN checkpoint");
     $display("stale_unknown_restore negative_receipt_wins=1 completion=NOT_COMMITTED replay_authority=1");
