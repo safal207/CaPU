@@ -6,7 +6,7 @@ depth 34
 smtbmc --unroll z3 -- --noincr
 
 [script]
-read -formal rtl/capu_multihart_shootdown_quorum_v22.sv formal/capu_multihart_shootdown_quorum_v22_formal.sv
+read -formal capu_multihart_shootdown_quorum_v22.sv capu_multihart_shootdown_quorum_v22_formal.sv
 prep -top capu_multihart_shootdown_quorum_v22_formal
 
 [files]
