@@ -1,0 +1,141 @@
+name: CaPU vCML Cross-Generation Reordering v0.24
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_cross_generation_reordering_v24.sv"
+      - "rtl/tb/capu_cross_generation_reordering_v24_tb.sv"
+      - "formal/capu_cross_generation_reordering_v24_formal.sv"
+      - "formal/capu_cross_generation_reordering_v24.sby"
+      - "formal/capu_cross_generation_reordering_v24_cover.sby"
+      - "tools/vcml_cross_generation_checkpoint_v24.py"
+      - "tests/test_vcml_cross_generation_checkpoint_v24.py"
+      - "docs/hardware/CAPU_VCML_CROSS_GENERATION_REORDERING_V24.md"
+      - ".github/workflows/vcml-cross-generation-v24.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cross-generation-rtl:
+    name: Cross-generation delayed-message quarantine trajectory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile v0.24
+        run: iverilog -g2012 -o /tmp/capu-v24 rtl/capu_cross_generation_reordering_v24.sv rtl/tb/capu_cross_generation_reordering_v24_tb.sv
+      - name: Run deterministic v0.24 trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/capu-v24 | tee vcml-cross-generation-v24.log
+          grep -F "CAPU_VCML_CROSS_GENERATION_V24_PASS" vcml-cross-generation-v24.log
+          grep -F "late_generation_n_delivery quarantined=1 current_generation=6 no_authority_mutation=1" vcml-cross-generation-v24.log
+          grep -F "late_generation_n_ack quarantined=1 current_generation=6 no_authority_mutation=1" vcml-cross-generation-v24.log
+          grep -F "reordered_current_ack_before_delivery rejected=1" vcml-cross-generation-v24.log
+          grep -F "generation_n_plus_1 completed_only_from_generation_6_evidence=1 authority_reopened=1" vcml-cross-generation-v24.log
+          grep -F "generation_reuse rejected=1 last_retired=6" vcml-cross-generation-v24.log
+      - name: Run canonical v0.24 SHA-256 tests
+        run: |
+          set -euo pipefail
+          python3 tests/test_vcml_cross_generation_checkpoint_v24.py | tee vcml-cross-generation-checkpoint-v24-python.log
+          grep -F "VCML_CROSS_GENERATION_CHECKPOINT_V24_PASS" vcml-cross-generation-checkpoint-v24-python.log
+          grep -F "last_retired_generation_change_digest_changed=1" vcml-cross-generation-checkpoint-v24-python.log
+          grep -F "quarantined_delivery_bitmap_change_digest_changed=1" vcml-cross-generation-checkpoint-v24-python.log
+          grep -F "mixed_cross_generation_authority_rejected=1" vcml-cross-generation-checkpoint-v24-python.log
+      - name: Regress v0.23 deterministic and canonical paths
+        run: |
+          set -euo pipefail
+          iverilog -g2012 -o /tmp/capu-v23 rtl/capu_shootdown_delivery_reliability_v23.sv rtl/tb/capu_shootdown_delivery_reliability_v23_tb.sv
+          vvp /tmp/capu-v23 | tee vcml-shootdown-reliability-v23-regression.log
+          grep -F "CAPU_VCML_SHOOTDOWN_RELIABILITY_V23_PASS" vcml-shootdown-reliability-v23-regression.log
+          python3 tests/test_vcml_shootdown_delivery_checkpoint_v23.py | tee vcml-shootdown-checkpoint-v23-python-regression.log
+          grep -F "VCML_SHOOTDOWN_DELIVERY_CHECKPOINT_V23_PASS" vcml-shootdown-checkpoint-v23-python-regression.log
+      - name: Seal executable evidence
+        run: |
+          sha256sum rtl/capu_cross_generation_reordering_v24.sv rtl/tb/capu_cross_generation_reordering_v24_tb.sv tools/vcml_cross_generation_checkpoint_v24.py tests/test_vcml_cross_generation_checkpoint_v24.py vcml-cross-generation-v24.log vcml-cross-generation-checkpoint-v24-python.log vcml-shootdown-reliability-v23-regression.log vcml-shootdown-checkpoint-v23-python-regression.log > vcml-cross-generation-v24.sha256
+          cat vcml-cross-generation-v24.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v24-cross-generation-evidence
+          path: |
+            vcml-cross-generation-v24.log
+            vcml-cross-generation-checkpoint-v24-python.log
+            vcml-shootdown-reliability-v23-regression.log
+            vcml-shootdown-checkpoint-v23-python-regression.log
+            vcml-cross-generation-v24.sha256
+
+  cross-generation-formal:
+    name: Bounded v0.24 cross-generation quarantine proof
+    needs: cross-generation-rtl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove bounded v0.24 safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-v24-formal
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v24-formal/safety-work formal/capu_cross_generation_reordering_v24.sby 2>&1 | tee target/capu-v24-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-v24-formal/formal.log
+          ! grep -q 'DONE (ERROR' target/capu-v24-formal/formal.log
+      - name: Prove v0.24 paths reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v24-formal/cover-work formal/capu_cross_generation_reordering_v24_cover.sby 2>&1 | tee target/capu-v24-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-v24-formal/cover.log
+          ! grep -q 'DONE (ERROR' target/capu-v24-formal/cover.log
+          test "$(find target/capu-v24-formal/cover-work -name 'trace*.vcd' | wc -l)" -ge 1
+      - name: Regress v0.23 bounded safety
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v24-formal/v23-safety-work formal/capu_shootdown_delivery_reliability_v23.sby 2>&1 | tee target/capu-v24-formal/v23-formal.log
+          grep -q 'DONE (PASS' target/capu-v24-formal/v23-formal.log
+          ! grep -q 'DONE (ERROR' target/capu-v24-formal/v23-formal.log
+      - name: Seal v0.24 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path
+          root=Path('target/capu-v24-formal')
+          safety=(root/'formal.log').read_text(errors='replace');cover=(root/'cover.log').read_text(errors='replace');v23=(root/'v23-formal.log').read_text(errors='replace')
+          inputs=[Path(x) for x in ['rtl/capu_cross_generation_reordering_v24.sv','formal/capu_cross_generation_reordering_v24_formal.sv','formal/capu_cross_generation_reordering_v24.sby','formal/capu_cross_generation_reordering_v24_cover.sby','tools/vcml_cross_generation_checkpoint_v24.py']]
+          h=hashlib.sha256()
+          for p in inputs:h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof={'schema':'capu.hardware.cross-generation-reordering-formal-proof.v0.24','result':'PASS','depth':38,'cover_depth':48,'cover_witnesses':len(list((root/'cover-work').rglob('trace*.vcd'))),'v0_23_safety_regression':'PASS','formal_input_sha256':h.hexdigest(),'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),'v0_23_regression_log_sha256':hashlib.sha256(v23.encode()).hexdigest(),'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),'claim_boundary':'bounded reduced-width two-hart two-successive-generation delayed-message quarantine; no generation wrap, production transport, arbitrary queues or liveness guarantee'}
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n');print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+      - name: Upload formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v24-cross-generation-formal-evidence
+          path: |
+            target/capu-v24-formal/formal.log
+            target/capu-v24-formal/cover.log
+            target/capu-v24-formal/v23-formal.log
+            target/capu-v24-formal/formal-proof.json
+            target/capu-v24-formal/safety-work/
+            target/capu-v24-formal/cover-work/
+          if-no-files-found: warn
