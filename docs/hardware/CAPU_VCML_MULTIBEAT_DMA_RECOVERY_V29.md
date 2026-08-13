@@ -127,10 +127,12 @@ v0.29 deliberately uses bounded model checking.
 
 - transaction beats: 4;
 - command / execution epoch / effect identity width in formal instance: 2 bits each;
-- safety depth: 22;
+- safety depth: 18;
 - cover depth: 36;
 - solver: Z3 through pinned SymbiYosys;
 - v0.28 bounded safety is regressed in the same workflow.
+
+The safety bound is intentionally kept at 18 because the four-beat state/evidence product makes the deeper 22-step no-incremental SMT instance materially more expensive. The deterministic trajectory and the deeper cover run still exercise the full partial-crash → negative evidence → retry → all-beat completion path. This is a scope statement, not an unbounded proof claim.
 
 ## Claim boundary
 
