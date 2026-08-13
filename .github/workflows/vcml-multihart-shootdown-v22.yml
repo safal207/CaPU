@@ -1,0 +1,142 @@
+name: CaPU vCML Multi-Hart Shootdown Quorum v0.22
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_multihart_shootdown_quorum_v22.sv"
+      - "rtl/tb/capu_multihart_shootdown_quorum_v22_tb.sv"
+      - "formal/capu_multihart_shootdown_quorum_v22_formal.sv"
+      - "formal/capu_multihart_shootdown_quorum_v22.sby"
+      - "formal/capu_multihart_shootdown_quorum_v22_cover.sby"
+      - "tools/vcml_multihart_shootdown_checkpoint_v22.py"
+      - "tests/test_vcml_multihart_shootdown_checkpoint_v22.py"
+      - "docs/hardware/CAPU_VCML_MULTIHART_SHOOTDOWN_QUORUM_V22.md"
+      - ".github/workflows/vcml-multihart-shootdown-v22.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quorum-rtl:
+    name: Exact two-hart shootdown trajectory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile v0.22
+        run: |
+          iverilog -g2012 -o /tmp/capu-v22 rtl/capu_multihart_shootdown_quorum_v22.sv rtl/tb/capu_multihart_shootdown_quorum_v22_tb.sv
+      - name: Run deterministic v0.22 trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/capu-v22 | tee vcml-multihart-shootdown-v22.log
+          grep -F "CAPU_VCML_MULTIHART_SHOOTDOWN_V22_PASS" vcml-multihart-shootdown-v22.log
+          grep -F "stale_generation_ack hart=0 rejected=1" vcml-multihart-shootdown-v22.log
+          grep -F "duplicate_ack hart=0 rejected=1" vcml-multihart-shootdown-v22.log
+          grep -F "foreign_target_ack hart=1 rejected=1" vcml-multihart-shootdown-v22.log
+          grep -F "exact_quorum complete=1 authority_reopened=1" vcml-multihart-shootdown-v22.log
+          grep -F "recovery partial_quorum_destroyed=1" vcml-multihart-shootdown-v22.log
+      - name: Run canonical v0.22 SHA-256 tests
+        run: |
+          set -euo pipefail
+          python3 tests/test_vcml_multihart_shootdown_checkpoint_v22.py | tee vcml-multihart-checkpoint-v22-python.log
+          grep -F "VCML_MULTIHART_SHOOTDOWN_CHECKPOINT_V22_PASS" vcml-multihart-checkpoint-v22-python.log
+          grep -F "generation_change_digest_changed=1" vcml-multihart-checkpoint-v22-python.log
+          grep -F "ack_bitmap_change_digest_changed=1" vcml-multihart-checkpoint-v22-python.log
+          grep -F "mixed_quorum_authority_rejected=1" vcml-multihart-checkpoint-v22-python.log
+      - name: Regress v0.21 deterministic and canonical paths
+        run: |
+          set -euo pipefail
+          iverilog -g2012 -o /tmp/capu-v21 rtl/capu_tlb_shootdown_authority_v21.sv rtl/tb/capu_tlb_shootdown_authority_v21_tb.sv
+          vvp /tmp/capu-v21 | tee vcml-tlb-shootdown-v21-regression.log
+          grep -F "CAPU_VCML_TLB_SHOOTDOWN_V21_PASS" vcml-tlb-shootdown-v21-regression.log
+          python3 tests/test_vcml_tlb_checkpoint_v21.py | tee vcml-tlb-checkpoint-v21-python-regression.log
+          grep -F "VCML_TLB_CHECKPOINT_V21_PASS" vcml-tlb-checkpoint-v21-python-regression.log
+      - name: Seal executable evidence
+        run: |
+          sha256sum rtl/capu_multihart_shootdown_quorum_v22.sv rtl/tb/capu_multihart_shootdown_quorum_v22_tb.sv tools/vcml_multihart_shootdown_checkpoint_v22.py tests/test_vcml_multihart_shootdown_checkpoint_v22.py vcml-multihart-shootdown-v22.log vcml-multihart-checkpoint-v22-python.log vcml-tlb-shootdown-v21-regression.log vcml-tlb-checkpoint-v21-python-regression.log > vcml-multihart-shootdown-v22.sha256
+          cat vcml-multihart-shootdown-v22.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v22-multihart-shootdown-evidence
+          path: |
+            vcml-multihart-shootdown-v22.log
+            vcml-multihart-checkpoint-v22-python.log
+            vcml-tlb-shootdown-v21-regression.log
+            vcml-tlb-checkpoint-v21-python-regression.log
+            vcml-multihart-shootdown-v22.sha256
+
+  quorum-formal:
+    name: Bounded v0.22 multi-hart quorum proof
+    needs: quorum-rtl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove bounded v0.22 safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-v22-formal
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v22-formal/safety-work formal/capu_multihart_shootdown_quorum_v22.sby 2>&1 | tee target/capu-v22-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-v22-formal/formal.log
+          ! grep -q 'DONE (ERROR' target/capu-v22-formal/formal.log
+      - name: Prove v0.22 paths reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v22-formal/cover-work formal/capu_multihart_shootdown_quorum_v22_cover.sby 2>&1 | tee target/capu-v22-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-v22-formal/cover.log
+          ! grep -q 'DONE (ERROR' target/capu-v22-formal/cover.log
+          test "$(find target/capu-v22-formal/cover-work -name 'trace*.vcd' | wc -l)" -ge 1
+      - name: Regress v0.21 bounded safety
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v22-formal/v21-safety-work formal/capu_tlb_shootdown_authority_v21.sby 2>&1 | tee target/capu-v22-formal/v21-formal.log
+          grep -q 'DONE (PASS' target/capu-v22-formal/v21-formal.log
+          ! grep -q 'DONE (ERROR' target/capu-v22-formal/v21-formal.log
+      - name: Seal v0.22 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path
+          root=Path('target/capu-v22-formal')
+          safety=(root/'formal.log').read_text(errors='replace');cover=(root/'cover.log').read_text(errors='replace');v21=(root/'v21-formal.log').read_text(errors='replace')
+          inputs=[Path(x) for x in ['rtl/capu_multihart_shootdown_quorum_v22.sv','formal/capu_multihart_shootdown_quorum_v22_formal.sv','formal/capu_multihart_shootdown_quorum_v22.sby','formal/capu_multihart_shootdown_quorum_v22_cover.sby','tools/vcml_multihart_shootdown_checkpoint_v22.py']]
+          h=hashlib.sha256()
+          for p in inputs:h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof={'schema':'capu.hardware.multihart-shootdown-quorum-formal-proof.v0.22','result':'PASS','depth':34,'cover_depth':40,'cover_witnesses':len(list((root/'cover-work').rglob('trace*.vcd'))),'v0_21_safety_regression':'PASS','formal_input_sha256':h.hexdigest(),'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),'v0_21_regression_log_sha256':hashlib.sha256(v21.encode()).hexdigest(),'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),'claim_boundary':'bounded reduced-width two-hart one-generation shootdown quorum; no production IPI transport, arbitrary hart count, cache coherence, concurrent shootdowns, virtualization or unbounded correctness'}
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n');print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+      - name: Upload formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v22-multihart-shootdown-formal-evidence
+          path: |
+            target/capu-v22-formal/formal.log
+            target/capu-v22-formal/cover.log
+            target/capu-v22-formal/v21-formal.log
+            target/capu-v22-formal/formal-proof.json
+            target/capu-v22-formal/safety-work/
+            target/capu-v22-formal/cover-work/
+          if-no-files-found: warn
