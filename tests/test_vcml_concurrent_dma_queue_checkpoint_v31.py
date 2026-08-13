@@ -23,6 +23,11 @@ def base_state() -> ConcurrentDMAQueueCheckpointV31:
         live_execution_epochs=(4, 4),
         live_effect_ids=(8, 9),
         fragment_states=(COMMITTED, COMMITTED, COMMITTED, COMMITTED),
+        durable_tx_valid=(True, True),
+        durable_queue_epoch=3,
+        durable_command_ids=(10, 11),
+        durable_execution_epochs=(4, 4),
+        durable_effect_ids=(8, 9),
         checkpoint_valid=True,
         checkpoint_tx_pending=(True, True),
         checkpoint_tx_retired=(False, False),
@@ -46,15 +51,17 @@ def main() -> None:
     assert authority_consistent(s)
     d = canonical_digest(s)
 
-    q = replace(s, live_queue_epoch=4, checkpoint_queue_epoch=4)
+    q = replace(s, live_queue_epoch=4, durable_queue_epoch=4, checkpoint_queue_epoch=4)
     assert canonical_digest(q) != d
     print("queue_epoch_change_digest_changed=1")
 
     swapped = replace(
         s,
         live_command_ids=(11, 10),
+        durable_command_ids=(11, 10),
         checkpoint_command_ids=(11, 10),
         live_effect_ids=(9, 8),
+        durable_effect_ids=(9, 8),
         checkpoint_effect_ids=(9, 8),
     )
     assert canonical_digest(swapped) != d
@@ -82,6 +89,31 @@ def main() -> None:
     foreign_checkpoint_slot = replace(s, checkpoint_effect_ids=(8, 7))
     assert not authority_consistent(foreign_checkpoint_slot)
     print("foreign_checkpoint_transaction_slot_rejected=1")
+
+    no_younger_durable_slot = replace(s, durable_tx_valid=(True, False))
+    assert not authority_consistent(no_younger_durable_slot)
+    print("younger_fragment_evidence_without_durable_slot_rejected=1")
+
+    wrong_durable_identity = replace(s, durable_effect_ids=(8, 7))
+    assert not authority_consistent(wrong_durable_identity)
+    print("durable_slot_identity_mismatch_rejected=1")
+
+    # A checkpoint may legitimately predate TX1. Durable TX1 slot authority and
+    # later fragment evidence must coexist with that stale checkpoint without
+    # allowing the slot to disappear or be reused.
+    stale_pre_tx1 = replace(
+        s,
+        checkpoint_tx_pending=(True, False),
+        checkpoint_command_ids=(10, 0),
+        checkpoint_execution_epochs=(4, 0),
+        checkpoint_effect_ids=(8, 0),
+        checkpoint_fragment_states=(0, 0, 0, 0),
+        checkpoint_owner_valid=0,
+        checkpoint_owner_map=(0, 0, 0, 0),
+    )
+    assert authority_consistent(stale_pre_tx1)
+    assert canonical_digest(stale_pre_tx1) != d
+    print("stale_checkpoint_predates_younger_slot_preserved=1")
 
     print(f"canonical_digest={d}")
     print("VCML_CONCURRENT_DMA_QUEUE_CHECKPOINT_V31_PASS")
