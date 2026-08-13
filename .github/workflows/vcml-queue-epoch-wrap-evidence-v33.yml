@@ -1,0 +1,86 @@
+name: CaPU vCML Queue-Epoch Wrap Evidence v0.33
+
+on:
+  pull_request:
+    paths:
+      - 'rtl/capu_queue_epoch_wrap_incarnation_v33.sv'
+      - 'rtl/tb/capu_queue_epoch_wrap_incarnation_v33_tb.sv'
+      - 'tools/vcml_queue_epoch_wrap_checkpoint_v33.py'
+      - 'tests/test_vcml_queue_epoch_wrap_checkpoint_v33.py'
+      - 'formal/capu_queue_epoch_wrap_incarnation_v33*'
+      - '.github/workflows/vcml-queue-epoch-wrap-evidence-v33.yml'
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install verification toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog yosys z3 git
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Run executable and canonical evidence
+        run: |
+          set -euo pipefail
+          iverilog -g2012 -o /tmp/v33 rtl/capu_queue_epoch_wrap_incarnation_v33.sv rtl/tb/capu_queue_epoch_wrap_incarnation_v33_tb.sv
+          vvp /tmp/v33 | tee vcml-queue-epoch-wrap-v33.log
+          grep -F 'CAPU_VCML_QUEUE_EPOCH_WRAP_INCARNATION_V33_PASS' vcml-queue-epoch-wrap-v33.log
+          python3 tests/test_vcml_queue_epoch_wrap_checkpoint_v33.py | tee vcml-queue-epoch-wrap-checkpoint-v33-python.log
+          grep -F 'VCML_QUEUE_EPOCH_WRAP_CHECKPOINT_V33_PASS' vcml-queue-epoch-wrap-checkpoint-v33-python.log
+          iverilog -g2012 -o /tmp/v32 rtl/capu_queue_epoch_slot_reuse_v32.sv rtl/tb/capu_queue_epoch_slot_reuse_v32_tb.sv
+          vvp /tmp/v32 | tee vcml-queue-epoch-slot-v32-regression.log
+          grep -F 'CAPU_VCML_QUEUE_EPOCH_SLOT_REUSE_V32_PASS' vcml-queue-epoch-slot-v32-regression.log
+          python3 tests/test_vcml_queue_epoch_slot_checkpoint_v32.py | tee vcml-queue-epoch-slot-checkpoint-v32-python-regression.log
+          grep -F 'VCML_QUEUE_EPOCH_SLOT_CHECKPOINT_V32_PASS' vcml-queue-epoch-slot-checkpoint-v32-python-regression.log
+          sha256sum rtl/capu_queue_epoch_wrap_incarnation_v33.sv rtl/tb/capu_queue_epoch_wrap_incarnation_v33_tb.sv tools/vcml_queue_epoch_wrap_checkpoint_v33.py tests/test_vcml_queue_epoch_wrap_checkpoint_v33.py vcml-queue-epoch-wrap-v33.log vcml-queue-epoch-wrap-checkpoint-v33-python.log vcml-queue-epoch-slot-v32-regression.log vcml-queue-epoch-slot-checkpoint-v32-python-regression.log > vcml-queue-epoch-wrap-v33.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v33-queue-epoch-wrap-evidence
+          path: |
+            vcml-queue-epoch-wrap-v33.log
+            vcml-queue-epoch-wrap-checkpoint-v33-python.log
+            vcml-queue-epoch-slot-v32-regression.log
+            vcml-queue-epoch-slot-checkpoint-v32-python-regression.log
+            vcml-queue-epoch-wrap-v33.sha256
+      - name: Run formal evidence
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-v33-formal
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v33-formal/safety-work formal/capu_queue_epoch_wrap_incarnation_v33_live.sby 2>&1 | tee target/capu-v33-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-v33-formal/formal.log
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v33-formal/cover-work formal/capu_queue_epoch_wrap_incarnation_v33_live_cover.sby 2>&1 | tee target/capu-v33-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-v33-formal/cover.log
+          test "$(find target/capu-v33-formal/cover-work -name 'trace*.vcd' | wc -l)" -ge 1
+          python3 /tmp/sby/sbysrc/sby.py -f -d target/capu-v33-formal/v32-safety-work formal/capu_queue_epoch_slot_reuse_v32.sby 2>&1 | tee target/capu-v33-formal/v32-formal.log
+          grep -q 'DONE (PASS' target/capu-v33-formal/v32-formal.log
+      - name: Seal formal proof metadata
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path
+          root=Path('target/capu-v33-formal')
+          safety=(root/'formal.log').read_text(errors='replace')
+          cover=(root/'cover.log').read_text(errors='replace')
+          v32=(root/'v32-formal.log').read_text(errors='replace')
+          inputs=[Path(x) for x in ['rtl/capu_queue_epoch_wrap_incarnation_v33.sv','formal/capu_queue_epoch_wrap_incarnation_v33_live_formal.sv','formal/capu_queue_epoch_wrap_incarnation_v33_live.sby','formal/capu_queue_epoch_wrap_incarnation_v33_live_cover.sby','tools/vcml_queue_epoch_wrap_checkpoint_v33.py']]
+          h=hashlib.sha256()
+          for p in inputs: h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof={'schema':'capu.hardware.queue-epoch-wrap-incarnation-formal-proof.v0.33','result':'PASS','proof_method':'bounded model checking','depth':24,'cover_depth':44,'cover_witnesses':len(list((root/'cover-work').rglob('trace*.vcd'))),'formal_identity_width_bits':2,'slot_count':1,'queue_epoch_wrap_requires_incarnation_increment':True,'incarnation_wrap_policy':'fail-closed','v0_32_safety_regression':'PASS','formal_input_sha256':h.hexdigest(),'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),'v0_32_regression_log_sha256':hashlib.sha256(v32.encode()).hexdigest(),'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),'claim_boundary':'bounded reduced-width one-slot lifecycle model with numeric queue-epoch wrap protected by explicit authority incarnation, live-runtime stale prior-incarnation evidence rejection, durable post-wrap identity recovery and fail-closed incarnation exhaustion'}
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+          sha256sum rtl/capu_queue_epoch_wrap_incarnation_v33.sv formal/capu_queue_epoch_wrap_incarnation_v33_live_formal.sv formal/capu_queue_epoch_wrap_incarnation_v33_live.sby formal/capu_queue_epoch_wrap_incarnation_v33_live_cover.sby tools/vcml_queue_epoch_wrap_checkpoint_v33.py target/capu-v33-formal/formal.log target/capu-v33-formal/cover.log target/capu-v33-formal/v32-formal.log target/capu-v33-formal/formal-proof.json > target/capu-v33-formal/v33.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v33-queue-epoch-wrap-formal-evidence
+          path: target/capu-v33-formal/
