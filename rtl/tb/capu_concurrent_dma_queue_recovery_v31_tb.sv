@@ -93,15 +93,43 @@ module capu_concurrent_dma_queue_recovery_v31_tb;
     repeat(2) @(posedge clk); rst_n=1;
 
     submit_tx(1'b0);
+
+    // Capture a checkpoint before the younger slot exists. This is the stale
+    // checkpoint that exposed the original formal counterexample: TX1 evidence
+    // may become durable later, so restore must not erase TX1 slot identity.
+    @(negedge clk); checkpoint_capture_valid=1; #1;
+    if(!checkpoint_capture_accept) $fatal(1,"pre-TX1 checkpoint capture not accepted");
+    @(posedge clk); #1; @(negedge clk); checkpoint_capture_valid=0;
+    if(checkpoint_tx_pending!==2'b01) $fatal(1,"pre-TX1 checkpoint did not capture only TX0");
+    $display("pre_tx1_checkpoint tx_pending=01 younger_slot_absent=1");
+
     submit_tx(1'b1);
-    if(tx_pending!==2'b11 || live_queue_epoch!==4'd3) $fatal(1,"queue submit state mismatch");
-    $display("queue_submit tx0=1 tx1=1 queue_epoch=3 order=TX0_before_TX1");
+    if(tx_pending!==2'b11 || live_queue_epoch!==4'd3 || dut.durable_tx_valid!==2'b11) $fatal(1,"queue submit state mismatch");
+    $display("queue_submit tx0=1 tx1=1 queue_epoch=3 order=TX0_before_TX1 durable_slots=11");
 
     issue(1'b0,1'b0);
     issue(1'b1,1'b0);
     resolve(1'b1,1'b0,1'b1);
     if(completion_receipt_bitmap!==4'b0100 || visible_owner_map!==8'h80) $fatal(1,"younger non-overlap commit mismatch comp=%b owners=%h",completion_receipt_bitmap,visible_owner_map);
     $display("younger_nonoverlap_commit tx1_f0=COMMITTED older_tx0_f0=UNKNOWN lane3_owner=TX1_F0 concurrent_safe=1");
+
+    // Recover through the stale pre-TX1 checkpoint. Durable transaction-slot
+    // authority must reconstruct TX1 pending/identity before its fragment
+    // receipts are interpreted.
+    @(negedge clk); recovery_begin=1; #1; @(posedge clk); #1; @(negedge clk); recovery_begin=0;
+    @(negedge clk); restore_valid=1; #1;
+    if(!restore_accept) $fatal(1,"stale pre-TX1 restore not accepted");
+    @(posedge clk); #1; @(negedge clk); restore_valid=0; #1;
+    if(tx_pending!==2'b11 || live_command_ids!==8'hBA || live_effect_ids!==8'h98 || fragment_states!==8'h21 || visible_owner_map!==8'h80)
+      $fatal(1,"durable slot restore mismatch pending=%b cmds=%h effects=%h states=%h owners=%h",tx_pending,live_command_ids,live_effect_ids,fragment_states,visible_owner_map);
+    $display("stale_pre_tx1_restore durable_tx1_slot_wins=1 tx_pending=11 tx1_identity_preserved=1 fragment_evidence_preserved=1");
+
+    @(negedge clk);
+    submit_tx_index=1; submit_command_id=4'd11; submit_execution_epoch=4'd4; submit_effect_id=4'd9; submit_queue_epoch=4'd3; submit_valid=1; #1;
+    if(submit_accept) $fatal(1,"stale checkpoint allowed TX1 slot resubmission");
+    @(posedge clk); #1; @(negedge clk); submit_valid=0;
+    if(completion_receipt_bitmap!==4'b0100 || durable_owner_map!==8'h80) $fatal(1,"rejected resubmit mutated durable TX1 evidence");
+    $display("stale_slot_resubmit rejected=1 durable_slot_identity=1 completion_evidence_preserved=1");
 
     @(negedge clk);
     fragment_issue_tx_index=1; fragment_issue_index=1; fragment_issue_command_id=4'd11; fragment_issue_execution_epoch=4'd4; fragment_issue_effect_id=4'd9; fragment_issue_queue_epoch=4'd3; fragment_issue_valid=1; #1;
@@ -154,7 +182,7 @@ module capu_concurrent_dma_queue_recovery_v31_tb;
     if(!restore_accept) $fatal(1,"late restore not accepted");
     @(posedge clk); #1; @(negedge clk); restore_valid=0; #1;
     if(fragment_states!==8'hAA || visible_owner_map!==8'hBC || tx_pending!==2'b11) $fatal(1,"durable evidence failed to dominate stale queue checkpoint");
-    $display("late_stale_queue_restore completion_receipts_win=1 owner_provenance_wins=1 tx_pending_from_checkpoint=11");
+    $display("late_stale_queue_restore completion_receipts_win=1 owner_provenance_wins=1 durable_tx_slots_win=1");
 
     @(negedge clk);
     retire_tx_index=1; retire_command_id=4'd11; retire_execution_epoch=4'd4; retire_effect_id=4'd9; retire_queue_epoch=4'd3; retire_valid=1; #1;
