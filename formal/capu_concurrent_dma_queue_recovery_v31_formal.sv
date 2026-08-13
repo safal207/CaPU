@@ -64,6 +64,27 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
       assert(!(restore_accept && restore_rejected));
       assert(!(retire_accept && retire_rejected));
       assert(!(tx_retired[1] && !tx_retired[0]));
+      assert(!(dut.durable_tx_valid[1] && !dut.durable_tx_valid[0]));
+
+      if(tx_pending[0] || tx_retired[0] || (issue_receipt_bitmap[1:0] != 0) ||
+         (negative_receipt_bitmap[1:0] != 0) || (completion_receipt_bitmap[1:0] != 0))
+        assert(dut.durable_tx_valid[0]);
+      if(tx_pending[1] || tx_retired[1] || (issue_receipt_bitmap[3:2] != 0) ||
+         (negative_receipt_bitmap[3:2] != 0) || (completion_receipt_bitmap[3:2] != 0))
+        assert(dut.durable_tx_valid[1]);
+
+      if(dut.durable_tx_valid[0]) begin
+        assert(live_queue_epoch==dut.durable_queue_epoch);
+        assert(live_command_ids[1:0]==dut.durable_command_ids[1:0]);
+        assert(live_execution_epochs[1:0]==dut.durable_execution_epochs[1:0]);
+        assert(live_effect_ids[1:0]==dut.durable_effect_ids[1:0]);
+      end
+      if(dut.durable_tx_valid[1]) begin
+        assert(live_queue_epoch==dut.durable_queue_epoch);
+        assert(live_command_ids[3:2]==dut.durable_command_ids[3:2]);
+        assert(live_execution_epochs[3:2]==dut.durable_execution_epochs[3:2]);
+        assert(live_effect_ids[3:2]==dut.durable_effect_ids[3:2]);
+      end
 
       for(i=0;i<4;i=i+1) begin
         if(fragment_states[i*2 +: 2]==C) begin
@@ -78,6 +99,7 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
         end
         if(durable_owner_valid[i]) begin
           assert(completion_receipt_bitmap[durable_owner_map[i*2 +: 2]]);
+          assert(dut.durable_tx_valid[durable_owner_map[i*2 +: 2] >= 2]);
           assert(lane_in_fragment(durable_owner_map[i*2 +: 2],i));
         end
       end
@@ -98,6 +120,12 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
 
       if(retire_accept && !retire_tx_index)
         assert(all_tx0_fragments_committed && completion_receipt_bitmap[1:0]==2'b11);
+    end
+
+    if(past_valid && $past(rst_n) && $past(submit_accept)) begin
+      assert(dut.durable_tx_valid[$past(submit_tx_index)]);
+      assert(tx_pending[$past(submit_tx_index)]);
+      if(!$past(submit_tx_index)) assert(dut.durable_queue_epoch==$past(submit_queue_epoch));
     end
 
     if(past_valid && $past(rst_n) && $past(fragment_issue_accept)) begin
@@ -124,6 +152,11 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
       assert(durable_owner_valid==$past(durable_owner_valid));
       assert(durable_owner_map==$past(durable_owner_map));
       assert(tx_retired==$past(tx_retired));
+      assert(dut.durable_tx_valid==$past(dut.durable_tx_valid));
+      assert(dut.durable_queue_epoch==$past(dut.durable_queue_epoch));
+      assert(dut.durable_command_ids==$past(dut.durable_command_ids));
+      assert(dut.durable_execution_epochs==$past(dut.durable_execution_epochs));
+      assert(dut.durable_effect_ids==$past(dut.durable_effect_ids));
     end
 
     if(past_valid && $past(rst_n) && $past(restore_accept)) begin
@@ -137,8 +170,16 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
           assert(visible_owner_map[i*2 +: 2]==$past(durable_owner_map[i*2 +: 2]));
         end
       end
-      if($past(tx_retired[0])) assert(!tx_pending[0]);
-      if($past(tx_retired[1])) assert(!tx_pending[1]);
+      if($past(dut.durable_tx_valid[0])) begin
+        assert(tx_pending[0]==!$past(tx_retired[0]));
+        assert(live_command_ids[1:0]==$past(dut.durable_command_ids[1:0]));
+        assert(live_effect_ids[1:0]==$past(dut.durable_effect_ids[1:0]));
+      end
+      if($past(dut.durable_tx_valid[1])) begin
+        assert(tx_pending[1]==!$past(tx_retired[1]));
+        assert(live_command_ids[3:2]==$past(dut.durable_command_ids[3:2]));
+        assert(live_effect_ids[3:2]==$past(dut.durable_effect_ids[3:2]));
+      end
     end
 
     if(past_valid && $past(rst_n) && $past(retire_accept)) begin
@@ -147,6 +188,7 @@ module capu_concurrent_dma_queue_recovery_v31_formal;
     end
 
     cover(rst_n && submit_accept && !submit_tx_index);
+    cover(rst_n && checkpoint_valid && checkpoint_tx_pending==2'b01 && dut.durable_tx_valid==2'b11 && tx_pending==2'b11);
     cover(rst_n && submit_accept && submit_tx_index);
     cover(rst_n && fragment_issue_accept && fragment_issue_tx_index && !fragment_issue_index && fragment_states[1:0]==X);
     cover(rst_n && completion_receipt_bitmap[2] && fragment_states[1:0]==X);
