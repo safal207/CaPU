@@ -144,10 +144,10 @@ module capu_overlapping_dma_fragment_recovery_v30 #(
 
     checkpoint_capture_accept = checkpoint_capture_valid && runtime_ready && command_pending && !recovery_begin && !restore_valid;
 
-    restore_accept = restore_valid && !runtime_ready && checkpoint_valid && checkpoint_command_pending;
+    restore_accept = restore_valid && !recovery_begin && !runtime_ready && checkpoint_valid && checkpoint_command_pending;
     restore_rejected = restore_valid && !restore_accept;
 
-    retire_accept = retire_valid && runtime_ready && command_pending && all_fragments_committed &&
+    retire_accept = retire_valid && !recovery_begin && !restore_valid && runtime_ready && command_pending && all_fragments_committed &&
       completion_receipt_bitmap == 4'b1111 && receipt_identity_matches_live &&
       retire_command_id == live_command_id &&
       retire_execution_epoch == live_execution_epoch &&
