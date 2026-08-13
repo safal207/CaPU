@@ -1,4 +1,8 @@
 from dataclasses import replace
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.vcml_queue_epoch_slot_checkpoint_v32 import (
     COMMITTED,
