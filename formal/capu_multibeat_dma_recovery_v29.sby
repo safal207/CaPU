@@ -1,6 +1,6 @@
 [options]
 mode bmc
-depth 22
+depth 18
 
 [engines]
 smtbmc --unroll z3 -- --noincr
