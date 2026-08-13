@@ -3,7 +3,7 @@ mode cover
 depth 48
 
 [engines]
-smtbmc --unroll z3
+smtbmc z3
 
 [script]
 read -formal capu_dma_completion_uncertainty_v27.sv capu_dma_completion_uncertainty_v27_formal.sv
