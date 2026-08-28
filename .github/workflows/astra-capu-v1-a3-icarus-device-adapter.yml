@@ -1,0 +1,141 @@
+name: ASTRA-CaPU v1.0-A3 Icarus Device Adapter
+
+on:
+  pull_request:
+    paths:
+      - 'rtl/astra_capu_effect_counter_a3.sv'
+      - 'rtl/tb/astra_capu_effect_counter_a3_tb.sv'
+      - 'tools/astra_capu_effect_authority_a1.py'
+      - 'tools/astra_capu_crash_benchmark_a2.py'
+      - 'tools/astra_capu_icarus_adapter_a3.py'
+      - 'tests/test_astra_capu_effect_authority_a1.py'
+      - 'tests/test_astra_capu_crash_benchmark_a2.py'
+      - 'tests/test_astra_capu_icarus_adapter_a3.py'
+      - 'schemas/hardware/astra-capu-icarus-adapter-v1.0-a3.schema.json'
+      - 'examples/hardware/astra-capu-v1-a3-expected.json'
+      - 'docs/hardware/ASTRA_CAPU_V1_A3_ICARUS_DEVICE_ADAPTER.md'
+      - '.github/workflows/astra-capu-v1-a3-icarus-device-adapter.yml'
+
+jobs:
+  simulator-adapter:
+    name: A3 separate-process Icarus device benchmark
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+          iverilog -V
+      - name: Compile A3 device simulator
+        run: |
+          set -euo pipefail
+          iverilog -g2012 \
+            -o /tmp/astra-capu-a3.vvp \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/tb/astra_capu_effect_counter_a3_tb.sv
+      - name: Smoke separate-process durable readback
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/astra-capu-a3-smoke
+          STATE=/tmp/astra-capu-a3-smoke/device.state
+          vvp /tmp/astra-capu-a3.vvp +OP=reset +STATE_FILE="$STATE" | tee a3-sim-reset.log
+          vvp /tmp/astra-capu-a3.vvp +OP=dispatch +STATE_FILE="$STATE" +COMMIT=1 +DROP_RECEIPT=1 | tee a3-sim-dispatch.log
+          vvp /tmp/astra-capu-a3.vvp +OP=readback +STATE_FILE="$STATE" | tee a3-sim-readback.log
+          grep -F 'A3_EVENT op=dispatch accept=1 committed=1 receipt=0 count=1' a3-sim-dispatch.log
+          grep -F 'A3_EVENT op=readback count=1' a3-sim-readback.log
+          grep -F 'ASTRA_CAPU_V1_A3_ICARUS_DEVICE_PASS' a3-sim-reset.log
+          grep -F 'ASTRA_CAPU_V1_A3_ICARUS_DEVICE_PASS' a3-sim-dispatch.log
+          grep -F 'ASTRA_CAPU_V1_A3_ICARUS_DEVICE_PASS' a3-sim-readback.log
+      - name: Regress A1 and A2 contracts
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_effect_authority_a1.py 2>&1 | tee astra-capu-v1-a1-regression.log
+          python3 -m unittest -v tests/test_astra_capu_crash_benchmark_a2.py 2>&1 | tee astra-capu-v1-a2-regression.log
+          grep -F 'Ran 12 tests' astra-capu-v1-a1-regression.log
+          grep -F 'Ran 11 tests' astra-capu-v1-a2-regression.log
+          grep -F 'OK' astra-capu-v1-a1-regression.log
+          grep -F 'OK' astra-capu-v1-a2-regression.log
+      - name: Run A3 simulator-adapter tests
+        env:
+          A3_SIMULATOR: /tmp/astra-capu-a3.vvp
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_icarus_adapter_a3.py 2>&1 | tee astra-capu-v1-a3-test.log
+          grep -F 'Ran 8 tests' astra-capu-v1-a3-test.log
+          grep -F 'OK' astra-capu-v1-a3-test.log
+      - name: Execute A3 process-restart benchmark
+        run: |
+          set -euo pipefail
+          python3 -m tools.astra_capu_icarus_adapter_a3 \
+            --simulator /tmp/astra-capu-a3.vvp \
+            --workdir /tmp/astra-capu-a3-benchmark-state \
+            | tee astra-capu-v1-a3-benchmark.log
+          grep -F 'a3_summary simulator_process_launches=15 persistent_restart=1 unsafe_duplicates=1 capu_duplicates=0 unsafe_false_success=1 capu_false_success=0 capu_unknown_recoveries=2 capu_authorized_retries=1 capu_sealed_successes=2' astra-capu-v1-a3-benchmark.log
+          grep -F 'a3_counts unsafe_duplicate_final=2 capu_committed_final=1 unsafe_false_success_final=0 capu_negative_retry_final=1' astra-capu-v1-a3-benchmark.log
+          grep -F 'ASTRA_CAPU_V1_A3_ICARUS_ADAPTER_BENCHMARK_PASS' astra-capu-v1-a3-benchmark.log
+      - name: Generate and inspect machine-readable result
+        env:
+          A3_SIMULATOR: /tmp/astra-capu-a3.vvp
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from tools.astra_capu_icarus_adapter_a3 import run_benchmark
+
+          with TemporaryDirectory(prefix='astra-capu-a3-result-') as tmp:
+              result = run_benchmark(Path(os.environ['A3_SIMULATOR']), Path(tmp))
+          output = Path('astra-capu-v1-a3-result.json')
+          output.write_text(result.to_json())
+          payload = json.loads(output.read_text())
+          schema = json.loads(Path('schemas/hardware/astra-capu-icarus-adapter-v1.0-a3.schema.json').read_text())
+          fixture = json.loads(Path('examples/hardware/astra-capu-v1-a3-expected.json').read_text())
+
+          assert schema['title'] == 'ASTRA–CaPU Icarus Device Adapter Benchmark v1.0-A3'
+          for key, value in fixture['expected'].items():
+              assert payload[key] == value, (key, payload[key], value)
+          assert len(payload['benchmark_digest_sha256']) == 64
+          print(f"a3_machine_result_digest={payload['benchmark_digest_sha256']}")
+          print('A3_MACHINE_RESULT_PASS')
+          PY
+      - name: Seal A3 evidence
+        run: |
+          cp /tmp/astra-capu-a3.vvp ./astra-capu-a3.vvp
+          sha256sum \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/tb/astra_capu_effect_counter_a3_tb.sv \
+            tools/astra_capu_effect_authority_a1.py \
+            tools/astra_capu_crash_benchmark_a2.py \
+            tools/astra_capu_icarus_adapter_a3.py \
+            tests/test_astra_capu_icarus_adapter_a3.py \
+            schemas/hardware/astra-capu-icarus-adapter-v1.0-a3.schema.json \
+            examples/hardware/astra-capu-v1-a3-expected.json \
+            docs/hardware/ASTRA_CAPU_V1_A3_ICARUS_DEVICE_ADAPTER.md \
+            astra-capu-a3.vvp \
+            a3-sim-reset.log \
+            a3-sim-dispatch.log \
+            a3-sim-readback.log \
+            astra-capu-v1-a1-regression.log \
+            astra-capu-v1-a2-regression.log \
+            astra-capu-v1-a3-test.log \
+            astra-capu-v1-a3-benchmark.log \
+            astra-capu-v1-a3-result.json \
+            > astra-capu-v1-a3.sha256
+          cat astra-capu-v1-a3.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a3-icarus-device-evidence
+          path: |
+            astra-capu-a3.vvp
+            a3-sim-reset.log
+            a3-sim-dispatch.log
+            a3-sim-readback.log
+            astra-capu-v1-a1-regression.log
+            astra-capu-v1-a2-regression.log
+            astra-capu-v1-a3-test.log
+            astra-capu-v1-a3-benchmark.log
+            astra-capu-v1-a3-result.json
+            astra-capu-v1-a3.sha256
