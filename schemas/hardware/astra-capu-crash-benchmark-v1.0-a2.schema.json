@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/CaPU/schemas/hardware/astra-capu-crash-benchmark-v1.0-a2.schema.json",
+  "title": "ASTRA–CaPU Accelerator Crash Benchmark Result v1.0-A2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "scenarios",
+    "unsafe_results",
+    "capu_results",
+    "unsafe_duplicate_effects",
+    "capu_duplicate_effects",
+    "unsafe_false_successes",
+    "capu_false_successes",
+    "unsafe_retries",
+    "capu_retries",
+    "capu_unknown_blocks",
+    "capu_sealed_successes",
+    "capu_conflict_fail_closed",
+    "benchmark_digest_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "capu.hardware.accelerator-crash-benchmark.v1.0-a2"},
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "unsafe_results": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/trial"}
+    },
+    "capu_results": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/trial"}
+    },
+    "unsafe_duplicate_effects": {"type": "integer", "minimum": 0},
+    "capu_duplicate_effects": {"type": "integer", "minimum": 0},
+    "unsafe_false_successes": {"type": "integer", "minimum": 0},
+    "capu_false_successes": {"type": "integer", "minimum": 0},
+    "unsafe_retries": {"type": "integer", "minimum": 0},
+    "capu_retries": {"type": "integer", "minimum": 0},
+    "capu_unknown_blocks": {"type": "integer", "minimum": 0},
+    "capu_sealed_successes": {"type": "integer", "minimum": 0},
+    "capu_conflict_fail_closed": {"type": "integer", "minimum": 0},
+    "benchmark_digest_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "trial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "scenario",
+        "strategy",
+        "committed_effects",
+        "duplicate_effects",
+        "false_successes",
+        "retries",
+        "unknown_blocks",
+        "claimed_success",
+        "sealed",
+        "final_stage",
+        "decision"
+      ],
+      "properties": {
+        "schema": {"const": "capu.hardware.accelerator-crash-trial.v1.0-a2"},
+        "scenario": {"type": "string", "minLength": 1},
+        "strategy": {"enum": ["unsafe_baseline", "astra_capu_a1"]},
+        "committed_effects": {"type": "integer", "minimum": 0},
+        "duplicate_effects": {"type": "integer", "minimum": 0},
+        "false_successes": {"type": "integer", "minimum": 0},
+        "retries": {"type": "integer", "minimum": 0},
+        "unknown_blocks": {"type": "integer", "minimum": 0},
+        "claimed_success": {"type": "boolean"},
+        "sealed": {"type": "boolean"},
+        "final_stage": {"type": "string", "minLength": 1},
+        "decision": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
