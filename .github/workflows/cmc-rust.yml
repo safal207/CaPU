@@ -113,6 +113,15 @@ jobs:
       - name: Verify CaPU P1 persona memory
         run: cargo run --bin capu_p1_persona_memory_verify --locked
 
+      - name: Run PB-ARCH-01 CaPU adapter
+        run: cargo run --bin pb_arch_01 --locked -- --decisions 10000 --contamination 0.10
+
+      - name: Run PB-TRANSITION-02 CaPU adapter
+        run: cargo run --bin pb_transition_02 --locked -- --trials 10000 --insufficient 0.10
+
+      - name: Run PB-TRANSITION-03 CaPU adapter
+        run: cargo run --bin pb_transition_03 --locked -- --trials 10000 --contamination 0.10
+
       - name: Run runtime HTTP client example
         working-directory: .
         run: npm run example:runtime-http-client
