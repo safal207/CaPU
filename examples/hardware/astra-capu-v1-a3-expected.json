@@ -1,0 +1,38 @@
+{
+  "schema": "capu.hardware.icarus-device-adapter.fixture.v1.0-a3",
+  "simulator_boundary": "Each reset, dispatch and readback launches a separate vvp process; effect count is persisted outside the process.",
+  "expected": {
+    "simulator_process_launches": 15,
+    "persistent_state_restart_verified": true,
+    "unsafe_duplicate_effects": 1,
+    "capu_duplicate_effects": 0,
+    "unsafe_false_successes": 1,
+    "capu_false_successes": 0,
+    "capu_unknown_recoveries": 2,
+    "capu_authorized_retries": 1,
+    "capu_sealed_successes": 2,
+    "unsafe_duplicate_final_count": 2,
+    "capu_committed_final_count": 1,
+    "unsafe_false_success_final_count": 0,
+    "capu_negative_retry_final_count": 1
+  },
+  "claim_boundary": {
+    "included": [
+      "SystemVerilog device model",
+      "Icarus Verilog separate-process command boundary",
+      "durable state across simulator process restart",
+      "dropped completion receipt",
+      "fresh-process readback",
+      "A1 UNKNOWN and evidence reconciliation",
+      "A2 duplicate and false-success negative controls"
+    ],
+    "excluded": [
+      "real GPU TPU or NPU",
+      "real PCIe CXL or NoC",
+      "synthesizable persistence",
+      "hardware performance or PPA",
+      "formal proof",
+      "production evidence authenticity"
+    ]
+  }
+}

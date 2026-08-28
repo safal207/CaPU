@@ -1,0 +1,29 @@
+{
+  "schema": "capu.hardware.accelerator-effect-authority.fixture.v1.0-a1",
+  "scenario": "dispatch-crash-unknown-exact-readback-commit-seal",
+  "authority_identity": {
+    "queue_incarnation": 7,
+    "queue_epoch": 11,
+    "slot_id": 2,
+    "command_id": "cmd-tensor-17",
+    "attempt_id": 0,
+    "effect_id": "dma-effect-9001"
+  },
+  "trajectory": [
+    "PROPOSED",
+    "GROUNDED",
+    "AUTHORIZED",
+    "COMMITTED",
+    "DISPATCHED",
+    "UNKNOWN",
+    "RECONCILED_COMMITTED",
+    "SEALED"
+  ],
+  "expected": {
+    "final_stage": "SEALED",
+    "blind_replay_allowed_while_unknown": false,
+    "retirement_allowed_while_unknown": false,
+    "duplicate_effects": 0,
+    "proof_receipt_required": true
+  }
+}

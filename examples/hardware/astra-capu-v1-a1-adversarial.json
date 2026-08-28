@@ -1,0 +1,26 @@
+{
+  "schema": "capu.hardware.accelerator-effect-authority.fixture.v1.0-a1",
+  "scenario": "stale-prior-attempt-evidence-after-authorized-retry",
+  "current_authority_identity": {
+    "queue_incarnation": 7,
+    "queue_epoch": 11,
+    "slot_id": 2,
+    "command_id": "cmd-tensor-17",
+    "attempt_id": 1,
+    "effect_id": "dma-effect-9001"
+  },
+  "stale_evidence_identity": {
+    "queue_incarnation": 7,
+    "queue_epoch": 11,
+    "slot_id": 2,
+    "command_id": "cmd-tensor-17",
+    "attempt_id": 0,
+    "effect_id": "dma-effect-9001"
+  },
+  "expected": {
+    "evidence_accepted": false,
+    "current_attempt_mutated": false,
+    "replay_or_retire_authority_created": false,
+    "decision": "REJECT_FOREIGN_OR_STALE_AUTHORITY_IDENTITY"
+  }
+}

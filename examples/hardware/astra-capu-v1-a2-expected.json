@@ -1,0 +1,31 @@
+{
+  "schema": "capu.hardware.accelerator-crash-benchmark.fixture.v1.0-a2",
+  "purpose": "Distinguish blind retry and dispatch-ack false success from evidence-gated ASTRA-CaPU recovery.",
+  "scenarios": [
+    "crash_before_external_effect",
+    "crash_after_effect_before_receipt",
+    "dispatch_ack_false_success",
+    "conflicting_readback"
+  ],
+  "expected": {
+    "unsafe_duplicate_effects": 2,
+    "capu_duplicate_effects": 0,
+    "unsafe_false_successes": 1,
+    "capu_false_successes": 0,
+    "unsafe_retries": 3,
+    "capu_retries": 2,
+    "capu_unknown_blocks": 4,
+    "capu_sealed_successes": 3,
+    "capu_conflict_fail_closed": 1
+  },
+  "claim_boundary": {
+    "unsafe_baseline": "Missing receipt is treated as non-commit or dispatch acknowledgement is treated as success.",
+    "astra_capu": "Durable issue witness reconstructs UNKNOWN; exact outcome evidence alone authorizes retry, retirement or success.",
+    "not_claimed": [
+      "real accelerator integration",
+      "hardware performance",
+      "cryptographic evidence authenticity",
+      "formal or unbounded correctness"
+    ]
+  }
+}

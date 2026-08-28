@@ -1,0 +1,18 @@
+{
+  "expected": {
+    "duplicate_reject_code": 4,
+    "exact_forwarded": true,
+    "external_effect_count": 2,
+    "initial_token_digest_sha256": "b2e39b9a050ab5ffe6e6660d091c05c11dca42d5e0705da1245da518611c7b34",
+    "result_digest_sha256": "5b3c95ed923e1a159dbaf37becf771d8a40f7d337813437c425c76a071ab9bf0",
+    "revoked_reject_code": 1,
+    "same_attempt_replay_reject_code": 4,
+    "schema": "capu.hardware.astra-authority-shim-result.v1.0-a4",
+    "stale_identity_reject_code": 3,
+    "successor_attempt_forwarded": true,
+    "successor_token_digest_sha256": "04f8280e8cf2e4ff669d1bb163c79b8e2f12410a6b7d93c8efd2d9de57473489",
+    "uncommitted_reject_code": 2,
+    "unknown_dispatch_forwarded": true
+  },
+  "schema": "capu.hardware.astra-authority-shim-expected.v1.0-a4"
+}

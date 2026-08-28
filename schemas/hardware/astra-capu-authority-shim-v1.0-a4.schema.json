@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/CaPU/schemas/hardware/astra-capu-authority-shim-v1.0-a4.schema.json",
+  "title": "ASTRA–CaPU Synthesizable Authority Shim v1.0-A4 Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "exact_forwarded",
+    "duplicate_reject_code",
+    "uncommitted_reject_code",
+    "stale_identity_reject_code",
+    "unknown_dispatch_forwarded",
+    "same_attempt_replay_reject_code",
+    "successor_attempt_forwarded",
+    "revoked_reject_code",
+    "external_effect_count",
+    "initial_token_digest_sha256",
+    "successor_token_digest_sha256",
+    "result_digest_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "capu.hardware.astra-authority-shim-result.v1.0-a4"
+    },
+    "exact_forwarded": { "const": true },
+    "duplicate_reject_code": { "const": 4 },
+    "uncommitted_reject_code": { "const": 2 },
+    "stale_identity_reject_code": { "const": 3 },
+    "unknown_dispatch_forwarded": { "const": true },
+    "same_attempt_replay_reject_code": { "const": 4 },
+    "successor_attempt_forwarded": { "const": true },
+    "revoked_reject_code": { "const": 1 },
+    "external_effect_count": { "const": 2 },
+    "initial_token_digest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "successor_token_digest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "result_digest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

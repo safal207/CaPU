@@ -1,0 +1,94 @@
+name: ASTRA-CaPU v1.0-A2 Crash-Injection Benchmark
+
+on:
+  pull_request:
+    paths:
+      - 'tools/astra_capu_effect_authority_a1.py'
+      - 'tools/astra_capu_crash_benchmark_a2.py'
+      - 'tests/test_astra_capu_effect_authority_a1.py'
+      - 'tests/test_astra_capu_crash_benchmark_a2.py'
+      - 'schemas/hardware/astra-capu-effect-authority-v1.0-a1.schema.json'
+      - 'schemas/hardware/astra-capu-crash-benchmark-v1.0-a2.schema.json'
+      - 'examples/hardware/astra-capu-v1-a2-expected.json'
+      - 'docs/hardware/ASTRA_CAPU_V1_A2_CRASH_INJECTION_BENCHMARK.md'
+      - '.github/workflows/astra-capu-v1-a2-crash-injection.yml'
+
+jobs:
+  benchmark:
+    name: A2 unsafe-vs-CaPU crash recovery benchmark
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regress A1 effect-authority contract
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_effect_authority_a1.py 2>&1 | tee astra-capu-v1-a1-regression.log
+          grep -F 'Ran 12 tests' astra-capu-v1-a1-regression.log
+          grep -F 'OK' astra-capu-v1-a1-regression.log
+      - name: Run A2 unit and adversarial tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_crash_benchmark_a2.py 2>&1 | tee astra-capu-v1-a2-test.log
+          grep -F 'Ran 11 tests' astra-capu-v1-a2-test.log
+          grep -F 'OK' astra-capu-v1-a2-test.log
+      - name: Execute discriminating crash benchmark
+        run: |
+          set -euo pipefail
+          python3 -m tools.astra_capu_crash_benchmark_a2 | tee astra-capu-v1-a2-benchmark.log
+          grep -F 'scenario=crash_after_effect_before_receipt unsafe_effects=2 unsafe_duplicates=1 unsafe_false_success=0 capu_effects=1 capu_duplicates=0 capu_false_success=0 capu_final=SEALED' astra-capu-v1-a2-benchmark.log
+          grep -F 'scenario=dispatch_ack_false_success unsafe_effects=0 unsafe_duplicates=0 unsafe_false_success=1 capu_effects=1 capu_duplicates=0 capu_false_success=0 capu_final=SEALED' astra-capu-v1-a2-benchmark.log
+          grep -F 'scenario=conflicting_readback unsafe_effects=2 unsafe_duplicates=1 unsafe_false_success=0 capu_effects=1 capu_duplicates=0 capu_false_success=0 capu_final=CONFLICT' astra-capu-v1-a2-benchmark.log
+          grep -F 'summary unsafe_duplicates=2 capu_duplicates=0 unsafe_false_success=1 capu_false_success=0 capu_unknown_blocks=4 capu_sealed_successes=3 capu_conflict_fail_closed=1' astra-capu-v1-a2-benchmark.log
+          grep -F 'ASTRA_CAPU_V1_A2_CRASH_INJECTION_BENCHMARK_PASS' astra-capu-v1-a2-benchmark.log
+      - name: Generate and inspect machine-readable result
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from tools.astra_capu_crash_benchmark_a2 import run_benchmark
+
+          result = run_benchmark()
+          output = Path('astra-capu-v1-a2-result.json')
+          output.write_text(result.to_json())
+          payload = json.loads(output.read_text())
+          schema = json.loads(Path('schemas/hardware/astra-capu-crash-benchmark-v1.0-a2.schema.json').read_text())
+          fixture = json.loads(Path('examples/hardware/astra-capu-v1-a2-expected.json').read_text())
+
+          assert schema['title'] == 'ASTRA–CaPU Accelerator Crash Benchmark Result v1.0-A2'
+          assert payload['unsafe_duplicate_effects'] == fixture['expected']['unsafe_duplicate_effects'] == 2
+          assert payload['capu_duplicate_effects'] == fixture['expected']['capu_duplicate_effects'] == 0
+          assert payload['unsafe_false_successes'] == fixture['expected']['unsafe_false_successes'] == 1
+          assert payload['capu_false_successes'] == fixture['expected']['capu_false_successes'] == 0
+          assert payload['capu_unknown_blocks'] == fixture['expected']['capu_unknown_blocks'] == 4
+          assert payload['capu_conflict_fail_closed'] == fixture['expected']['capu_conflict_fail_closed'] == 1
+          assert len(payload['benchmark_digest_sha256']) == 64
+          print(f"machine_result_digest={payload['benchmark_digest_sha256']}")
+          print('A2_MACHINE_RESULT_PASS')
+          PY
+      - name: Seal A2 evidence
+        run: |
+          sha256sum \
+            tools/astra_capu_effect_authority_a1.py \
+            tools/astra_capu_crash_benchmark_a2.py \
+            tests/test_astra_capu_effect_authority_a1.py \
+            tests/test_astra_capu_crash_benchmark_a2.py \
+            schemas/hardware/astra-capu-effect-authority-v1.0-a1.schema.json \
+            schemas/hardware/astra-capu-crash-benchmark-v1.0-a2.schema.json \
+            examples/hardware/astra-capu-v1-a2-expected.json \
+            docs/hardware/ASTRA_CAPU_V1_A2_CRASH_INJECTION_BENCHMARK.md \
+            astra-capu-v1-a1-regression.log \
+            astra-capu-v1-a2-test.log \
+            astra-capu-v1-a2-benchmark.log \
+            astra-capu-v1-a2-result.json \
+            > astra-capu-v1-a2.sha256
+          cat astra-capu-v1-a2.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a2-crash-benchmark-evidence
+          path: |
+            astra-capu-v1-a1-regression.log
+            astra-capu-v1-a2-test.log
+            astra-capu-v1-a2-benchmark.log
+            astra-capu-v1-a2-result.json
+            astra-capu-v1-a2.sha256

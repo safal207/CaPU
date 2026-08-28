@@ -1,0 +1,230 @@
+name: ASTRA-CaPU v1.0-A4 Synthesizable Authority Shim
+
+on:
+  pull_request:
+    paths:
+      - 'rtl/astra_capu_effect_counter_a3.sv'
+      - 'rtl/astra_capu_authority_shim_a4.sv'
+      - 'rtl/astra_capu_authorized_effect_device_a4.sv'
+      - 'rtl/tb/astra_capu_authorized_effect_device_a4_tb.sv'
+      - 'formal/astra_capu_authority_shim_a4*'
+      - 'tools/astra_capu_authority_shim_a4.py'
+      - 'tests/test_astra_capu_authority_shim_a4.py'
+      - 'schemas/hardware/astra-capu-authority-shim-v1.0-a4.schema.json'
+      - 'examples/hardware/astra-capu-v1-a4-expected.json'
+      - 'docs/hardware/ASTRA_CAPU_V1_A4_SYNTHESIZABLE_AUTHORITY_SHIM.md'
+      - '.github/workflows/astra-capu-v1-a4-authority-shim.yml'
+
+jobs:
+  deterministic:
+    name: A4 physical command-gate trajectory
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+          iverilog -V
+      - name: Compile A4 authorized effect device
+        run: |
+          set -euo pipefail
+          iverilog -g2012 \
+            -o /tmp/astra-capu-a4.vvp \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/astra_capu_authority_shim_a4.sv \
+            rtl/astra_capu_authorized_effect_device_a4.sv \
+            rtl/tb/astra_capu_authorized_effect_device_a4_tb.sv
+      - name: Run deterministic A4 trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/astra-capu-a4.vvp | tee astra-capu-v1-a4-rtl.log
+          grep -F 'a4_exact_forward forward=1 device_accept=1 effect_count=1' astra-capu-v1-a4-rtl.log
+          grep -F 'a4_duplicate_blocked reject_code=4 effect_count=1' astra-capu-v1-a4-rtl.log
+          grep -F 'a4_uncommitted_blocked reject_code=2 effect_count=1' astra-capu-v1-a4-rtl.log
+          grep -F 'a4_stale_identity_blocked reject_code=3 active_incarnation=4' astra-capu-v1-a4-rtl.log
+          grep -F 'a4_unknown_dispatch forward=1 external_commit=0 attempt_spent=1 effect_count=1' astra-capu-v1-a4-rtl.log
+          grep -F 'a4_same_attempt_replay_blocked reject_code=4 effect_count=1' astra-capu-v1-a4-rtl.log
+          grep -F 'a4_successor_attempt_forwarded attempt=1 effect_count=2' astra-capu-v1-a4-rtl.log
+          grep -F 'a4_revoked_authority_blocked reject_code=1 effect_count=2' astra-capu-v1-a4-rtl.log
+          grep -F 'ASTRA_CAPU_V1_A4_SYNTHESIZABLE_AUTHORITY_SHIM_PASS' astra-capu-v1-a4-rtl.log
+      - name: Run A4 reference and unit tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_authority_shim_a4.py 2>&1 | tee astra-capu-v1-a4-test.log
+          python3 -m tools.astra_capu_authority_shim_a4 | tee astra-capu-v1-a4-reference.log
+          grep -F 'Ran 10 tests' astra-capu-v1-a4-test.log
+          grep -F 'OK' astra-capu-v1-a4-test.log
+          grep -F 'ASTRA_CAPU_V1_A4_REFERENCE_PASS' astra-capu-v1-a4-reference.log
+      - name: Regress A1 and A2 authority semantics
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_effect_authority_a1.py 2>&1 | tee astra-capu-v1-a1-regression.log
+          python3 -m unittest -v tests/test_astra_capu_crash_benchmark_a2.py 2>&1 | tee astra-capu-v1-a2-regression.log
+          grep -F 'Ran 12 tests' astra-capu-v1-a1-regression.log
+          grep -F 'Ran 11 tests' astra-capu-v1-a2-regression.log
+          grep -F 'OK' astra-capu-v1-a1-regression.log
+          grep -F 'OK' astra-capu-v1-a2-regression.log
+      - name: Regress A3 separate-process adapter
+        run: |
+          set -euo pipefail
+          iverilog -g2012 \
+            -o /tmp/astra-capu-a3.vvp \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/tb/astra_capu_effect_counter_a3_tb.sv
+          A3_SIMULATOR=/tmp/astra-capu-a3.vvp \
+            python3 -m unittest -v tests/test_astra_capu_icarus_adapter_a3.py \
+            2>&1 | tee astra-capu-v1-a3-regression.log
+          grep -F 'Ran 8 tests' astra-capu-v1-a3-regression.log
+          grep -F 'OK' astra-capu-v1-a3-regression.log
+      - name: Generate and validate machine-readable result
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from tools.astra_capu_authority_shim_a4 import scenario_result
+
+          result = scenario_result()
+          output = Path('astra-capu-v1-a4-result.json')
+          output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          schema = json.loads(Path('schemas/hardware/astra-capu-authority-shim-v1.0-a4.schema.json').read_text())
+          expected = json.loads(Path('examples/hardware/astra-capu-v1-a4-expected.json').read_text())['expected']
+          assert schema['title'] == 'ASTRA–CaPU Synthesizable Authority Shim v1.0-A4 Result'
+          assert result == expected
+          assert result['external_effect_count'] == 2
+          assert result['duplicate_reject_code'] == 4
+          assert result['stale_identity_reject_code'] == 3
+          print(f"a4_machine_result_digest={result['result_digest_sha256']}")
+          print('A4_MACHINE_RESULT_PASS')
+          PY
+      - name: Seal executable A4 evidence
+        run: |
+          cp /tmp/astra-capu-a4.vvp ./astra-capu-a4.vvp
+          sha256sum \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/astra_capu_authority_shim_a4.sv \
+            rtl/astra_capu_authorized_effect_device_a4.sv \
+            rtl/tb/astra_capu_authorized_effect_device_a4_tb.sv \
+            tools/astra_capu_authority_shim_a4.py \
+            tests/test_astra_capu_authority_shim_a4.py \
+            schemas/hardware/astra-capu-authority-shim-v1.0-a4.schema.json \
+            examples/hardware/astra-capu-v1-a4-expected.json \
+            docs/hardware/ASTRA_CAPU_V1_A4_SYNTHESIZABLE_AUTHORITY_SHIM.md \
+            astra-capu-a4.vvp \
+            astra-capu-v1-a4-rtl.log \
+            astra-capu-v1-a4-test.log \
+            astra-capu-v1-a4-reference.log \
+            astra-capu-v1-a1-regression.log \
+            astra-capu-v1-a2-regression.log \
+            astra-capu-v1-a3-regression.log \
+            astra-capu-v1-a4-result.json \
+            > astra-capu-v1-a4.sha256
+          cat astra-capu-v1-a4.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a4-authority-shim-evidence
+          path: |
+            astra-capu-a4.vvp
+            astra-capu-v1-a4-rtl.log
+            astra-capu-v1-a4-test.log
+            astra-capu-v1-a4-reference.log
+            astra-capu-v1-a1-regression.log
+            astra-capu-v1-a2-regression.log
+            astra-capu-v1-a3-regression.log
+            astra-capu-v1-a4-result.json
+            astra-capu-v1-a4.sha256
+
+  formal:
+    name: Bounded A4 physical authority-gate proof
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove bounded A4 safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/astra-capu-a4-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/astra-capu-a4-formal/safety-work \
+            formal/astra_capu_authority_shim_a4.sby \
+            2>&1 | tee target/astra-capu-a4-formal/formal.log
+          grep -q 'DONE (PASS' target/astra-capu-a4-formal/formal.log
+      - name: Prove A4 paths reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/astra-capu-a4-formal/cover-work \
+            formal/astra_capu_authority_shim_a4_cover.sby \
+            2>&1 | tee target/astra-capu-a4-formal/cover.log
+          grep -q 'DONE (PASS' target/astra-capu-a4-formal/cover.log
+          test "$(find target/astra-capu-a4-formal/cover-work -name 'trace*.vcd' | wc -l)" -ge 1
+      - name: Seal formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import subprocess
+          from pathlib import Path
+
+          root = Path('target/astra-capu-a4-formal')
+          safety = (root / 'formal.log').read_text(errors='replace')
+          cover = (root / 'cover.log').read_text(errors='replace')
+          inputs = [Path(x) for x in [
+              'rtl/astra_capu_effect_counter_a3.sv',
+              'rtl/astra_capu_authority_shim_a4.sv',
+              'rtl/astra_capu_authorized_effect_device_a4.sv',
+              'formal/astra_capu_authority_shim_a4_formal.sv',
+              'formal/astra_capu_authority_shim_a4.sby',
+              'formal/astra_capu_authority_shim_a4_cover.sby',
+              'tools/astra_capu_authority_shim_a4.py',
+          ]]
+          h = hashlib.sha256()
+          for path in inputs:
+              h.update(str(path).encode() + b'\0' + path.read_bytes() + b'\0')
+          proof = {
+              'schema': 'capu.hardware.astra-authority-shim-formal-proof.v1.0-a4',
+              'result': 'PASS',
+              'proof_method': 'bounded model checking',
+              'depth': 18,
+              'cover_depth': 28,
+              'cover_witnesses': len(list((root / 'cover-work').rglob('trace*.vcd'))),
+              'formal_tag_width_bits': 3,
+              'formal_identity_width_bits': 3,
+              'active_token_count': 1,
+              'physical_device_gate': True,
+              'formal_input_sha256': h.hexdigest(),
+              'formal_log_sha256': hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256': hashlib.sha256(cover.encode()).hexdigest(),
+              'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version': subprocess.check_output(['yosys', '-V'], text=True).strip(),
+              'z3_version': subprocess.check_output(['z3', '--version'], text=True).strip(),
+              'claim_boundary': 'bounded reduced-width single-active-token synthesizable authority shim physically gating the synthetic A3 effect counter; no persistent anti-replay across shim reset, cryptographic token verification, real accelerator transport, timing/PPA, liveness or unbounded correctness',
+          }
+          (root / 'formal-proof.json').write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(proof, indent=2, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a4-authority-shim-formal-evidence
+          path: |
+            target/astra-capu-a4-formal/formal.log
+            target/astra-capu-a4-formal/cover.log
+            target/astra-capu-a4-formal/formal-proof.json
+            target/astra-capu-a4-formal/safety-work/
+            target/astra-capu-a4-formal/cover-work/
