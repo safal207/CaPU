@@ -1,0 +1,80 @@
+name: ASTRA-CaPU R0 Effect Authority
+
+on:
+  pull_request:
+    paths:
+      - "rust/cmc-core/src/capu/astra_r0.rs"
+      - "rust/cmc-core/src/capu/mod.rs"
+      - "rust/cmc-core/src/bin/astra_capu_r0_demo.rs"
+      - ".github/workflows/astra-capu-r0.yml"
+      - "docs/hardware/ASTRA_CAPU_R0_DEMO_PLAN.md"
+  workflow_dispatch:
+
+jobs:
+  r0:
+    name: Fault-injected effect authority witness
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: rust/cmc-core
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run complete Rust test suite
+        run: cargo test --all --locked
+
+      - name: Run ASTRA-CaPU R0 witness
+        run: |
+          set -euo pipefail
+          cargo run --bin astra_capu_r0_demo --locked | tee astra-capu-r0.log
+          grep -F 'unsafe_baseline dispatches=2 external_effects=2 duplicate_effect=true' astra-capu-r0.log
+          grep -F 'capu_unknown_boundary blind_replay_blocked=true success_claim_blocked=true memory_update_blocked=true' astra-capu-r0.log
+          grep -F 'capu_reconciled dispatches=1 external_effects=1 stale_evidence_quarantined=1 trusted_memory_updated=true' astra-capu-r0.log
+          grep -F 'ASTRA_CAPU_R0_EFFECT_AUTHORITY_PASS' astra-capu-r0.log
+
+      - name: Validate machine-readable result
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          lines = Path('astra-capu-r0.log').read_text().splitlines()
+          result_line = next(line for line in lines if line.startswith('result_json='))
+          result = json.loads(result_line.removeprefix('result_json='))
+
+          assert result['schema'] == 'capu.astra.r0.result.v1'
+          assert result['baseline_duplicate_effect'] is True
+          assert result['baseline_external_effect_count'] == 2
+          assert result['capu_external_effect_count'] == 1
+          assert result['blind_replay_blocked'] is True
+          assert result['success_claim_blocked'] is True
+          assert result['memory_update_blocked'] is True
+          assert result['stale_evidence_quarantined'] == 1
+          assert result['trusted_memory_updated'] is True
+          assert len(result['proof_receipt_digest']) == 64
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Seal R0 evidence
+        run: |
+          sha256sum \
+            src/capu/astra_r0.rs \
+            src/capu/mod.rs \
+            src/bin/astra_capu_r0_demo.rs \
+            astra-capu-r0.log \
+            > astra-capu-r0.sha256
+          cat astra-capu-r0.sha256
+
+      - name: Upload R0 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-r0-effect-authority-evidence
+          path: |
+            rust/cmc-core/astra-capu-r0.log
+            rust/cmc-core/astra-capu-r0.sha256
