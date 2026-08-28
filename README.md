@@ -32,6 +32,7 @@ ASCII fallback:
 - Live interactive progress dashboard: [https://safal207.github.io/CaPU/](https://safal207.github.io/CaPU/)
 - Dashboard source fallback: [docs/hardware/CAPU_PROGRESS_DASHBOARD.html](docs/hardware/CAPU_PROGRESS_DASHBOARD.html)
 - Public status and roadmap snapshot: [docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md](docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md)
+- **ASTRA–CaPU v1.0 reference architecture:** [docs/hardware/ASTRA_CAPU_V1_REFERENCE_ARCHITECTURE.md](docs/hardware/ASTRA_CAPU_V1_REFERENCE_ARCHITECTURE.md)
 - Core terminology: [docs/GLOSSARY.md](docs/GLOSSARY.md)
 - Lifecycle conformance matrix: [docs/CONFORMANCE_MATRIX.md](docs/CONFORMANCE_MATRIX.md)
 - Draft embedded profile: [docs/EMBEDDED_PROFILE.md](docs/EMBEDDED_PROFILE.md)
@@ -66,6 +67,12 @@ ASCII fallback:
 - Dependency boundaries: [DEPENDENCIES.md](DEPENDENCIES.md)
 - Threat model: [docs/safety/agentic_execution_threat_model.md](docs/safety/agentic_execution_threat_model.md)
 
+## ASTRA–CaPU v1.0 architecture map
+
+[![ASTRA–CaPU v1.0 reference architecture](docs/hardware/assets/astra-capu-v1-reference-architecture.svg)](docs/hardware/ASTRA_CAPU_V1_REFERENCE_ARCHITECTURE.md)
+
+The diagram is a reference architecture, not a silicon floorplan. It positions verified CaPU recovery/effect-authority work as a candidate control-plane boundary around autonomous agents, accelerator command queues, DMA, memory, and external effects.
+
 ## Core Concepts and Architecture
 
 The shortest conceptual entrypoint is:
@@ -83,6 +90,7 @@ Recommended reviewer path:
 LIVE_CAPU_PROGRESS_DASHBOARD
  -> CAPU_PROGRESS_DASHBOARD_SOURCE
  -> CAPU_PUBLIC_STATUS_AND_ROADMAP
+ -> ASTRA_CAPU_V1_REFERENCE_ARCHITECTURE
  -> CAPU_SOFTWARE_REFERENCE_UNITS_STATUS
  -> CAPU_PROCESSOR_MODEL
  -> CAPU_PROCESSOR_ISA_V0
