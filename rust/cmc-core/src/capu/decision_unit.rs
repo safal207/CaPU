@@ -3,7 +3,9 @@ use super::boundary_router::boundary_matches_route;
 use super::commit_unit::check_external_action_commit;
 use super::hypothesis_unit::check_introspection_hypothesis_label;
 use super::persona_memory_unit::check_persona_memory_cause;
-use super::transition::{Boundary, DecisionClass, Transition, TransitionType, UnitDecision};
+use super::transition::{DecisionClass, Transition, TransitionType, UnitDecision};
+#[cfg(test)]
+use super::transition::Boundary;
 
 /// Evaluate a typed transition through the CaPU software reference pipeline.
 ///

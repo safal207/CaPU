@@ -1,0 +1,40 @@
+{
+  "schema": "capu.conformance.lifecycle.v1",
+  "scenarios": [
+    {
+      "id": "valid-mature-commit-ok",
+      "events": ["GATE_PERMIT", "MATURE", "COMMIT_OK", "EXECUTE"],
+      "expected": { "decision_code": "EXECUTE_OK", "execute_count": 1 }
+    },
+    {
+      "id": "valid-mature-commit-fail",
+      "events": ["GATE_PERMIT", "MATURE", "COMMIT_FAIL"],
+      "expected": { "decision_code": "REJECT_COMMIT_FAILED", "execute_count": 0 }
+    },
+    {
+      "id": "valid-hold-mature-commit-ok",
+      "events": ["GATE_PERMIT", "HOLD", "MATURE", "COMMIT_OK", "EXECUTE"],
+      "expected": { "decision_code": "EXECUTE_OK", "execute_count": 1 }
+    },
+    {
+      "id": "valid-hold-expire",
+      "events": ["GATE_PERMIT", "HOLD", "EXPIRE"],
+      "expected": { "decision_code": "EXPIRED_NO_EXECUTE", "execute_count": 0 }
+    },
+    {
+      "id": "invalid-reject",
+      "events": ["GATE_REJECT_INVALID"],
+      "expected": { "decision_code": "REJECT_INVALID", "execute_count": 0 }
+    },
+    {
+      "id": "policy-denied-reject",
+      "events": ["GATE_REJECT_POLICY"],
+      "expected": { "decision_code": "REJECT_POLICY_DENIED", "execute_count": 0 }
+    },
+    {
+      "id": "missing-parent-hold",
+      "events": ["MISSING_PARENT", "HOLD", "PARENT_AVAILABLE", "GATE_PERMIT", "MATURE", "COMMIT_OK", "EXECUTE"],
+      "expected": { "decision_code": "EXECUTE_OK", "execute_count": 1 }
+    }
+  ]
+}
