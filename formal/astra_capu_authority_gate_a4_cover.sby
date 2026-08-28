@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 24
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal -sv astra_capu_authority_gate_a4.sv astra_capu_authority_gate_a4_formal.sv
+prep -top astra_capu_authority_gate_a4_formal
+
+[files]
+rtl/astra_capu_authority_gate_a4.sv
+formal/astra_capu_authority_gate_a4_formal.sv
