@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run validate:examples && npm run test:reference && npm run verify:golden",
+    "test": "npm run validate:examples && npm run validate:conformance && npm run test:reference && npm run verify:golden",
     "validate:examples": "node scripts/validate-examples.mjs",
+    "validate:conformance": "node scripts/validate-conformance-fixtures.mjs",
     "validate:runtime-http": "node scripts/validate-runtime-http-fixtures.mjs",
     "validate:runtime-http-manifest": "node scripts/validate-runtime-http-manifest.mjs",
     "validate:runtime-http-openapi-lite": "node scripts/validate-runtime-http-openapi-lite.mjs",

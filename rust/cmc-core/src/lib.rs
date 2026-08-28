@@ -482,6 +482,7 @@ mod tests {
             cmc.trace_events().len()
         );
 
-        assert_eq!(actual, include_str!("../fixtures/basic_flow.golden.txt"));
+        let expected = include_str!("../fixtures/basic_flow.golden.txt").replace("\r\n", "\n");
+        assert_eq!(actual, expected);
     }
 }

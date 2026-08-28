@@ -28,6 +28,11 @@ jobs:
           set -euxo pipefail
           npm run validate:examples
 
+      - name: Validate lifecycle conformance fixtures
+        run: |
+          set -euxo pipefail
+          npm run validate:conformance
+
       - name: Validate runtime HTTP OpenAPI-lite contract
         run: |
           set -euxo pipefail
