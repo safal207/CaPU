@@ -63,7 +63,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/.bazel-disk-cache
-          key: raiden-bazel-${{ runner.os }}-8.6.0-050d32bc7173d6413d32a8152118d0bad44c034d-${{ github.run_id }}
+          # A workflow re-run keeps run_id but increments run_attempt. Cache
+          # entries are immutable, so include both to persist newer partial
+          # Bazel outputs after every bounded seed attempt.
+          key: raiden-bazel-${{ runner.os }}-8.6.0-050d32bc7173d6413d32a8152118d0bad44c034d-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             raiden-bazel-${{ runner.os }}-8.6.0-050d32bc7173d6413d32a8152118d0bad44c034d-
 
