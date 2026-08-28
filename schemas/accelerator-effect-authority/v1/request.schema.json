@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://safal207.github.io/CaPU/schemas/accelerator-effect-authority/v1/request.schema.json",
+  "title": "CaPU Accelerator Effect Authority Request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "intent_id",
+    "principal_id",
+    "policy_commitment",
+    "state_commitment",
+    "queue_incarnation",
+    "queue_epoch",
+    "slot_id",
+    "command_id",
+    "execution_epoch",
+    "attempt_id",
+    "effect_id",
+    "resource_commitment",
+    "expected_outcome_class",
+    "expires_at_epoch"
+  ],
+  "properties": {
+    "schema": { "const": "capu.accelerator-effect-authority.request.v1" },
+    "intent_id": { "$ref": "#/$defs/identity" },
+    "principal_id": { "$ref": "#/$defs/identity" },
+    "policy_commitment": { "$ref": "#/$defs/commitment" },
+    "state_commitment": { "$ref": "#/$defs/commitment" },
+    "queue_incarnation": { "$ref": "#/$defs/uint32" },
+    "queue_epoch": { "$ref": "#/$defs/uint32" },
+    "slot_id": { "$ref": "#/$defs/uint32" },
+    "command_id": { "$ref": "#/$defs/identity" },
+    "execution_epoch": { "$ref": "#/$defs/uint32" },
+    "attempt_id": { "$ref": "#/$defs/uint32" },
+    "effect_id": { "$ref": "#/$defs/identity" },
+    "resource_commitment": { "$ref": "#/$defs/commitment" },
+    "expected_outcome_class": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9._-]*$"
+    },
+    "expires_at_epoch": { "$ref": "#/$defs/uint32" }
+  },
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    },
+    "commitment": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "uint32": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    }
+  }
+}
