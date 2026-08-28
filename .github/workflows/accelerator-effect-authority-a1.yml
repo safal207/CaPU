@@ -1,0 +1,207 @@
+name: CaPU Accelerator Effect Authority Interface A1
+
+on:
+  pull_request:
+    paths:
+      - 'schemas/accelerator-effect-authority/v1/**'
+      - 'fixtures/accelerator-effect-authority-v1/**'
+      - 'docs/hardware/CAPU_ACCELERATOR_EFFECT_AUTHORITY_INTERFACE_V1.md'
+      - 'tools/accelerator_effect_authority_v1.py'
+      - 'tests/test_accelerator_effect_authority_v1.py'
+      - 'scripts/validate-accelerator-effect-authority-v1.mjs'
+      - 'rtl/capu_accelerator_effect_authority_a1.sv'
+      - 'rtl/tb/capu_accelerator_effect_authority_a1_tb.sv'
+      - 'formal/capu_accelerator_effect_authority_a1*'
+      - '.github/workflows/accelerator-effect-authority-a1.yml'
+
+jobs:
+  executable:
+    name: A1 schema canonical and deterministic lifecycle
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install schema validator
+        run: npm ci
+      - name: Validate A1 JSON Schemas and fixtures
+        run: |
+          set -euo pipefail
+          node scripts/validate-accelerator-effect-authority-v1.mjs | tee accelerator-effect-authority-a1-schema.log
+          grep -F 'ACCELERATOR_EFFECT_AUTHORITY_V1_SCHEMA_PASS' accelerator-effect-authority-a1-schema.log
+      - name: Run canonical and adversarial lifecycle tests
+        run: |
+          set -euo pipefail
+          python3 tests/test_accelerator_effect_authority_v1.py | tee accelerator-effect-authority-a1-python.log
+          grep -F 'ACCELERATOR_EFFECT_AUTHORITY_V1_PASS' accelerator-effect-authority-a1-python.log
+          grep -F 'foreign_request_commitment_rejected=1' accelerator-effect-authority-a1-python.log
+          grep -F 'broken_evidence_chain_rejected=1' accelerator-effect-authority-a1-python.log
+          grep -F 'false_success_without_outcome_rejected=1' accelerator-effect-authority-a1-python.log
+          grep -F 'terminal_state_cannot_advance=1' accelerator-effect-authority-a1-python.log
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Run A1 deterministic RTL trajectory
+        run: |
+          set -euo pipefail
+          iverilog -g2012 -o /tmp/capu-a1 \
+            rtl/capu_accelerator_effect_authority_a1.sv \
+            rtl/tb/capu_accelerator_effect_authority_a1_tb.sv
+          vvp /tmp/capu-a1 | tee accelerator-effect-authority-a1-rtl.log
+          grep -F 'CAPU_ACCELERATOR_EFFECT_AUTHORITY_A1_PASS' accelerator-effect-authority-a1-rtl.log
+          grep -F 'unknown_recovery request=51 state=UNKNOWN evidence_required=1 retire_authority=0' accelerator-effect-authority-a1-rtl.log
+          grep -F 'foreign_evidence rejected=1 state_unchanged=UNKNOWN proof_receipt=0' accelerator-effect-authority-a1-rtl.log
+          grep -F 'negative_resolution current_attempt_closed=1 successor_attempt_authority=1 same_attempt_issue=REJECTED' accelerator-effect-authority-a1-rtl.log
+          grep -F 'committed_resolution exact_evidence=1 proof_receipt=1 retire=ACCEPTED replay_closed=1' accelerator-effect-authority-a1-rtl.log
+      - name: Regress verified v0.33 executable and canonical paths
+        run: |
+          set -euo pipefail
+          iverilog -g2012 -o /tmp/capu-v33 \
+            rtl/capu_queue_epoch_wrap_incarnation_v33.sv \
+            rtl/tb/capu_queue_epoch_wrap_incarnation_v33_tb.sv
+          vvp /tmp/capu-v33 | tee queue-epoch-wrap-v33-regression.log
+          grep -F 'CAPU_VCML_QUEUE_EPOCH_WRAP_INCARNATION_V33_PASS' queue-epoch-wrap-v33-regression.log
+          python3 tests/test_vcml_queue_epoch_wrap_checkpoint_v33.py | tee queue-epoch-wrap-v33-python-regression.log
+          grep -F 'VCML_QUEUE_EPOCH_WRAP_CHECKPOINT_V33_PASS' queue-epoch-wrap-v33-python-regression.log
+      - name: Seal executable evidence
+        run: |
+          sha256sum \
+            schemas/accelerator-effect-authority/v1/request.schema.json \
+            schemas/accelerator-effect-authority/v1/evidence.schema.json \
+            schemas/accelerator-effect-authority/v1/lifecycle.schema.json \
+            fixtures/accelerator-effect-authority-v1/valid-lifecycle.json \
+            fixtures/accelerator-effect-authority-v1/adversarial-cases.json \
+            tools/accelerator_effect_authority_v1.py \
+            tests/test_accelerator_effect_authority_v1.py \
+            rtl/capu_accelerator_effect_authority_a1.sv \
+            rtl/tb/capu_accelerator_effect_authority_a1_tb.sv \
+            accelerator-effect-authority-a1-schema.log \
+            accelerator-effect-authority-a1-python.log \
+            accelerator-effect-authority-a1-rtl.log \
+            queue-epoch-wrap-v33-regression.log \
+            queue-epoch-wrap-v33-python-regression.log \
+            > accelerator-effect-authority-a1.sha256
+          cat accelerator-effect-authority-a1.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-accelerator-effect-authority-a1-evidence
+          path: |
+            accelerator-effect-authority-a1-schema.log
+            accelerator-effect-authority-a1-python.log
+            accelerator-effect-authority-a1-rtl.log
+            queue-epoch-wrap-v33-regression.log
+            queue-epoch-wrap-v33-python-regression.log
+            accelerator-effect-authority-a1.sha256
+
+  formal:
+    name: Bounded A1 authority-interface proof
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove bounded A1 safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-a1-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-a1-formal/safety-work \
+            formal/capu_accelerator_effect_authority_a1.sby \
+            2>&1 | tee target/capu-a1-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-a1-formal/formal.log
+      - name: Prove A1 paths reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-a1-formal/cover-work \
+            formal/capu_accelerator_effect_authority_a1_cover.sby \
+            2>&1 | tee target/capu-a1-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-a1-formal/cover.log
+          test "$(find target/capu-a1-formal/cover-work -name 'trace*.vcd' | wc -l)" -ge 1
+      - name: Regress v0.33 bounded safety
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-a1-formal/v33-safety-work \
+            formal/capu_queue_epoch_wrap_incarnation_v33_live.sby \
+            2>&1 | tee target/capu-a1-formal/v33-formal.log
+          grep -q 'DONE (PASS' target/capu-a1-formal/v33-formal.log
+      - name: Seal A1 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          root = Path('target/capu-a1-formal')
+          safety = (root/'formal.log').read_text(errors='replace')
+          cover = (root/'cover.log').read_text(errors='replace')
+          v33 = (root/'v33-formal.log').read_text(errors='replace')
+          inputs = [Path(x) for x in [
+              'rtl/capu_accelerator_effect_authority_a1.sv',
+              'formal/capu_accelerator_effect_authority_a1_formal.sv',
+              'formal/capu_accelerator_effect_authority_a1.sby',
+              'formal/capu_accelerator_effect_authority_a1_cover.sby',
+              'tools/accelerator_effect_authority_v1.py',
+              'schemas/accelerator-effect-authority/v1/request.schema.json',
+              'schemas/accelerator-effect-authority/v1/evidence.schema.json',
+              'schemas/accelerator-effect-authority/v1/lifecycle.schema.json',
+          ]]
+          h = hashlib.sha256()
+          for p in inputs:
+              h.update(str(p).encode() + b'\0' + p.read_bytes() + b'\0')
+          proof = {
+              'schema': 'capu.hardware.accelerator-effect-authority-interface-formal-proof.v1.0-a1',
+              'result': 'PASS',
+              'proof_method': 'bounded model checking',
+              'depth': 20,
+              'cover_depth': 28,
+              'cover_witnesses': len(list((root/'cover-work').rglob('trace*.vcd'))),
+              'formal_tag_width_bits': 3,
+              'request_count': 1,
+              'effect_count': 1,
+              'v0_33_safety_regression': 'PASS',
+              'formal_input_sha256': h.hexdigest(),
+              'formal_log_sha256': hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256': hashlib.sha256(cover.encode()).hexdigest(),
+              'v0_33_regression_log_sha256': hashlib.sha256(v33.encode()).hexdigest(),
+              'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version': subprocess.check_output(['yosys','-V'], text=True).strip(),
+              'z3_version': subprocess.check_output(['z3','--version'], text=True).strip(),
+              'claim_boundary': 'bounded reduced-width one-request one-effect reference model for authorization/execution/outcome separation, UNKNOWN fail-closed recovery, exact evidence identity, successor-attempt authority after negative evidence, proof receipt after committed evidence, and stale/foreign evidence non-mutation',
+          }
+          (root/'formal-proof.json').write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(proof, indent=2, sort_keys=True))
+          PY
+          sha256sum \
+            target/capu-a1-formal/formal.log \
+            target/capu-a1-formal/cover.log \
+            target/capu-a1-formal/v33-formal.log \
+            target/capu-a1-formal/formal-proof.json \
+            > target/capu-a1-formal/a1-formal.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-accelerator-effect-authority-a1-formal-evidence
+          path: |
+            target/capu-a1-formal/formal.log
+            target/capu-a1-formal/cover.log
+            target/capu-a1-formal/v33-formal.log
+            target/capu-a1-formal/formal-proof.json
+            target/capu-a1-formal/a1-formal.sha256
+            target/capu-a1-formal/safety-work/
+            target/capu-a1-formal/cover-work/
