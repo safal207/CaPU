@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://safal207.github.io/CaPU/schemas/accelerator-effect-authority/v1/lifecycle.schema.json",
+  "title": "CaPU Accelerator Effect Authority Lifecycle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "request", "evidence"],
+  "properties": {
+    "schema": { "const": "capu.accelerator-effect-authority.lifecycle.v1" },
+    "request": {
+      "$ref": "https://safal207.github.io/CaPU/schemas/accelerator-effect-authority/v1/request.schema.json"
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://safal207.github.io/CaPU/schemas/accelerator-effect-authority/v1/evidence.schema.json"
+      }
+    }
+  }
+}

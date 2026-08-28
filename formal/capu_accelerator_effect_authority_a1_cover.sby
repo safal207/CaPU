@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 28
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal -sv capu_accelerator_effect_authority_a1.sv capu_accelerator_effect_authority_a1_formal.sv
+prep -top capu_accelerator_effect_authority_a1_formal
+
+[files]
+rtl/capu_accelerator_effect_authority_a1.sv
+formal/capu_accelerator_effect_authority_a1_formal.sv
