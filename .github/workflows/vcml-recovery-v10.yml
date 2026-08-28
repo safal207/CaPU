@@ -1,0 +1,187 @@
+name: CaPU vCML Recovery v0.10
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_store_buffer.sv"
+      - "rtl/capu_ctag_validator.sv"
+      - "rtl/capu_seal_controller.sv"
+      - "rtl/capu_causal_head_controller.sv"
+      - "rtl/capu_vcml_store_buffer.sv"
+      - "rtl/capu_replay_recovery_guard.sv"
+      - "rtl/capu_vcml_store_buffer_v10.sv"
+      - "rtl/tb/capu_vcml_recovery_v10_tb.sv"
+      - "formal/capu_replay_recovery_guard.sby"
+      - "formal/capu_replay_recovery_guard_cover.sby"
+      - "formal/capu_replay_recovery_guard_formal.sv"
+      - "tools/vcml_replay_snapshot.py"
+      - "tests/test_vcml_replay_snapshot.py"
+      - "docs/hardware/CAPU_VCML_RECOVERY_V10.md"
+      - ".github/workflows/vcml-recovery-v10.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-rtl-semantic:
+    name: Reset recovery guard + vCML snapshot projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile v0.10 recovered causal STORE path
+        run: |
+          iverilog -g2012 -o /tmp/capu-vcml-recovery-v10 \
+            rtl/capu_store_buffer.sv \
+            rtl/capu_ctag_validator.sv \
+            rtl/capu_seal_controller.sv \
+            rtl/capu_causal_head_controller.sv \
+            rtl/capu_vcml_store_buffer.sv \
+            rtl/capu_replay_recovery_guard.sv \
+            rtl/capu_vcml_store_buffer_v10.sv \
+            rtl/tb/capu_vcml_recovery_v10_tb.sv
+      - name: Run v0.10 reset recovery trajectory
+        run: |
+          set -o pipefail
+          vvp /tmp/capu-vcml-recovery-v10 | tee vcml-recovery-v10.log
+          grep -F "CAPU_VCML_BRIDGE_V10_RECOVERY_PASS" vcml-recovery-v10.log
+          grep -F "pre_restore_root rejected=1" vcml-recovery-v10.log
+          grep -F "root_committed ref=A110 spent=1" vcml-recovery-v10.log
+          grep -F "reset_again recovery_ready=0 spent=0" vcml-recovery-v10.log
+          grep -F "recovery_gap_old_ref rejected=1" vcml-recovery-v10.log
+          grep -F "snapshot_restored ref=A110 spent=1" vcml-recovery-v10.log
+          grep -F "restored_replay_A110 rejected=1" vcml-recovery-v10.log
+          grep -F "fresh_after_restore ref=A120 spent=2" vcml-recovery-v10.log
+          grep -F "malformed_duplicate_snapshot rejected=1 ready=0" vcml-recovery-v10.log
+          grep -F "valid_snapshot_restored spent=2" vcml-recovery-v10.log
+          grep -F "live_restore_overwrite rejected=1 spent=2" vcml-recovery-v10.log
+      - name: Run vCML replay snapshot tests
+        run: |
+          python3 -m py_compile tools/vcml_replay_snapshot.py
+          python3 tests/test_vcml_replay_snapshot.py | tee vcml-replay-snapshot-v10.log
+          grep -F "VCML_REPLAY_SNAPSHOT_V10_PASS" vcml-replay-snapshot-v10.log
+      - name: Capture v0.10 executable evidence hashes
+        run: |
+          sha256sum \
+            rtl/capu_replay_recovery_guard.sv \
+            rtl/capu_vcml_store_buffer_v10.sv \
+            rtl/tb/capu_vcml_recovery_v10_tb.sv \
+            tools/vcml_replay_snapshot.py \
+            tests/test_vcml_replay_snapshot.py \
+            vcml-recovery-v10.log \
+            vcml-replay-snapshot-v10.log > vcml-recovery-v10.sha256
+          cat vcml-recovery-v10.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v10-recovery-evidence
+          path: |
+            vcml-recovery-v10.log
+            vcml-replay-snapshot-v10.log
+            vcml-recovery-v10.sha256
+
+  recovery-formal:
+    name: Bounded v0.10 replay recovery proof
+    needs: recovery-rtl-semantic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove v0.10 bounded recovery safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-vcml-recovery-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-recovery-formal/safety-work \
+            formal/capu_replay_recovery_guard.sby 2>&1 | tee target/capu-vcml-recovery-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-vcml-recovery-formal/formal.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-recovery-formal/formal.log
+      - name: Prove restored replay and fail-closed paths are reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-recovery-formal/cover-work \
+            formal/capu_replay_recovery_guard_cover.sby 2>&1 | tee target/capu-vcml-recovery-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-vcml-recovery-formal/cover.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-recovery-formal/cover.log
+      - name: Seal v0.10 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          root = Path('target/capu-vcml-recovery-formal')
+          safety = (root/'formal.log').read_text(errors='replace')
+          cover = (root/'cover.log').read_text(errors='replace')
+          if 'DONE (PASS' not in safety or 'DONE (ERROR' in safety:
+              raise SystemExit('v0.10 safety not PASS')
+          if 'DONE (PASS' not in cover or 'DONE (ERROR' in cover:
+              raise SystemExit('v0.10 cover not PASS')
+          inputs = [Path(x) for x in [
+              'rtl/capu_replay_recovery_guard.sv',
+              'formal/capu_replay_recovery_guard_formal.sv',
+              'formal/capu_replay_recovery_guard.sby',
+              'formal/capu_replay_recovery_guard_cover.sby']]
+          h = hashlib.sha256()
+          for p in inputs:
+              h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof = {
+              'schema':'capu.hardware.replay-recovery-formal-proof.v0.10',
+              'result':'PASS',
+              'depth':20,
+              'cover_depth':24,
+              'solver':'z3',
+              'formal_instance':{
+                  'authorization_ref_width':4,
+                  'spent_authorization_slots':4},
+              'recovery_policy':'reset/recovery closes root admission; a structurally valid snapshot must be accepted before roots can reopen; restored spent refs remain rejected; a live recovered set cannot be overwritten without a new recovery_begin',
+              'invariants':[
+                  'RECOVERY_NOT_READY => NO_ROOT_AUTHORIZATION_ACCEPT',
+                  'RESTORE_ACCEPT => SNAPSHOT_WELL_FORMED && !RECOVERY_READY',
+                  'MALFORMED_SNAPSHOT => NO_RESTORE_ACCEPT',
+                  'RESTORED_SPENT_REF => NO_ROOT_AUTHORIZATION_ACCEPT',
+                  'RECOVERY_BEGIN => NEXT_STATE_NOT_READY_AND_EMPTY_LOCAL_SET',
+                  'LIVE_RECOVERY_STATE + RESTORE_VALID => RESTORE_REJECTED',
+                  'AUTHORIZATION_CAPACITY_EXHAUSTED => NO_FRESH_ROOT_ACCEPT'],
+              'claim_boundary':'The proof covers the finite recovery guard only. Restore snapshot bytes are trusted input and structurally validated but not cryptographically authenticated. No durable storage, autonomous power-loss persistence, snapshot freshness, issuer authentication, distributed recovery, or complete CPU proof is claimed.',
+              'formal_input_sha256':h.hexdigest(),
+              'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
+              'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),
+              'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),
+          }
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+      - name: Upload v0.10 formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v10-recovery-formal-evidence
+          path: |
+            target/capu-vcml-recovery-formal/formal.log
+            target/capu-vcml-recovery-formal/cover.log
+            target/capu-vcml-recovery-formal/formal-proof.json
+            target/capu-vcml-recovery-formal/safety-work/
+            target/capu-vcml-recovery-formal/cover-work/
+          if-no-files-found: warn

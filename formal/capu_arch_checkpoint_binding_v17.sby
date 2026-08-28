@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 24
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_arch_checkpoint_binding_v17.sv capu_arch_checkpoint_binding_v17_formal.sv
+prep -top capu_arch_checkpoint_binding_v17_formal
+
+[files]
+rtl/capu_arch_checkpoint_binding_v17.sv
+formal/capu_arch_checkpoint_binding_v17_formal.sv

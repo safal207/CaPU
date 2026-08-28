@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 20
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_checkpoint_freshness_guard.sv capu_checkpoint_freshness_guard_formal.sv
+prep -top capu_checkpoint_freshness_guard_formal
+
+[files]
+rtl/capu_checkpoint_freshness_guard.sv
+formal/capu_checkpoint_freshness_guard_formal.sv

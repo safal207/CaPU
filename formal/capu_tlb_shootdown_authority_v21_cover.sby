@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 38
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_tlb_shootdown_authority_v21.sv capu_tlb_shootdown_authority_v21_formal.sv
+prep -top capu_tlb_shootdown_authority_v21_formal
+
+[files]
+rtl/capu_tlb_shootdown_authority_v21.sv
+formal/capu_tlb_shootdown_authority_v21_formal.sv

@@ -1,0 +1,15 @@
+[options]
+mode bmc
+depth 20
+multiclock on
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv capu_store_buffer.sv capu_store_buffer_formal.sv
+prep -top capu_store_buffer_formal
+
+[files]
+rtl/capu_store_buffer.sv
+formal/capu_store_buffer_formal.sv

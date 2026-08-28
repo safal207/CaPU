@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 24
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_concurrent_dma_queue_recovery_v31.sv capu_concurrent_dma_queue_recovery_v31_formal.sv
+prep -top capu_concurrent_dma_queue_recovery_v31_formal
+
+[files]
+rtl/capu_concurrent_dma_queue_recovery_v31.sv
+formal/capu_concurrent_dma_queue_recovery_v31_formal.sv

@@ -1,0 +1,15 @@
+[options]
+mode prove
+depth 42
+wait on
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_accelerator_dma_recovery_v26.sv capu_accelerator_dma_recovery_v26_formal.sv
+prep -top capu_accelerator_dma_recovery_v26_formal
+
+[files]
+rtl/capu_accelerator_dma_recovery_v26.sv
+formal/capu_accelerator_dma_recovery_v26_formal.sv

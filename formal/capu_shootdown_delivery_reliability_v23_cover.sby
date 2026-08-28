@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 44
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_shootdown_delivery_reliability_v23.sv capu_shootdown_delivery_reliability_v23_formal.sv
+prep -top capu_shootdown_delivery_reliability_v23_formal
+
+[files]
+rtl/capu_shootdown_delivery_reliability_v23.sv
+formal/capu_shootdown_delivery_reliability_v23_formal.sv

@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 26
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_precise_trap_recovery_v18.sv capu_precise_trap_recovery_v18_formal.sv
+prep -top capu_precise_trap_recovery_v18_formal
+
+[files]
+rtl/capu_precise_trap_recovery_v18.sv
+formal/capu_precise_trap_recovery_v18_formal.sv

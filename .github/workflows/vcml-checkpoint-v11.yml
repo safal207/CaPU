@@ -1,0 +1,169 @@
+name: CaPU vCML Checkpoint v0.11
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_checkpoint_freshness_guard.sv"
+      - "rtl/capu_vcml_store_buffer_v11.sv"
+      - "rtl/tb/capu_vcml_recovery_v11_tb.sv"
+      - "formal/capu_checkpoint_freshness_guard.sv"
+      - "formal/capu_checkpoint_freshness_guard_cover.sby"
+      - "formal/capu_checkpoint_freshness_guard_formal.sv"
+      - "docs/hardware/CAPU_VCML_CHECKPOINT_V11.md"
+      - ".github/workflows/vcml-checkpoint-v11.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkpoint-rtl:
+    name: Exact checkpoint anchor + replay recovery composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile v0.11 checkpointed recovery path
+        run: |
+          iverilog -g2012 -o /tmp/capu-vcml-checkpoint-v11 \
+            rtl/capu_store_buffer.sv \
+            rtl/capu_ctag_validator.sv \
+            rtl/capu_seal_controller.sv \
+            rtl/capu_causal_head_controller.sv \
+            rtl/capu_vcml_store_buffer.sv \
+            rtl/capu_replay_recovery_guard.sv \
+            rtl/capu_vcml_store_buffer_v10.sv \
+            rtl/capu_checkpoint_freshness_guard.sv \
+            rtl/capu_vcml_store_buffer_v11.sv \
+            rtl/tb/capu_vcml_recovery_v11_tb.sv
+      - name: Run v0.11 anti-rollback trajectory
+        run: |
+          set -o pipefail
+          vvp /tmp/capu-vcml-checkpoint-v11 | tee vcml-checkpoint-v11.log
+          grep -F "CAPU_VCML_BRIDGE_V11_CHECKPOINT_PASS" vcml-checkpoint-v11.log
+          grep -F "stale_checkpoint rollback=1 ready=0" vcml-checkpoint-v11.log
+          grep -F "wrong_ref rejected=1" vcml-checkpoint-v11.log
+          grep -F "untrusted_exact rejected=1" vcml-checkpoint-v11.log
+          grep -F "exact_anchor restored=1 spent=1" vcml-checkpoint-v11.log
+          grep -F "restored_replay_A110 rejected=1" vcml-checkpoint-v11.log
+          grep -F "fresh_after_restore ref=A120 spent=2" vcml-checkpoint-v11.log
+          grep -F "anchor_advanced old_checkpoint_rejected=1" vcml-checkpoint-v11.log
+          grep -F "new_anchor restored=1 spent=2" vcml-checkpoint-v11.log
+          grep -F "explicit_cold_start ready=1 spent=0" vcml-checkpoint-v11.log
+      - name: Capture v0.11 executable evidence hashes
+        run: |
+          sha256sum \
+            rtl/capu_checkpoint_freshness_guard.sv \
+            rtl/capu_vcml_store_buffer_v11.sv \
+            rtl/tb/capu_vcml_recovery_v11_tb.sv \
+            vcml-checkpoint-v11.log > vcml-checkpoint-v11.sha256
+          cat vcml-checkpoint-v11.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v11-checkpoint-evidence
+          path: |
+            vcml-checkpoint-v11.log
+            vcml-checkpoint-v11.sha256
+
+  checkpoint-formal:
+    name: Bounded v0.11 checkpoint freshness proof
+    needs: checkpoint-rtl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove v0.11 bounded checkpoint safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-vcml-checkpoint-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-checkpoint-formal/safety-work \
+            formal/capu_checkpoint_freshness_guard.sby 2>&1 | tee target/capu-vcml-checkpoint-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-vcml-checkpoint-formal/formal.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-checkpoint-formal/formal.log
+      - name: Prove rollback and exact-anchor paths are reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-checkpoint-formal/cover-work \
+            formal/capu_checkpoint_freshness_guard_cover.sby 2>&1 | tee target/capu-vcml-checkpoint-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-vcml-checkpoint-formal/cover.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-checkpoint-formal/cover.log
+      - name: Seal v0.11 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          root = Path('target/capu-vcml-checkpoint-formal')
+          safety = (root/'formal.log').read_text(errors='replace')
+          cover = (root/'cover.log').read_text(errors='replace')
+          if 'DONE (PASS' not in safety or 'DONE (ERROR' in safety:
+              raise SystemExit('v0.11 safety not PASS')
+          if 'DONE (PASS' not in cover or 'DONE (ERROR' in cover:
+              raise SystemExit('v0.11 cover not PASS')
+          inputs = [Path(x) for x in [
+              'rtl/capu_checkpoint_freshness_guard.sv',
+              'formal/capu_checkpoint_freshness_guard_formal.sv',
+              'formal/capu_checkpoint_freshness_guard.sby',
+              'formal/capu_checkpoint_freshness_guard_cover.sby']]
+          h = hashlib.sha256()
+          for p in inputs:
+              h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof = {
+              'schema':'capu.hardware.checkpoint-freshness-formal-proof.v0.11',
+              'result':'PASS',
+              'depth':16,
+              'cover_depth':20,
+              'solver':'z3',
+              'formal_instance':{'checkpoint_ref_width':4,'checkpoint_epoch_width':4},
+              'restore_policy':'with a valid external anchor, only the exact trusted checkpoint ref+epoch may pass; older epochs, wrong refs and untrusted checkpoints fail closed; without an anchor, only an explicit zero-ref/zero-epoch cold start may pass',
+              'invariants':[
+                  'ANCHORED_RESTORE_ACCEPT => TRUSTED && SNAPSHOT_REF==ANCHOR_REF && SNAPSHOT_EPOCH==ANCHOR_EPOCH',
+                  'SNAPSHOT_EPOCH<ANCHOR_EPOCH => ROLLBACK_DETECTED && NO_RESTORE_ACCEPT',
+                  'SAME_EPOCH_WRONG_REF => NO_RESTORE_ACCEPT',
+                  'UNTRUSTED_ANCHORED_CHECKPOINT => NO_RESTORE_ACCEPT',
+                  'RECOVERY_BEGIN => NO_RESTORE_ACCEPT',
+                  'COLD_START_ACCEPT => !ANCHOR_VALID && COLD_START_AUTHORIZED && REF==0 && EPOCH==0'],
+              'claim_boundary':'The proof covers only the finite checkpoint freshness guard. checkpoint_trusted and the external anchor are trusted inputs. The RTL does not implement cryptographic verification, monotonic durable storage, anchor persistence, checkpoint generation, journal durability, distributed recovery, or a complete CPU proof.',
+              'formal_input_sha256':h.hexdigest(),
+              'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
+              'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),
+              'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),
+          }
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+      - name: Upload v0.11 formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v11-checkpoint-formal-evidence
+          path: |
+            target/capu-vcml-checkpoint-formal/formal.log
+            target/capu-vcml-checkpoint-formal/cover.log
+            target/capu-vcml-checkpoint-formal/formal-proof.json
+            target/capu-vcml-checkpoint-formal/safety-work/
+            target/capu-vcml-checkpoint-formal/cover-work/
+          if-no-files-found: warn

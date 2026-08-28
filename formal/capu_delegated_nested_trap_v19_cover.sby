@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 34
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_delegated_nested_trap_v19.sv capu_delegated_nested_trap_v19_formal.sv
+prep -top capu_delegated_nested_trap_v19_formal
+
+[files]
+rtl/capu_delegated_nested_trap_v19.sv
+formal/capu_delegated_nested_trap_v19_formal.sv

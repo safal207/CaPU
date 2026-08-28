@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 28
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_queue_epoch_slot_reuse_v32.sv capu_queue_epoch_slot_reuse_v32_formal.sv
+prep -top capu_queue_epoch_slot_reuse_v32_formal
+
+[files]
+rtl/capu_queue_epoch_slot_reuse_v32.sv
+formal/capu_queue_epoch_slot_reuse_v32_formal.sv

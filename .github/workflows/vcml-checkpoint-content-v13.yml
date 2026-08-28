@@ -1,0 +1,183 @@
+name: CaPU vCML Checkpoint Content v0.13
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_checkpoint_content_binding_v13.sv"
+      - "rtl/tb/capu_checkpoint_content_binding_v13_tb.sv"
+      - "formal/capu_checkpoint_content_binding_v13_formal.sv"
+      - "formal/capu_checkpoint_content_binding_v13.sby"
+      - "formal/capu_checkpoint_content_binding_v13_cover.sby"
+      - "tools/vcml_checkpoint_commitment.py"
+      - "tests/test_vcml_checkpoint_commitment.py"
+      - "docs/hardware/CAPU_VCML_CHECKPOINT_CONTENT_V13.md"
+      - ".github/workflows/vcml-checkpoint-content-v13.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkpoint-content-rtl:
+    name: Canonical commitment and checkpoint binding composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile v0.13 checkpoint content path
+        run: |
+          iverilog -g2012 -o /tmp/capu-vcml-checkpoint-v13 \
+            rtl/capu_store_buffer.sv \
+            rtl/capu_ctag_validator.sv \
+            rtl/capu_seal_controller.sv \
+            rtl/capu_causal_head_controller.sv \
+            rtl/capu_vcml_store_buffer.sv \
+            rtl/capu_replay_recovery_guard.sv \
+            rtl/capu_vcml_store_buffer_v10.sv \
+            rtl/capu_checkpoint_freshness_guard.sv \
+            rtl/capu_vcml_store_buffer_v11.sv \
+            rtl/capu_checkpoint_commit_controller.sv \
+            rtl/capu_vcml_store_buffer_v12.sv \
+            rtl/capu_checkpoint_content_binding_v13.sv \
+            rtl/tb/capu_checkpoint_content_binding_v13_tb.sv
+      - name: Run v0.13 content-binding trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/capu-vcml-checkpoint-v13 | tee vcml-checkpoint-content-v13.log
+          grep -F "CAPU_VCML_CHECKPOINT_CONTENT_V13_PASS" vcml-checkpoint-content-v13.log
+          grep -F "unverified_candidate rejected=1" vcml-checkpoint-content-v13.log
+          grep -F "persistence_exact commitment=" vcml-checkpoint-content-v13.log
+          grep -F "checkpoint_committed ref=C001 epoch=1 commitment=" vcml-checkpoint-content-v13.log
+          grep -F "anchored_restore commitment=" vcml-checkpoint-content-v13.log
+          grep -F "tampered_snapshot verifier_rejected=1" vcml-checkpoint-content-v13.log
+          grep -F "commitment_transition base=" vcml-checkpoint-content-v13.log
+      - name: Run canonical SHA-256 commitment reference tests
+        run: |
+          set -euo pipefail
+          python3 tests/test_vcml_checkpoint_commitment.py | tee vcml-checkpoint-content-v13-python.log
+          grep -F "VCML_CHECKPOINT_COMMITMENT_V13_PASS" vcml-checkpoint-content-v13-python.log
+      - name: Capture v0.13 executable evidence hashes
+        run: |
+          sha256sum \
+            rtl/capu_checkpoint_content_binding_v13.sv \
+            rtl/tb/capu_checkpoint_content_binding_v13_tb.sv \
+            tools/vcml_checkpoint_commitment.py \
+            tests/test_vcml_checkpoint_commitment.py \
+            vcml-checkpoint-content-v13.log \
+            vcml-checkpoint-content-v13-python.log > vcml-checkpoint-content-v13.sha256
+          cat vcml-checkpoint-content-v13.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v13-checkpoint-content-evidence
+          path: |
+            vcml-checkpoint-content-v13.log
+            vcml-checkpoint-content-v13-python.log
+            vcml-checkpoint-content-v13.sha256
+
+  checkpoint-content-formal:
+    name: Bounded v0.13 checkpoint content binding proof
+    needs: checkpoint-content-rtl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove v0.13 bounded commitment binding safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-vcml-checkpoint-content-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-checkpoint-content-formal/safety-work \
+            formal/capu_checkpoint_content_binding_v13.sby 2>&1 | tee target/capu-vcml-checkpoint-content-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-vcml-checkpoint-content-formal/formal.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-checkpoint-content-formal/formal.log
+      - name: Prove binding and rejection paths are reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-checkpoint-content-formal/cover-work \
+            formal/capu_checkpoint_content_binding_v13_cover.sby 2>&1 | tee target/capu-vcml-checkpoint-content-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-vcml-checkpoint-content-formal/cover.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-checkpoint-content-formal/cover.log
+      - name: Seal v0.13 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          root = Path('target/capu-vcml-checkpoint-content-formal')
+          safety = (root/'formal.log').read_text(errors='replace')
+          cover = (root/'cover.log').read_text(errors='replace')
+          if 'DONE (PASS' not in safety or 'DONE (ERROR' in safety:
+              raise SystemExit('v0.13 safety not PASS')
+          if 'DONE (PASS' not in cover or 'DONE (ERROR' in cover:
+              raise SystemExit('v0.13 cover not PASS')
+          inputs = [Path(x) for x in [
+              'rtl/capu_checkpoint_content_binding_v13.sv',
+              'formal/capu_checkpoint_content_binding_v13_formal.sv',
+              'formal/capu_checkpoint_content_binding_v13.sby',
+              'formal/capu_checkpoint_content_binding_v13_cover.sby']]
+          h = hashlib.sha256()
+          for p in inputs:
+              h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof = {
+              'schema':'capu.hardware.checkpoint-content-formal-proof.v0.13',
+              'result':'PASS',
+              'depth':16,
+              'cover_depth':20,
+              'solver':'z3',
+              'formal_instance':{
+                  'authorization_ref_width':4,
+                  'spent_authorization_slots':2,
+                  'checkpoint_ref_width':3,
+                  'checkpoint_epoch_width':3,
+                  'checkpoint_commitment_width':4},
+              'binding_policy':'an anchored restore is admitted only with an externally verified nonzero content commitment exactly equal to the authoritative anchor; checkpoint prepare requires a verified nonzero commitment; persistence and anchor acknowledgement must preserve the exact prepared commitment',
+              'invariants':[
+                  'ANCHORED_RESTORE_ACCEPT => COMMITMENT_VERIFIED && SNAPSHOT_COMMITMENT == ANCHOR_COMMITMENT',
+                  'UNVERIFIED_OR_MISMATCHED_ANCHORED_COMMITMENT => NO_RESTORE_ACCEPT',
+                  'PREPARE_ACCEPT => CANDIDATE_COMMITMENT_VERIFIED && CANDIDATE_COMMITMENT != 0',
+                  'PERSIST_ACCEPT => PERSISTED_COMMITMENT == REQUEST_COMMITMENT',
+                  'CHECKPOINT_COMMIT_EVENT => ACK_COMMITMENT == REQUEST_COMMITMENT',
+                  'ANCHOR_COMMIT_REQUEST => REQUEST_COMMITMENT != 0'],
+              'claim_boundary':'The proof covers exact commitment binding in the finite v0.13 adapter/composition. SHA-256 is computed and verified outside RTL by a reference implementation/trusted commitment engine. The proof does not establish cryptographic implementation correctness inside hardware, trusted-engine integrity, durable-media correctness, omission resistance of the source vCML history, full causal-head recovery, distributed consensus, complete CPU correctness, or unbounded/parametric verification.',
+              'formal_input_sha256':h.hexdigest(),
+              'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
+              'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),
+              'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),
+          }
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+      - name: Upload v0.13 formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v13-checkpoint-content-formal-evidence
+          path: |
+            target/capu-vcml-checkpoint-content-formal/formal.log
+            target/capu-vcml-checkpoint-content-formal/cover.log
+            target/capu-vcml-checkpoint-content-formal/formal-proof.json
+            target/capu-vcml-checkpoint-content-formal/safety-work/
+            target/capu-vcml-checkpoint-content-formal/cover-work/
+          if-no-files-found: warn

@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 18
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_multibeat_dma_recovery_v29.sv capu_multibeat_dma_recovery_v29_formal.sv
+prep -top capu_multibeat_dma_recovery_v29_formal
+
+[files]
+rtl/capu_multibeat_dma_recovery_v29.sv
+formal/capu_multibeat_dma_recovery_v29_formal.sv

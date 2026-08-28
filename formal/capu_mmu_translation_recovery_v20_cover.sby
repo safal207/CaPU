@@ -1,0 +1,14 @@
+[options]
+mode cover
+depth 36
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal capu_mmu_translation_recovery_v20.sv capu_mmu_translation_recovery_v20_formal.sv
+prep -top capu_mmu_translation_recovery_v20_formal
+
+[files]
+rtl/capu_mmu_translation_recovery_v20.sv
+formal/capu_mmu_translation_recovery_v20_formal.sv

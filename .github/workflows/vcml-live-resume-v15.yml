@@ -1,0 +1,172 @@
+name: CaPU vCML Live Causal Resume v0.15
+
+on:
+  pull_request:
+    paths:
+      - "rtl/capu_causal_head_controller.sv"
+      - "rtl/capu_seal_controller.sv"
+      - "rtl/capu_vcml_store_buffer.sv"
+      - "rtl/capu_vcml_store_buffer_v15.sv"
+      - "rtl/tb/capu_vcml_live_resume_v15_tb.sv"
+      - "formal/capu_vcml_live_resume_v15_formal.sv"
+      - "formal/capu_vcml_live_resume_v15.sby"
+      - "formal/capu_vcml_live_resume_v15_cover.sby"
+      - "docs/hardware/CAPU_VCML_LIVE_RESUME_V15.md"
+      - ".github/workflows/vcml-live-resume-v15.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-resume-rtl:
+    name: Live causal resume composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile v0.15 live causal runtime
+        run: |
+          iverilog -g2012 -o /tmp/capu-vcml-live-resume-v15 \
+            rtl/capu_store_buffer.sv \
+            rtl/capu_ctag_validator.sv \
+            rtl/capu_seal_controller.sv \
+            rtl/capu_causal_head_controller.sv \
+            rtl/capu_vcml_store_buffer.sv \
+            rtl/capu_replay_recovery_guard.sv \
+            rtl/capu_vcml_store_buffer_v15.sv \
+            rtl/tb/capu_vcml_live_resume_v15_tb.sv
+      - name: Run v0.15 live-resume trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/capu-vcml-live-resume-v15 | tee vcml-live-resume-v15.log
+          grep -F "CAPU_VCML_LIVE_RESUME_V15_PASS" vcml-live-resume-v15.log
+      - name: Capture v0.15 executable evidence hashes
+        run: |
+          sha256sum \
+            rtl/capu_causal_head_controller.sv \
+            rtl/capu_seal_controller.sv \
+            rtl/capu_vcml_store_buffer.sv \
+            rtl/capu_vcml_store_buffer_v15.sv \
+            rtl/tb/capu_vcml_live_resume_v15_tb.sv \
+            vcml-live-resume-v15.log > vcml-live-resume-v15.sha256
+          cat vcml-live-resume-v15.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v15-live-resume-evidence
+          path: |
+            vcml-live-resume-v15.log
+            vcml-live-resume-v15.sha256
+
+  live-resume-formal:
+    name: Bounded v0.15 live causal resume proof
+    needs: live-resume-rtl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove v0.15 bounded live-resume safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-vcml-live-resume-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-live-resume-formal/safety-work \
+            formal/capu_vcml_live_resume_v15.sby 2>&1 | tee target/capu-vcml-live-resume-formal/formal.log
+          grep -q 'DONE (PASS' target/capu-vcml-live-resume-formal/formal.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-live-resume-formal/formal.log
+      - name: Prove resumed and fail-closed paths are reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/capu-vcml-live-resume-formal/cover-work \
+            formal/capu_vcml_live_resume_v15_cover.sby 2>&1 | tee target/capu-vcml-live-resume-formal/cover.log
+          grep -q 'DONE (PASS' target/capu-vcml-live-resume-formal/cover.log
+          ! grep -q 'DONE (ERROR' target/capu-vcml-live-resume-formal/cover.log
+      - name: Seal v0.15 formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          root = Path('target/capu-vcml-live-resume-formal')
+          safety = (root/'formal.log').read_text(errors='replace')
+          cover = (root/'cover.log').read_text(errors='replace')
+          if 'DONE (PASS' not in safety or 'DONE (ERROR' in safety:
+              raise SystemExit('v0.15 safety not PASS')
+          if 'DONE (PASS' not in cover or 'DONE (ERROR' in cover:
+              raise SystemExit('v0.15 cover not PASS')
+          inputs = [Path(x) for x in [
+              'rtl/capu_causal_head_controller.sv',
+              'rtl/capu_seal_controller.sv',
+              'rtl/capu_vcml_store_buffer.sv',
+              'rtl/capu_vcml_store_buffer_v15.sv',
+              'formal/capu_vcml_live_resume_v15_formal.sv',
+              'formal/capu_vcml_live_resume_v15.sby',
+              'formal/capu_vcml_live_resume_v15_cover.sby']]
+          h = hashlib.sha256()
+          for p in inputs:
+              h.update(str(p).encode()+b'\0'+p.read_bytes()+b'\0')
+          proof = {
+              'schema':'capu.hardware.live-causal-resume-formal-proof.v0.15',
+              'result':'PASS',
+              'depth':24,
+              'cover_depth':28,
+              'solver':'z3',
+              'formal_instance':{
+                  'addr_width':4,
+                  'data_width':8,
+                  'transition_id_width':4,
+                  'authorization_ref_width':4,
+                  'policy_epoch_width':4,
+                  'spent_authorization_slots':2},
+              'resume_policy':'given a structurally valid full causal snapshot already accepted by the upstream v0.14 authority/commitment boundary, restore re-establishes the live causal head/GEN/SEAL and finite replay set before execution reopens; ordinary continuation then uses the unchanged v0.9 exact-parent, next-GEN and SEAL rules',
+              'invariants':[
+                  'EXECUTION_BEFORE_RUNTIME_RESTORE => REJECT',
+                  'RECOVERY_OR_RESTORE_ACTIVITY => SPECULATION_FLUSHED && NO_VISIBLE_EFFECT',
+                  'RESTORE_ACCEPT => NEXT_LIVE_CAUSAL_STATE == ACCEPTED_CAUSAL_SNAPSHOT',
+                  'NORMAL_CONTINUATION_ADMIT => PARENT == LIVE_HEAD && GEN == LIVE_GEN+1 && !SEAL && LIVE_GEN != F',
+                  'RECOVERED_SEAL => AUTOMATIC_CONTINUATION_REJECT',
+                  'RECOVERED_GEN_F => AUTOMATIC_WRAP_REJECT',
+                  'RESTORED_SPENT_AUTHORIZATION_REF => ROOT_REPLAY_REJECT'],
+              'claim_boundary':'v0.15 assumes restore_valid is driven only by a snapshot already accepted by the v0.14 full-state checkpoint authority/commitment boundary. This bounded reduced-width proof covers runtime restoration and subsequent local causal admission/retirement semantics, not cryptographic verification, durable-media correctness, full CPU architectural state, cache/register/predictor/coherence recovery, arbitrary distributed recovery, or unbounded/parametric correctness.',
+              'formal_input_sha256':h.hexdigest(),
+              'formal_log_sha256':hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256':hashlib.sha256(cover.encode()).hexdigest(),
+              'sby_git_sha':Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version':subprocess.check_output(['yosys','-V'],text=True).strip(),
+              'z3_version':subprocess.check_output(['z3','--version'],text=True).strip(),
+          }
+          (root/'formal-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(proof,indent=2,sort_keys=True))
+          PY
+      - name: Upload v0.15 formal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capu-vcml-v15-live-resume-formal-evidence
+          path: |
+            target/capu-vcml-live-resume-formal/formal.log
+            target/capu-vcml-live-resume-formal/cover.log
+            target/capu-vcml-live-resume-formal/formal-proof.json
+            target/capu-vcml-live-resume-formal/safety-work/
+            target/capu-vcml-live-resume-formal/cover-work/
+          if-no-files-found: warn
