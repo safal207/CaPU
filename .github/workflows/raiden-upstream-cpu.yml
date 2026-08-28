@@ -2,6 +2,8 @@ name: Raiden Upstream JAX CPU Recovery Baseline
 
 on:
   push:
+    branches:
+      - main
     paths:
       - ".github/workflows/raiden-upstream-cpu.yml"
       - "tools/raiden_upstream_evidence.py"
@@ -15,6 +17,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: raiden-upstream-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   upstream-recovery:
