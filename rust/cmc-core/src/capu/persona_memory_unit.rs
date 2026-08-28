@@ -1,4 +1,5 @@
 use super::cause_unit::{check_cause_present, CauseCheck};
+use super::decision_codes::p1;
 use super::transition::{Boundary, DecisionClass, Transition, UnitDecision};
 
 /// Check P1: persona memory writes require explicit causal support.
@@ -8,18 +9,18 @@ pub fn check_persona_memory_cause(transition: &Transition) -> UnitDecision {
     match cause_check {
         CauseCheck::Missing => UnitDecision {
             class: DecisionClass::Reject,
-            code: "REJECT_PERSONA_MEMORY_WITHOUT_CAUSE",
-            invariant_id: "P1",
+            code: p1::REJECT_WITHOUT_CAUSE,
+            invariant_id: p1::INVARIANT_ID,
             boundary: Boundary::PersonaMemoryRequiresCause,
-            verdict: "blocked_persona_memory_without_cause",
+            verdict: p1::VERDICT_BLOCKED_WITHOUT_CAUSE,
             cause_id: None,
         },
         CauseCheck::Present(_) => UnitDecision {
             class: DecisionClass::Accept,
-            code: "ACCEPT_PERSONA_MEMORY_WITH_CAUSE",
-            invariant_id: "P1",
+            code: p1::ACCEPT_WITH_CAUSE,
+            invariant_id: p1::INVARIANT_ID,
             boundary: Boundary::PersonaMemoryRequiresCause,
-            verdict: "accepted_persona_memory_with_cause",
+            verdict: p1::VERDICT_ACCEPTED_WITH_CAUSE,
             cause_id: cause_check.cause_id(),
         },
     }
@@ -41,10 +42,10 @@ mod tests {
         let decision = check_persona_memory_cause(&transition);
 
         assert_eq!(decision.class, DecisionClass::Reject);
-        assert_eq!(decision.code, "REJECT_PERSONA_MEMORY_WITHOUT_CAUSE");
-        assert_eq!(decision.invariant_id, "P1");
+        assert_eq!(decision.code, p1::REJECT_WITHOUT_CAUSE);
+        assert_eq!(decision.invariant_id, p1::INVARIANT_ID);
         assert_eq!(decision.boundary, Boundary::PersonaMemoryRequiresCause);
-        assert_eq!(decision.verdict, "blocked_persona_memory_without_cause");
+        assert_eq!(decision.verdict, p1::VERDICT_BLOCKED_WITHOUT_CAUSE);
         assert_eq!(decision.cause_id, None);
     }
 
@@ -59,10 +60,10 @@ mod tests {
         let decision = check_persona_memory_cause(&transition);
 
         assert_eq!(decision.class, DecisionClass::Accept);
-        assert_eq!(decision.code, "ACCEPT_PERSONA_MEMORY_WITH_CAUSE");
-        assert_eq!(decision.invariant_id, "P1");
+        assert_eq!(decision.code, p1::ACCEPT_WITH_CAUSE);
+        assert_eq!(decision.invariant_id, p1::INVARIANT_ID);
         assert_eq!(decision.boundary, Boundary::PersonaMemoryRequiresCause);
-        assert_eq!(decision.verdict, "accepted_persona_memory_with_cause");
+        assert_eq!(decision.verdict, p1::VERDICT_ACCEPTED_WITH_CAUSE);
         assert_eq!(decision.cause_id, Some(42));
     }
 }
