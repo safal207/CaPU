@@ -1,0 +1,57 @@
+name: ASTRA-CaPU v1.0-A1 Effect Authority Interface
+
+on:
+  pull_request:
+    paths:
+      - 'tools/astra_capu_effect_authority_a1.py'
+      - 'tests/test_astra_capu_effect_authority_a1.py'
+      - 'schemas/hardware/astra-capu-effect-authority-v1.0-a1.schema.json'
+      - 'examples/hardware/astra-capu-v1-a1-*.json'
+      - 'docs/hardware/ASTRA_CAPU_V1_A1_EFFECT_AUTHORITY_INTERFACE.md'
+      - '.github/workflows/astra-capu-v1-a1-effect-authority.yml'
+
+jobs:
+  deterministic:
+    name: A1 deterministic authority and recovery contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run A1 unit and adversarial tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_effect_authority_a1.py 2>&1 | tee astra-capu-v1-a1-test.log
+          grep -F 'Ran 12 tests' astra-capu-v1-a1-test.log
+          grep -F 'OK' astra-capu-v1-a1-test.log
+      - name: Parse schema and fixtures
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          paths = [
+              Path('schemas/hardware/astra-capu-effect-authority-v1.0-a1.schema.json'),
+              Path('examples/hardware/astra-capu-v1-a1-valid.json'),
+              Path('examples/hardware/astra-capu-v1-a1-adversarial.json'),
+          ]
+          for path in paths:
+              json.loads(path.read_text())
+              print(f'json_parse_pass={path}')
+          PY
+      - name: Seal A1 evidence
+        run: |
+          sha256sum \
+            tools/astra_capu_effect_authority_a1.py \
+            tests/test_astra_capu_effect_authority_a1.py \
+            schemas/hardware/astra-capu-effect-authority-v1.0-a1.schema.json \
+            examples/hardware/astra-capu-v1-a1-valid.json \
+            examples/hardware/astra-capu-v1-a1-adversarial.json \
+            docs/hardware/ASTRA_CAPU_V1_A1_EFFECT_AUTHORITY_INTERFACE.md \
+            astra-capu-v1-a1-test.log \
+            > astra-capu-v1-a1.sha256
+          cat astra-capu-v1-a1.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a1-effect-authority-evidence
+          path: |
+            astra-capu-v1-a1-test.log
+            astra-capu-v1-a1.sha256

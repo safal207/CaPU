@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/CaPU/schemas/hardware/astra-capu-effect-authority-v1.0-a1.schema.json",
+  "title": "ASTRA–CaPU Accelerator Effect Authority Interface v1.0-A1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "authority_id",
+    "actor_id",
+    "intent_commitment",
+    "state_commitment",
+    "policy_commitment",
+    "checkpoint_commitment",
+    "identity",
+    "stage",
+    "receipts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "capu.hardware.accelerator-effect-authority.v1.0-a1"
+    },
+    "authority_id": {"type": "string", "minLength": 1},
+    "actor_id": {"type": "string", "minLength": 1},
+    "intent_commitment": {"$ref": "#/$defs/sha256"},
+    "state_commitment": {"$ref": "#/$defs/sha256"},
+    "policy_commitment": {"$ref": "#/$defs/sha256"},
+    "checkpoint_commitment": {"$ref": "#/$defs/sha256"},
+    "identity": {"$ref": "#/$defs/authorityIdentity"},
+    "stage": {
+      "enum": [
+        "PROPOSED",
+        "GROUNDED",
+        "AUTHORIZED",
+        "COMMITTED",
+        "DISPATCHED",
+        "RECONCILED_NOT_COMMITTED",
+        "RECONCILED_COMMITTED",
+        "CONFLICT",
+        "SEALED"
+      ]
+    },
+    "receipts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_witness",
+        "negative_receipt",
+        "completion_receipt",
+        "conflict_receipt"
+      ],
+      "properties": {
+        "issue_witness": {"type": "boolean"},
+        "negative_receipt": {"type": "boolean"},
+        "completion_receipt": {"type": "boolean"},
+        "conflict_receipt": {"type": "boolean"}
+      }
+    },
+    "replay_authorized": {"type": "boolean", "default": false},
+    "retired": {"type": "boolean", "default": false},
+    "sealed_receipt": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "authorityIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "queue_incarnation",
+        "queue_epoch",
+        "slot_id",
+        "command_id",
+        "attempt_id",
+        "effect_id"
+      ],
+      "properties": {
+        "queue_incarnation": {"type": "integer", "minimum": 0},
+        "queue_epoch": {"type": "integer", "minimum": 0},
+        "slot_id": {"type": "integer", "minimum": 0},
+        "command_id": {"type": "string", "minLength": 1},
+        "attempt_id": {"type": "integer", "minimum": 0},
+        "effect_id": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
