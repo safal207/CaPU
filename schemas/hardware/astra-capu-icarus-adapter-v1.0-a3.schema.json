@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/CaPU/schemas/hardware/astra-capu-icarus-adapter-v1.0-a3.schema.json",
+  "title": "ASTRA–CaPU Icarus Device Adapter Benchmark v1.0-A3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "simulator",
+    "simulator_process_launches",
+    "persistent_state_restart_verified",
+    "unsafe_duplicate_effects",
+    "capu_duplicate_effects",
+    "unsafe_false_successes",
+    "capu_false_successes",
+    "capu_unknown_recoveries",
+    "capu_authorized_retries",
+    "capu_sealed_successes",
+    "unsafe_duplicate_final_count",
+    "capu_committed_final_count",
+    "unsafe_false_success_final_count",
+    "capu_negative_retry_final_count",
+    "benchmark_digest_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "capu.hardware.icarus-device-adapter-benchmark.v1.0-a3"},
+    "simulator": {"type": "string", "minLength": 1},
+    "simulator_process_launches": {"type": "integer", "minimum": 1},
+    "persistent_state_restart_verified": {"type": "boolean"},
+    "unsafe_duplicate_effects": {"type": "integer", "minimum": 0},
+    "capu_duplicate_effects": {"type": "integer", "minimum": 0},
+    "unsafe_false_successes": {"type": "integer", "minimum": 0},
+    "capu_false_successes": {"type": "integer", "minimum": 0},
+    "capu_unknown_recoveries": {"type": "integer", "minimum": 0},
+    "capu_authorized_retries": {"type": "integer", "minimum": 0},
+    "capu_sealed_successes": {"type": "integer", "minimum": 0},
+    "unsafe_duplicate_final_count": {"type": "integer", "minimum": 0},
+    "capu_committed_final_count": {"type": "integer", "minimum": 0},
+    "unsafe_false_success_final_count": {"type": "integer", "minimum": 0},
+    "capu_negative_retry_final_count": {"type": "integer", "minimum": 0},
+    "benchmark_digest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
