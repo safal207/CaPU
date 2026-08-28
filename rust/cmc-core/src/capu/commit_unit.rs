@@ -1,4 +1,5 @@
 use super::cause_unit::{check_cause_present, CauseCheck};
+use super::decision_codes::p6;
 use super::transition::{Boundary, DecisionClass, Transition, TransitionType, UnitDecision};
 
 /// Enforce P6: external action requires committed causal authorization.
@@ -12,10 +13,10 @@ pub fn check_external_action_commit(transition: &Transition) -> UnitDecision {
     {
         return UnitDecision {
             class: DecisionClass::Reject,
-            code: "REJECT_INVALID_COMMIT_CHECK_TARGET",
-            invariant_id: "P6",
+            code: p6::REJECT_INVALID_COMMIT_CHECK_TARGET,
+            invariant_id: p6::INVARIANT_ID,
             boundary: transition.boundary,
-            verdict: "invalid_commit_check_target",
+            verdict: p6::VERDICT_INVALID_COMMIT_CHECK_TARGET,
             cause_id: transition.cause_id,
         };
     }
@@ -23,10 +24,10 @@ pub fn check_external_action_commit(transition: &Transition) -> UnitDecision {
     if transition.commit != Some(true) {
         return UnitDecision {
             class: DecisionClass::Reject,
-            code: "REJECT_ACTION_WITHOUT_COMMIT",
-            invariant_id: "P6",
+            code: p6::REJECT_ACTION_WITHOUT_COMMIT,
+            invariant_id: p6::INVARIANT_ID,
             boundary: Boundary::ActionRequiresCommit,
-            verdict: "blocked_action_without_commit",
+            verdict: p6::VERDICT_BLOCKED_ACTION_WITHOUT_COMMIT,
             cause_id: None,
         };
     }
@@ -34,20 +35,20 @@ pub fn check_external_action_commit(transition: &Transition) -> UnitDecision {
     let CauseCheck::Present(cause_id) = check_cause_present(transition.cause_id) else {
         return UnitDecision {
             class: DecisionClass::Reject,
-            code: "REJECT_ACTION_WITHOUT_CAUSE",
-            invariant_id: "P6",
+            code: p6::REJECT_ACTION_WITHOUT_CAUSE,
+            invariant_id: p6::INVARIANT_ID,
             boundary: Boundary::ActionRequiresCommit,
-            verdict: "blocked_action_without_cause",
+            verdict: p6::VERDICT_BLOCKED_ACTION_WITHOUT_CAUSE,
             cause_id: None,
         };
     };
 
     UnitDecision {
         class: DecisionClass::Accept,
-        code: "ACCEPT_COMMITTED_ACTION",
-        invariant_id: "P6",
+        code: p6::ACCEPT_COMMITTED_ACTION,
+        invariant_id: p6::INVARIANT_ID,
         boundary: Boundary::ActionRequiresCommit,
-        verdict: "accepted_committed_action",
+        verdict: p6::VERDICT_ACCEPTED_COMMITTED_ACTION,
         cause_id: Some(cause_id),
     }
 }
@@ -63,10 +64,10 @@ mod tests {
         let decision = check_external_action_commit(&transition);
 
         assert_eq!(decision.class, DecisionClass::Reject);
-        assert_eq!(decision.code, "REJECT_ACTION_WITHOUT_COMMIT");
-        assert_eq!(decision.invariant_id, "P6");
+        assert_eq!(decision.code, p6::REJECT_ACTION_WITHOUT_COMMIT);
+        assert_eq!(decision.invariant_id, p6::INVARIANT_ID);
         assert_eq!(decision.boundary, Boundary::ActionRequiresCommit);
-        assert_eq!(decision.verdict, "blocked_action_without_commit");
+        assert_eq!(decision.verdict, p6::VERDICT_BLOCKED_ACTION_WITHOUT_COMMIT);
         assert_eq!(decision.cause_id, None);
         assert!(!decision.accepted());
     }
@@ -78,10 +79,10 @@ mod tests {
         let decision = check_external_action_commit(&transition);
 
         assert_eq!(decision.class, DecisionClass::Accept);
-        assert_eq!(decision.code, "ACCEPT_COMMITTED_ACTION");
-        assert_eq!(decision.invariant_id, "P6");
+        assert_eq!(decision.code, p6::ACCEPT_COMMITTED_ACTION);
+        assert_eq!(decision.invariant_id, p6::INVARIANT_ID);
         assert_eq!(decision.boundary, Boundary::ActionRequiresCommit);
-        assert_eq!(decision.verdict, "accepted_committed_action");
+        assert_eq!(decision.verdict, p6::VERDICT_ACCEPTED_COMMITTED_ACTION);
         assert_eq!(decision.cause_id, Some(101));
         assert!(decision.accepted());
     }
@@ -93,8 +94,8 @@ mod tests {
         let decision = check_external_action_commit(&transition);
 
         assert_eq!(decision.class, DecisionClass::Reject);
-        assert_eq!(decision.code, "REJECT_ACTION_WITHOUT_CAUSE");
-        assert_eq!(decision.verdict, "blocked_action_without_cause");
+        assert_eq!(decision.code, p6::REJECT_ACTION_WITHOUT_CAUSE);
+        assert_eq!(decision.verdict, p6::VERDICT_BLOCKED_ACTION_WITHOUT_CAUSE);
         assert_eq!(decision.cause_id, None);
     }
 }
