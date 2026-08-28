@@ -4,6 +4,7 @@
 //! from the processor model / semantic ISA / microarchitecture documents into
 //! executable Rust units without changing the existing CMC reviewer outputs.
 
+pub mod astra_r0;
 pub mod audit_bus;
 pub mod authorization_unit;
 pub mod boundary_router;
