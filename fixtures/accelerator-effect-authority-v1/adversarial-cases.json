@@ -1,0 +1,48 @@
+{
+  "base_fixture": "valid-lifecycle.json",
+  "cases": [
+    {
+      "expected_error": "foreign request commitment",
+      "name": "foreign_request_commitment_rejected",
+      "path": ["evidence", 2, "request_commitment"],
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "expected_error": "breaks the evidence commitment chain",
+      "name": "broken_evidence_chain_rejected",
+      "path": ["evidence", 3, "previous_evidence_commitment"],
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "expected_error": "UNKNOWN must require discriminating evidence",
+      "name": "unknown_without_evidence_gate_rejected",
+      "path": ["evidence", 2, "evidence_required"],
+      "value": false
+    },
+    {
+      "expected_error": "COMMITTED requires execution, outcome, receipt, and next-state evidence",
+      "name": "false_success_without_outcome_rejected",
+      "path": ["evidence", 4, "committed_outcome_evidence_commitment"],
+      "value": null
+    },
+    {
+      "expected_error": "UNKNOWN cannot carry resolved outcome or receipt",
+      "name": "receipt_on_unknown_rejected",
+      "path": ["evidence", 2, "receipt_commitment"],
+      "value": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    {
+      "expected_error": "sequence is not contiguous",
+      "name": "non_contiguous_sequence_rejected",
+      "path": ["evidence", 3, "sequence"],
+      "value": 9
+    },
+    {
+      "expected_error": "is not an allowed lifecycle transition",
+      "name": "terminal_state_cannot_advance",
+      "operation": "append_copy",
+      "source_index": 4
+    }
+  ],
+  "schema": "capu.accelerator-effect-authority.adversarial-cases.v1"
+}

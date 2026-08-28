@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://safal207.github.io/CaPU/schemas/accelerator-effect-authority/v1/evidence.schema.json",
+  "title": "CaPU Accelerator Effect Authority Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "request_commitment",
+    "sequence",
+    "previous_evidence_commitment",
+    "decision",
+    "execution_state",
+    "completion_state",
+    "authorization_evidence_commitment",
+    "execution_evidence_commitment",
+    "negative_outcome_evidence_commitment",
+    "committed_outcome_evidence_commitment",
+    "receipt_commitment",
+    "next_state_commitment",
+    "evidence_required",
+    "recovery_required",
+    "reason_code"
+  ],
+  "properties": {
+    "schema": { "const": "capu.accelerator-effect-authority.evidence.v1" },
+    "request_commitment": { "$ref": "#/$defs/commitment" },
+    "sequence": { "$ref": "#/$defs/uint32" },
+    "previous_evidence_commitment": { "$ref": "#/$defs/nullableCommitment" },
+    "decision": { "enum": ["ACCEPTED", "REJECTED", "HELD"] },
+    "execution_state": {
+      "enum": ["NOT_STARTED", "STARTED", "RECOVERING", "RECONCILE_REQUIRED", "CLOSED"]
+    },
+    "completion_state": { "enum": ["NOT_COMMITTED", "UNKNOWN", "COMMITTED"] },
+    "authorization_evidence_commitment": { "$ref": "#/$defs/nullableCommitment" },
+    "execution_evidence_commitment": { "$ref": "#/$defs/nullableCommitment" },
+    "negative_outcome_evidence_commitment": { "$ref": "#/$defs/nullableCommitment" },
+    "committed_outcome_evidence_commitment": { "$ref": "#/$defs/nullableCommitment" },
+    "receipt_commitment": { "$ref": "#/$defs/nullableCommitment" },
+    "next_state_commitment": { "$ref": "#/$defs/nullableCommitment" },
+    "evidence_required": { "type": "boolean" },
+    "recovery_required": { "type": "boolean" },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "sequence": { "const": 0 } }, "required": ["sequence"] },
+      "then": { "properties": { "previous_evidence_commitment": { "type": "null" } } },
+      "else": { "properties": { "previous_evidence_commitment": { "$ref": "#/$defs/commitment" } } }
+    },
+    {
+      "if": { "properties": { "completion_state": { "const": "UNKNOWN" } }, "required": ["completion_state"] },
+      "then": {
+        "properties": {
+          "evidence_required": { "const": true },
+          "execution_evidence_commitment": { "$ref": "#/$defs/commitment" },
+          "negative_outcome_evidence_commitment": { "type": "null" },
+          "committed_outcome_evidence_commitment": { "type": "null" },
+          "receipt_commitment": { "type": "null" },
+          "next_state_commitment": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "completion_state": { "const": "COMMITTED" } }, "required": ["completion_state"] },
+      "then": {
+        "properties": {
+          "decision": { "const": "ACCEPTED" },
+          "execution_state": { "const": "CLOSED" },
+          "execution_evidence_commitment": { "$ref": "#/$defs/commitment" },
+          "negative_outcome_evidence_commitment": { "type": "null" },
+          "committed_outcome_evidence_commitment": { "$ref": "#/$defs/commitment" },
+          "receipt_commitment": { "$ref": "#/$defs/commitment" },
+          "next_state_commitment": { "$ref": "#/$defs/commitment" },
+          "evidence_required": { "const": false },
+          "recovery_required": { "const": false }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sequence": { "minimum": 1 },
+          "completion_state": { "const": "NOT_COMMITTED" },
+          "execution_state": { "const": "CLOSED" }
+        },
+        "required": ["sequence", "completion_state", "execution_state"]
+      },
+      "then": {
+        "properties": {
+          "decision": { "const": "HELD" },
+          "execution_evidence_commitment": { "$ref": "#/$defs/commitment" },
+          "negative_outcome_evidence_commitment": { "$ref": "#/$defs/commitment" },
+          "committed_outcome_evidence_commitment": { "type": "null" },
+          "receipt_commitment": { "type": "null" },
+          "next_state_commitment": { "type": "null" },
+          "evidence_required": { "const": false },
+          "recovery_required": { "const": false }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "commitment": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "nullableCommitment": {
+      "oneOf": [
+        { "$ref": "#/$defs/commitment" },
+        { "type": "null" }
+      ]
+    },
+    "uint32": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+  }
+}
