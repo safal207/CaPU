@@ -1,0 +1,16 @@
+[options]
+mode cover
+depth 28
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal -sv astra_capu_effect_counter_a3.sv astra_capu_authority_shim_a4.sv astra_capu_authorized_effect_device_a4.sv astra_capu_authority_shim_a4_formal.sv
+prep -top astra_capu_authority_shim_a4_formal
+
+[files]
+rtl/astra_capu_effect_counter_a3.sv
+rtl/astra_capu_authority_shim_a4.sv
+rtl/astra_capu_authorized_effect_device_a4.sv
+formal/astra_capu_authority_shim_a4_formal.sv
