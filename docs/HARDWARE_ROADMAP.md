@@ -112,6 +112,8 @@ policy_denied -> reject -> no_execute
 missing_parent -> hold -> no_execute until parent available
 ```
 
+Current machine-readable coverage: [`CONFORMANCE_MATRIX.md`](CONFORMANCE_MATRIX.md) and [`examples/conformance/lifecycle-matrix.json`](../examples/conformance/lifecycle-matrix.json).
+
 Exit criteria:
 
 - Any independent implementation can run the fixture suite.
@@ -125,6 +127,8 @@ Primary risk:
 ## Phase 2 — Embedded runtime profile
 
 Goal: define a constrained CaPU profile suitable for edge devices and robotics middleware.
+
+Current design draft: [`EMBEDDED_PROFILE.md`](EMBEDDED_PROFILE.md).
 
 Deliverables:
 
@@ -160,6 +164,8 @@ Primary risk:
 ## Phase 3 — Robotics / device middleware prototype
 
 Goal: test CaPU as a side-effect boundary before actuators, tools, or device actions.
+
+Current mock scenario: [`examples/robot_arm_commit_before_effect.md`](examples/robot_arm_commit_before_effect.md).
 
 Deliverables:
 
@@ -201,6 +207,8 @@ Primary risk:
 ## Phase 4 — FPGA causal co-processor prototype
 
 Goal: explore CaPU as a hardware-adjacent state machine.
+
+Current minimum interface and assertions: [`FPGA_EXPLORATION.md`](FPGA_EXPLORATION.md).
 
 Deliverables:
 
