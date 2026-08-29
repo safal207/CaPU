@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/capu/astra-capu-persistent-anti-replay-v1.0-a5.schema.json",
+  "title": "ASTRA–CaPU Persistent Anti-Replay Frontier v1.0-A5 Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "initial_attempt",
+    "first_forwarded",
+    "restart_replay_blocked",
+    "restart_replay_reject_code",
+    "successor_attempt_forwarded",
+    "future_attempt_blocked",
+    "future_attempt_reject_code",
+    "external_effect_count",
+    "persistent_next_attempt",
+    "commit_before_effect",
+    "logic_reset_preserves_frontier",
+    "result_digest_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "capu.astra.persistent-anti-replay.result.v1.0-a5"},
+    "initial_attempt": {"type": "integer", "minimum": 0},
+    "first_forwarded": {"const": true},
+    "restart_replay_blocked": {"const": true},
+    "restart_replay_reject_code": {"const": 8},
+    "successor_attempt_forwarded": {"const": true},
+    "future_attempt_blocked": {"const": true},
+    "future_attempt_reject_code": {"const": 8},
+    "external_effect_count": {"const": 2},
+    "persistent_next_attempt": {"const": 2},
+    "commit_before_effect": {"const": true},
+    "logic_reset_preserves_frontier": {"const": true},
+    "result_digest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
