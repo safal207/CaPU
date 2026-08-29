@@ -1,0 +1,17 @@
+[options]
+mode bmc
+depth 24
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal -sv astra_capu_effect_counter_a3.sv astra_capu_persistent_frontier_store_a5.sv astra_capu_persistent_authority_shim_a5.sv astra_capu_persistent_authorized_effect_device_a5.sv astra_capu_persistent_authority_a5_formal.sv
+prep -top astra_capu_persistent_authority_a5_formal
+
+[files]
+rtl/astra_capu_effect_counter_a3.sv
+rtl/astra_capu_persistent_frontier_store_a5.sv
+rtl/astra_capu_persistent_authority_shim_a5.sv
+rtl/astra_capu_persistent_authorized_effect_device_a5.sv
+formal/astra_capu_persistent_authority_a5_formal.sv
