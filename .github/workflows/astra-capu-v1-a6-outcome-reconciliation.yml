@@ -1,0 +1,245 @@
+name: ASTRA-CaPU v1.0-A6 Durable Outcome Reconciliation
+
+on:
+  pull_request:
+    paths:
+      - 'rtl/astra_capu_effect_counter_a3.sv'
+      - 'rtl/astra_capu_persistent_outcome_store_a6.sv'
+      - 'rtl/astra_capu_outcome_authority_shim_a6.sv'
+      - 'rtl/astra_capu_reconciled_effect_device_a6.sv'
+      - 'rtl/tb/astra_capu_reconciled_effect_device_a6_tb.sv'
+      - 'formal/astra_capu_outcome_reconciliation_a6*'
+      - 'tools/astra_capu_outcome_reconciliation_a6.py'
+      - 'tests/test_astra_capu_outcome_reconciliation_a6.py'
+      - 'schemas/hardware/astra-capu-outcome-reconciliation-v1.0-a6.schema.json'
+      - 'examples/hardware/astra-capu-v1-a6-expected.json'
+      - 'docs/hardware/ASTRA_CAPU_V1_A6_OUTCOME_RECONCILIATION.md'
+      - '.github/workflows/astra-capu-v1-a6-outcome-reconciliation.yml'
+
+jobs:
+  deterministic:
+    name: A6 UNKNOWN reconciliation trajectory
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+          iverilog -V
+      - name: Compile A6 reconciled effect device
+        run: |
+          set -euo pipefail
+          iverilog -g2012 \
+            -o /tmp/astra-capu-a6.vvp \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/astra_capu_persistent_outcome_store_a6.sv \
+            rtl/astra_capu_outcome_authority_shim_a6.sv \
+            rtl/astra_capu_reconciled_effect_device_a6.sv \
+            rtl/tb/astra_capu_reconciled_effect_device_a6_tb.sv
+      - name: Run deterministic A6 trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/astra-capu-a6.vvp | tee astra-capu-v1-a6-rtl.log
+          grep -F 'a6_frontier_provisioned next_attempt=0' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_attempt0_forwarded effect_count=0 outcome=UNKNOWN next_attempt=1' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_logic_restart_unknown_preserved unresolved_attempt=0 next_attempt=1' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_same_attempt_after_restart_blocked reject_code=10 effect_count=0' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_negative_reconcile_accepted attempt=0 outcome=NOT_COMMITTED' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_attempt1_forwarded effect_count=1 outcome=UNKNOWN next_attempt=2' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_successor_blocked_while_unknown reject_code=10 effect_count=1' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_stale_reconcile_blocked reject_code=4' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_committed_reconcile_accepted attempt=1 terminal_committed=1' astra-capu-v1-a6-rtl.log
+          grep -F 'a6_terminal_replay_blocked reject_code=11 effect_count=1' astra-capu-v1-a6-rtl.log
+          grep -F 'ASTRA_CAPU_V1_A6_OUTCOME_RECONCILIATION_PASS' astra-capu-v1-a6-rtl.log
+      - name: Run A6 reference and unit tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_outcome_reconciliation_a6.py \
+            2>&1 | tee astra-capu-v1-a6-test.log
+          python3 -m tools.astra_capu_outcome_reconciliation_a6 \
+            | tee astra-capu-v1-a6-reference.log
+          grep -F 'Ran 13 tests' astra-capu-v1-a6-test.log
+          grep -F 'OK' astra-capu-v1-a6-test.log
+          grep -F 'ASTRA_CAPU_V1_A6_OUTCOME_RECONCILIATION_PASS' astra-capu-v1-a6-reference.log
+      - name: Regress A5 persistent anti-replay
+        run: |
+          set -euo pipefail
+          iverilog -g2012 \
+            -o /tmp/astra-capu-a5.vvp \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/astra_capu_persistent_frontier_store_a5.sv \
+            rtl/astra_capu_persistent_authority_shim_a5.sv \
+            rtl/astra_capu_persistent_authorized_effect_device_a5.sv \
+            rtl/tb/astra_capu_persistent_authorized_effect_device_a5_tb.sv
+          vvp /tmp/astra-capu-a5.vvp | tee astra-capu-v1-a5-regression.log
+          python3 -m unittest -v tests/test_astra_capu_persistent_authority_a5.py \
+            2>&1 | tee astra-capu-v1-a5-test-regression.log
+          grep -F 'ASTRA_CAPU_V1_A5_PERSISTENT_ANTI_REPLAY_PASS' astra-capu-v1-a5-regression.log
+          grep -F 'Ran 11 tests' astra-capu-v1-a5-test-regression.log
+          grep -F 'OK' astra-capu-v1-a5-test-regression.log
+      - name: Generate and validate machine-readable result
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from tools.astra_capu_outcome_reconciliation_a6 import scenario_result
+
+          result = scenario_result()
+          output = Path('astra-capu-v1-a6-result.json')
+          output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          schema = json.loads(Path('schemas/hardware/astra-capu-outcome-reconciliation-v1.0-a6.schema.json').read_text())
+          expected = json.loads(Path('examples/hardware/astra-capu-v1-a6-expected.json').read_text())['expected']
+          assert schema['title'] == 'ASTRA–CaPU Durable Attempt Outcome Reconciliation v1.0-A6 Result'
+          assert result == expected
+          assert result['external_effect_count'] == 1
+          assert result['restart_replay_reject_code'] == 10
+          assert result['stale_reconcile_reject_code'] == 4
+          assert result['terminal_replay_reject_code'] == 11
+          print(f"a6_machine_result_digest={result['result_digest_sha256']}")
+          print('A6_MACHINE_RESULT_PASS')
+          PY
+      - name: Seal executable A6 evidence
+        run: |
+          cp /tmp/astra-capu-a6.vvp ./astra-capu-a6.vvp
+          sha256sum \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/astra_capu_persistent_outcome_store_a6.sv \
+            rtl/astra_capu_outcome_authority_shim_a6.sv \
+            rtl/astra_capu_reconciled_effect_device_a6.sv \
+            rtl/tb/astra_capu_reconciled_effect_device_a6_tb.sv \
+            tools/astra_capu_outcome_reconciliation_a6.py \
+            tests/test_astra_capu_outcome_reconciliation_a6.py \
+            schemas/hardware/astra-capu-outcome-reconciliation-v1.0-a6.schema.json \
+            examples/hardware/astra-capu-v1-a6-expected.json \
+            docs/hardware/ASTRA_CAPU_V1_A6_OUTCOME_RECONCILIATION.md \
+            astra-capu-a6.vvp \
+            astra-capu-v1-a6-rtl.log \
+            astra-capu-v1-a6-test.log \
+            astra-capu-v1-a6-reference.log \
+            astra-capu-v1-a5-regression.log \
+            astra-capu-v1-a5-test-regression.log \
+            astra-capu-v1-a6-result.json \
+            > astra-capu-v1-a6.sha256
+          cat astra-capu-v1-a6.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a6-outcome-reconciliation-evidence
+          path: |
+            astra-capu-a6.vvp
+            astra-capu-v1-a6-rtl.log
+            astra-capu-v1-a6-test.log
+            astra-capu-v1-a6-reference.log
+            astra-capu-v1-a5-regression.log
+            astra-capu-v1-a5-test-regression.log
+            astra-capu-v1-a6-result.json
+            astra-capu-v1-a6.sha256
+
+  formal:
+    name: Bounded A6 durable outcome proof
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove bounded A6 safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/astra-capu-a6-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/astra-capu-a6-formal/safety-work \
+            formal/astra_capu_outcome_reconciliation_a6.sby \
+            2>&1 | tee target/astra-capu-a6-formal/formal.log
+          grep -q 'DONE (PASS' target/astra-capu-a6-formal/formal.log
+      - name: Prove A6 recovery paths reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/astra-capu-a6-formal/cover-work \
+            formal/astra_capu_outcome_reconciliation_a6_cover.sby \
+            2>&1 | tee target/astra-capu-a6-formal/cover.log
+          grep -q 'DONE (PASS' target/astra-capu-a6-formal/cover.log
+          test "$(find target/astra-capu-a6-formal/cover-work -name 'trace*.vcd' | wc -l)" -ge 1
+      - name: Regress bounded A5 safety
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/astra-capu-a6-formal/a5-regression-work \
+            formal/astra_capu_persistent_authority_a5.sby \
+            2>&1 | tee target/astra-capu-a6-formal/a5-regression.log
+          grep -q 'DONE (PASS' target/astra-capu-a6-formal/a5-regression.log
+      - name: Seal formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import subprocess
+          from pathlib import Path
+
+          root = Path('target/astra-capu-a6-formal')
+          safety = (root / 'formal.log').read_text(errors='replace')
+          cover = (root / 'cover.log').read_text(errors='replace')
+          a5 = (root / 'a5-regression.log').read_text(errors='replace')
+          inputs = [Path(x) for x in [
+              'rtl/astra_capu_effect_counter_a3.sv',
+              'rtl/astra_capu_persistent_outcome_store_a6.sv',
+              'rtl/astra_capu_outcome_authority_shim_a6.sv',
+              'rtl/astra_capu_reconciled_effect_device_a6.sv',
+              'formal/astra_capu_outcome_reconciliation_a6_formal.sv',
+              'formal/astra_capu_outcome_reconciliation_a6.sby',
+              'formal/astra_capu_outcome_reconciliation_a6_cover.sby',
+              'tools/astra_capu_outcome_reconciliation_a6.py',
+          ]]
+          h = hashlib.sha256()
+          for path in inputs:
+              h.update(str(path).encode() + b'\0' + path.read_bytes() + b'\0')
+          proof = {
+              'schema': 'capu.hardware.astra-outcome-reconciliation-formal-proof.v1.0-a6',
+              'result': 'PASS',
+              'proof_method': 'bounded model checking',
+              'depth': 28,
+              'cover_depth': 48,
+              'cover_witnesses': len(list((root / 'cover-work').rglob('trace*.vcd'))),
+              'formal_tag_width_bits': 3,
+              'formal_identity_width_bits': 3,
+              'persistent_lineage_count': 1,
+              'max_unresolved_attempts': 1,
+              'logic_reset_persistence_model': True,
+              'commit_before_effect': True,
+              'formal_input_sha256': h.hexdigest(),
+              'formal_log_sha256': hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256': hashlib.sha256(cover.encode()).hexdigest(),
+              'a5_regression_log_sha256': hashlib.sha256(a5.encode()).hexdigest(),
+              'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version': subprocess.check_output(['yosys', '-V'], text=True).strip(),
+              'z3_version': subprocess.check_output(['z3', '--version'], text=True).strip(),
+              'claim_boundary': 'bounded reduced-width single-lineage one-unresolved-attempt retention-domain outcome store; exact evidence identity is checked but evidence truth/authentication, actual NVRAM, real accelerator transport, liveness and unbounded correctness remain outside scope',
+          }
+          (root / 'formal-proof.json').write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(proof, indent=2, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a6-outcome-reconciliation-formal-evidence
+          path: |
+            target/astra-capu-a6-formal/formal.log
+            target/astra-capu-a6-formal/cover.log
+            target/astra-capu-a6-formal/a5-regression.log
+            target/astra-capu-a6-formal/formal-proof.json
+            target/astra-capu-a6-formal/safety-work/
+            target/astra-capu-a6-formal/cover-work/
