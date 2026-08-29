@@ -1,0 +1,17 @@
+{
+  "expected": {
+    "commit_before_effect": true,
+    "external_effect_count": 2,
+    "first_forwarded": true,
+    "future_attempt_blocked": true,
+    "future_attempt_reject_code": 8,
+    "initial_attempt": 0,
+    "logic_reset_preserves_frontier": true,
+    "persistent_next_attempt": 2,
+    "restart_replay_blocked": true,
+    "restart_replay_reject_code": 8,
+    "result_digest_sha256": "a3a16fa02149f260352780aa48806bba54320eef7f6bcbe31500e920d9545502",
+    "schema": "capu.astra.persistent-anti-replay.result.v1.0-a5",
+    "successor_attempt_forwarded": true
+  }
+}
