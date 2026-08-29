@@ -16,12 +16,14 @@ This is a QA/reliability research target, not a vulnerability claim.
 
 ## Upstream baseline
 
-Raiden already contains recovery E2E coverage for a completed save followed by process death and restart. The current JAX recovery test uses subprocess phases and can force the JAX CPU backend, making the first verification stage possible without physical TPU hardware.
+Raiden contains a full JAX recovery E2E for a completed save followed by process death and restart. Its pinned implementation enters TPU-oriented PjRt device plumbing even when the JAX CPU backend is requested. On the GitHub-hosted CPU runner the full build completes, but the test process receives `SIGSEGV` before it can reach the intended `SIGKILL` recovery boundary. The hardware-independent gate therefore does not claim execution of the JAX device-transfer E2E.
 
 Relevant upstream paths:
 
 ```text
 google/tpu-raiden
+  tpu_raiden/core/host_memory_allocator_test.cc
+  tpu_raiden/kv_cache/kv_cache_store_wrapper_test.cc
   tpu_raiden/api/jax/kv_cache_store_recovery_e2e_test.py
   tpu_raiden/api/torch/kv_cache_store_recovery_e2e_test.py
   tpu_raiden/kv_cache/kv_cache_metadata.cc
@@ -29,7 +31,7 @@ google/tpu-raiden
   tpu_raiden/kv_cache/kv_cache_metadata_shm_test.cc
 ```
 
-## Existing known-good recovery path
+## Full upstream recovery contract (accelerator-facing)
 
 ```text
 Phase A
@@ -51,7 +53,18 @@ Phase B
   -> compare recovered bytes
 ```
 
-The current baseline also checks identity mismatch behavior so a restart under a different model identity cold-starts instead of resurrecting incompatible state.
+The full upstream contract also checks identity mismatch behavior so a restart under a different model identity cold-starts instead of resurrecting incompatible state.
+
+## CPU claim boundary
+
+The pinned, hardware-independent upstream gate executes the official C++ recovery primitives and proves that:
+
+1. compatible shared memory is reattached with identical persisted bytes;
+2. a schema mismatch recreates the allocation with zeroed bytes;
+3. KV metadata bindings are rebuilt after the wrapper is restarted; and
+4. a model UID mismatch cold-starts instead of exposing incompatible metadata.
+
+The separate CaPU Rust probe supplies process interruption, `SIGKILL`, causal-trace, and proof-sealing evidence. Together these form a composite CPU baseline. They do not claim execution of the upstream JAX device-transfer E2E, TPU DMA, or device-memory recovery.
 
 ## Verification gap to explore
 
@@ -194,19 +207,20 @@ Stage 1 deliberately stays CPU-first:
 
 ```text
 upstream source inspection
-  -> reproduce existing JAX CPU recovery E2E
-  -> identify exact save/metadata checkpoints
-  -> add deterministic fault injection in a research harness
-  -> collect proof bundles
+  -> execute official CPU-safe data/schema recovery primitives
+  -> execute official CPU-safe metadata/identity recovery primitives
+  -> run the CaPU process-crash causal probe
+  -> combine the evidence under an explicit claim boundary
+  -> reserve the JAX device-transfer E2E for a supported accelerator runner
 ```
 
-TPU hardware should only be required later for behavior that depends on TPU-specific transfer, topology, DMA, device-memory, or production inference paths.
+Supported accelerator hardware is required to validate the full JAX path and behavior that depends on TPU-specific transfer, topology, DMA, device memory, or production inference paths.
 
 ## Success criteria for the first CaPU validation
 
 The first milestone is complete when we have:
 
-1. one reproducible baseline recovery scenario on CPU;
+1. one reproducible composite recovery baseline on CPU;
 2. at least two injected interruption checkpoints inside a transition;
 3. explicit invariants for both checkpoints;
 4. deterministic pass/fail/inconclusive semantics;
@@ -215,4 +229,4 @@ The first milestone is complete when we have:
 
 ## Next implementation step
 
-Build a small external harness around the upstream recovery test that records phase markers and evidence without changing Raiden semantics first. After the exact transition boundaries are understood, decide whether the strongest contribution belongs upstream as additional tests or remains as an external CaPU verification adapter.
+Expand the CaPU process-crash harness with deterministic interruption checkpoints inside persistence transitions. Run the original upstream JAX recovery E2E only on a supported accelerator runner, then compare that evidence with the CPU composite without widening either claim boundary.

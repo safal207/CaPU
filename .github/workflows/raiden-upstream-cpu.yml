@@ -1,4 +1,4 @@
-name: Raiden Upstream JAX CPU Recovery Baseline
+name: Raiden Upstream CPU Recovery Primitives
 
 on:
   push:
@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   upstream-recovery:
-    name: Pinned google/tpu-raiden JAX recovery E2E on CPU
+    name: Pinned google/tpu-raiden CPU recovery primitives
     runs-on: ubuntu-24.04
     timeout-minutes: 90
 
@@ -32,7 +32,8 @@ jobs:
       RAIDEN_UPSTREAM_REPO: https://github.com/google/tpu-raiden.git
       RAIDEN_UPSTREAM_SHA: 050d32bc7173d6413d32a8152118d0bad44c034d
       RAIDEN_BAZEL_VERSION: 8.6.0
-      RAIDEN_BAZEL_TARGET: //tpu_raiden/api/jax:kv_cache_store_recovery_e2e_test
+      RAIDEN_DATA_TARGET: //tpu_raiden/core:host_memory_allocator_test
+      RAIDEN_METADATA_TARGET: //tpu_raiden/kv_cache:kv_cache_store_wrapper_test
       RAIDEN_BAZEL_DISK_CACHE: ${{ github.workspace }}/.bazel-disk-cache
 
     steps:
@@ -69,38 +70,36 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/.bazel-disk-cache
-          # A workflow re-run keeps run_id but increments run_attempt. Cache
-          # entries are immutable, so include both to persist newer partial
-          # Bazel outputs after every bounded seed attempt.
+          # Re-runs keep run_id and increment run_attempt. Cache entries are
+          # immutable, so both values are required for cumulative seed attempts.
           key: raiden-bazel-${{ runner.os }}-8.6.0-050d32bc7173d6413d32a8152118d0bad44c034d-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             raiden-bazel-${{ runner.os }}-8.6.0-050d32bc7173d6413d32a8152118d0bad44c034d-
 
-      - name: Run upstream JAX CPU recovery E2E
+      - name: Run upstream CPU recovery primitives
         working-directory: upstream-raiden
         run: |
           mkdir -p ../evidence/raiden-upstream "$RAIDEN_BAZEL_DISK_CACHE"
           set +e
           timeout --signal=TERM --kill-after=30s 70m \
-            bazel test --config=oss "$RAIDEN_BAZEL_TARGET" \
+            bazel test --config=oss \
+              "$RAIDEN_DATA_TARGET" \
+              "$RAIDEN_METADATA_TARGET" \
               --disk_cache="$RAIDEN_BAZEL_DISK_CACHE" \
               --experimental_disk_cache_gc_max_size=6G \
               --test_output=all \
-              --test_env=JAX_PLATFORMS=cpu \
-              --test_env=XLA_FLAGS=--xla_force_host_platform_device_count=1 \
             2>&1 | tee ../evidence/raiden-upstream/bazel-test.log
           code=${PIPESTATUS[0]}
           set -e
           echo "RAIDEN_BAZEL_EXIT_CODE=$code" >> "$GITHUB_ENV"
           echo "bazel_exit_code=$code"
           if [ "$code" -eq 124 ]; then
-            echo "Bazel execution reached the 70-minute seed budget; preserving the disk cache for the next run."
+            echo "Bazel reached the 70-minute seed budget; preserving the disk cache for the next run."
           fi
-          # Keep the job alive long enough to persist partial build outputs and evidence.
           exit 0
 
       - name: Save partial Bazel disk cache
-        if: always() && env.RAIDEN_BAZEL_EXIT_CODE == '124'
+        if: always() && env.RAIDEN_BAZEL_EXIT_CODE != '0'
         uses: actions/cache/save@v4
         with:
           path: ${{ github.workspace }}/.bazel-disk-cache
@@ -111,10 +110,12 @@ jobs:
         run: |
           python3 tools/raiden_upstream_evidence.py \
             --log evidence/raiden-upstream/bazel-test.log \
-            --source upstream-raiden/tpu_raiden/api/jax/kv_cache_store_recovery_e2e_test.py \
+            --source upstream-raiden/tpu_raiden/core/host_memory_allocator_test.cc \
+            --source upstream-raiden/tpu_raiden/kv_cache/kv_cache_store_wrapper_test.cc \
             --upstream-sha "$RAIDEN_UPSTREAM_SHA" \
             --bazel-version "$RAIDEN_BAZEL_VERSION" \
-            --bazel-target "$RAIDEN_BAZEL_TARGET" \
+            --bazel-target "$RAIDEN_DATA_TARGET" \
+            --bazel-target "$RAIDEN_METADATA_TARGET" \
             --bazel-exit-code "$RAIDEN_BAZEL_EXIT_CODE" \
             --output evidence/raiden-upstream/capu-upstream-proof.json
 
@@ -135,13 +136,13 @@ jobs:
             "target": "google/tpu-raiden",
             "upstream_sha": "${RAIDEN_UPSTREAM_SHA}",
             "bazel_version": "${RAIDEN_BAZEL_VERSION}",
-            "bazel_target": "${RAIDEN_BAZEL_TARGET}",
+            "bazel_targets": ["${RAIDEN_DATA_TARGET}", "${RAIDEN_METADATA_TARGET}"],
             "bazel_config": "oss",
             "bazel_exit_code": "${bazel_exit_code}",
             "execution_status": "${execution_status}",
-            "requested_device_mode": "JAX CPU",
+            "requested_device_mode": "CPU-only C++ recovery primitives",
             "build_cache": "bazel disk cache via GitHub Actions cache",
-            "claim_scope": "Execution result for the pinned upstream Raiden JAX recovery E2E target on a GitHub-hosted CPU runner."
+            "claim_scope": "Pinned upstream shared-memory data/schema and KV metadata/model-identity recovery primitives. Not JAX device-transfer E2E and not direct SIGKILL evidence."
           }
           EOF
           sha256sum evidence/raiden-upstream/manifest.json evidence/raiden-upstream/bazel-test.log evidence/raiden-upstream/capu-upstream-proof.json 2>/dev/null || true
@@ -150,7 +151,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: raiden-upstream-jax-cpu-baseline
+          name: raiden-upstream-cpu-recovery-primitives
           path: evidence/raiden-upstream/
           if-no-files-found: error
 
