@@ -1,0 +1,27 @@
+{
+  "expected": {
+    "commit_before_effect": true,
+    "committed_reconcile_accepted": true,
+    "external_effect_count": 1,
+    "first_attempt_forwarded": true,
+    "first_effect_committed": false,
+    "last_outcome": "COMMITTED",
+    "logic_reset_preserves_outcome_state": true,
+    "negative_reconcile_accepted": true,
+    "persistent_next_attempt": 2,
+    "restart_replay_blocked": true,
+    "restart_replay_reject_code": 10,
+    "result_digest_sha256": "6a7e969c724f7b441edb8cc701a03e0b8964dd0542a4e2fe64c961a4c9c4bae4",
+    "schema": "capu.astra.outcome-reconciliation.result.v1.0-a6",
+    "stale_reconcile_blocked": true,
+    "stale_reconcile_reject_code": 4,
+    "successor_attempt_forwarded": true,
+    "successor_effect_committed": true,
+    "successor_unknown_blocked": true,
+    "successor_unknown_reject_code": 10,
+    "terminal_committed": true,
+    "terminal_replay_blocked": true,
+    "terminal_replay_reject_code": 11,
+    "unknown_after_first_dispatch": true
+  }
+}
