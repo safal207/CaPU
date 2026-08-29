@@ -185,8 +185,8 @@ module astra_capu_authenticated_receipt_a7_formal;
 
     if (cold_rst_n) begin
       assert(receipt_auth_rejected == (receipt_valid && !receipt_auth_accept));
-      assert(receipt_reconcile_accept -> receipt_auth_accept);
-      assert(receipt_reconcile_rejected -> receipt_auth_accept);
+      assert(!receipt_reconcile_accept || receipt_auth_accept);
+      assert(!receipt_reconcile_rejected || receipt_auth_accept);
       assert(device_command_accept == command_forward);
       assert(device_completion_valid == (command_forward && command_commit));
 
