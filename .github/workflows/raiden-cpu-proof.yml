@@ -1,0 +1,69 @@
+name: Raiden CPU Causal Recovery Proof
+
+on:
+  push:
+    paths:
+      - "rust/cmc-core/src/bin/raiden_recovery_probe.rs"
+      - "rust/cmc-core/src/trace_crypto.rs"
+      - "docs/hardware/CAPU_CAUSAL_VERIFICATION_FIELD.md"
+      - "docs/hardware/RAIDEN_CAUSAL_CRASH_RECOVERY.md"
+      - ".github/workflows/raiden-cpu-proof.yml"
+  pull_request:
+    paths:
+      - "rust/cmc-core/src/bin/raiden_recovery_probe.rs"
+      - "rust/cmc-core/src/trace_crypto.rs"
+      - "docs/hardware/CAPU_CAUSAL_VERIFICATION_FIELD.md"
+      - "docs/hardware/RAIDEN_CAUSAL_CRASH_RECOVERY.md"
+      - ".github/workflows/raiden-cpu-proof.yml"
+  workflow_dispatch:
+
+jobs:
+  proof:
+    name: CPU model + invariant tests + proof artifact
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: rust/cmc-core
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check probe formatting
+        run: rustfmt --edition 2021 --check src/bin/raiden_recovery_probe.rs
+
+      - name: Run Raiden recovery probe tests
+        run: cargo test --locked --bin raiden_recovery_probe
+
+      - name: Generate deterministic CPU proof
+        run: cargo run --locked --bin raiden_recovery_probe -- target/raiden-cpu-proof.json
+
+      - name: Show proof summary
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          proof = json.loads(Path("target/raiden-cpu-proof.json").read_text())
+          print("target:", proof["target"])
+          print("mode:", proof["mode"])
+          print("verification:", proof["verification"])
+          print("trace_chain_valid:", proof["trace_chain_valid"])
+          print("proof_sha256:", proof["proof_sha256"])
+          for scenario in proof["scenarios"]:
+              print(scenario["id"], scenario["passed"], scenario["observed_recovery"])
+          if proof["verification"] != "pass" or not proof["trace_chain_valid"]:
+              raise SystemExit(1)
+          PY
+
+      - name: Upload proof artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: raiden-cpu-causal-recovery-proof
+          path: rust/cmc-core/target/raiden-cpu-proof.json
+          if-no-files-found: error
