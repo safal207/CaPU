@@ -29,6 +29,8 @@ google/tpu-raiden
   tpu_raiden/kv_cache/kv_cache_metadata.cc
   tpu_raiden/kv_cache/kv_cache_metadata_shm.cc
   tpu_raiden/kv_cache/kv_cache_metadata_shm_test.cc
+CaPU
+  tests/upstream/raiden_host_memory_allocator_cpu_test.cc
 ```
 
 ## Full upstream recovery contract (accelerator-facing)
@@ -57,7 +59,7 @@ The full upstream contract also checks identity mismatch behavior so a restart u
 
 ## CPU claim boundary
 
-The pinned, hardware-independent upstream gate executes the official C++ recovery primitives and proves that:
+The pinned, hardware-independent gate executes a minimal CaPU CPU adapter against the unmodified upstream shared-memory allocator plus the official upstream KV metadata test, and proves that:
 
 1. compatible shared memory is reattached with identical persisted bytes;
 2. a schema mismatch recreates the allocation with zeroed bytes;
@@ -207,7 +209,7 @@ Stage 1 deliberately stays CPU-first:
 
 ```text
 upstream source inspection
-  -> execute official CPU-safe data/schema recovery primitives
+  -> execute a CPU adapter against the pinned upstream data/schema allocator
   -> execute official CPU-safe metadata/identity recovery primitives
   -> run the CaPU process-crash causal probe
   -> combine the evidence under an explicit claim boundary

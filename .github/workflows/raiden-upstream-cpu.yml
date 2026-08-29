@@ -7,11 +7,13 @@ on:
     paths:
       - ".github/workflows/raiden-upstream-cpu.yml"
       - "tools/raiden_upstream_evidence.py"
+      - "tests/upstream/raiden_host_memory_allocator_cpu_test.cc"
       - "docs/hardware/RAIDEN_CAUSAL_CRASH_RECOVERY.md"
   pull_request:
     paths:
       - ".github/workflows/raiden-upstream-cpu.yml"
       - "tools/raiden_upstream_evidence.py"
+      - "tests/upstream/raiden_host_memory_allocator_cpu_test.cc"
       - "docs/hardware/RAIDEN_CAUSAL_CRASH_RECOVERY.md"
   workflow_dispatch:
 
@@ -32,7 +34,7 @@ jobs:
       RAIDEN_UPSTREAM_REPO: https://github.com/google/tpu-raiden.git
       RAIDEN_UPSTREAM_SHA: 050d32bc7173d6413d32a8152118d0bad44c034d
       RAIDEN_BAZEL_VERSION: 8.6.0
-      RAIDEN_DATA_TARGET: //tpu_raiden/core:host_memory_allocator_test
+      RAIDEN_DATA_TARGET: //tpu_raiden/core:host_memory_allocator_cpu_test
       RAIDEN_METADATA_TARGET: //tpu_raiden/kv_cache:kv_cache_store_wrapper_test
       RAIDEN_BAZEL_DISK_CACHE: ${{ github.workspace }}/.bazel-disk-cache
 
@@ -64,6 +66,33 @@ jobs:
           echo "actual_upstream_sha=$actual"
           test "$actual" = "$RAIDEN_UPSTREAM_SHA"
           test "$(cat upstream-raiden/.bazelversion)" = "$RAIDEN_BAZEL_VERSION"
+
+      - name: Install CPU-only allocator contract adapter
+        run: |
+          cp tests/upstream/raiden_host_memory_allocator_cpu_test.cc \
+            upstream-raiden/tpu_raiden/core/host_memory_allocator_cpu_test.cc
+          cat >> upstream-raiden/tpu_raiden/core/BUILD <<'EOF'
+
+          cc_test(
+              name = "host_memory_allocator_cpu_test",
+              srcs = ["host_memory_allocator_cpu_test.cc"],
+              copts = [
+                  "-fno-strict-aliasing",
+                  "-fexceptions",
+              ],
+              features = [
+                  "-use_header_modules",
+                  "-layering_check",
+              ],
+              deps = [
+                  ":host_memory_allocator",
+                  "@com_google_absl//absl/strings:str_format",
+                  "@xla//xla/tsl/platform:statusor",
+                  "@xla//xla/tsl/platform:test",
+                  "@xla//xla/tsl/platform:test_main",
+              ],
+          )
+          EOF
 
       - name: Restore Bazel disk cache
         id: raiden-bazel-cache-restore
@@ -110,7 +139,8 @@ jobs:
         run: |
           python3 tools/raiden_upstream_evidence.py \
             --log evidence/raiden-upstream/bazel-test.log \
-            --source upstream-raiden/tpu_raiden/core/host_memory_allocator_test.cc \
+            --source tests/upstream/raiden_host_memory_allocator_cpu_test.cc \
+            --source upstream-raiden/tpu_raiden/core/host_memory_allocator.cc \
             --source upstream-raiden/tpu_raiden/kv_cache/kv_cache_store_wrapper_test.cc \
             --upstream-sha "$RAIDEN_UPSTREAM_SHA" \
             --bazel-version "$RAIDEN_BAZEL_VERSION" \
@@ -140,9 +170,9 @@ jobs:
             "bazel_config": "oss",
             "bazel_exit_code": "${bazel_exit_code}",
             "execution_status": "${execution_status}",
-            "requested_device_mode": "CPU-only C++ recovery primitives",
+            "requested_device_mode": "CPU-only C++ recovery primitives with a CaPU allocator adapter",
             "build_cache": "bazel disk cache via GitHub Actions cache",
-            "claim_scope": "Pinned upstream shared-memory data/schema and KV metadata/model-identity recovery primitives. Not JAX device-transfer E2E and not direct SIGKILL evidence."
+            "claim_scope": "CaPU CPU adapter against the pinned upstream shared-memory allocator plus the official upstream KV metadata/model-identity recovery test. Not JAX device-transfer E2E and not direct SIGKILL evidence."
           }
           EOF
           sha256sum evidence/raiden-upstream/manifest.json evidence/raiden-upstream/bazel-test.log evidence/raiden-upstream/capu-upstream-proof.json 2>/dev/null || true

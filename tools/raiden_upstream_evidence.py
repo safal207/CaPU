@@ -23,7 +23,8 @@ MODE = "upstream-cpu-recovery-primitives-bazel"
 
 REQUIRED_CONTRACT_SNIPPETS = {
     "shared_memory_warm_boot_test": (
-        "TEST(HostMemoryAllocatorTest, SharedMemoryColdAndWarmBoot)"
+        "TEST(RaidenHostMemoryAllocatorCpuAdapterTest, "
+        "SharedMemoryColdAndWarmBoot)"
     ),
     "persisted_bytes_written": "std::memset(alloc1.ptr, 0x55, 1024);",
     "persisted_bytes_recovered": "ASSERT_EQ(alloc2.ptr[i], 0x55);",
@@ -141,7 +142,8 @@ def build_proof(
                 "mismatch."
             ),
             "observation_basis": (
-                "Pinned upstream C++ assertions executed by Bazel on a CPU runner."
+                "CaPU CPU-adapter assertions executed against the pinned, "
+                "unmodified upstream allocator implementation by Bazel."
             ),
             "passed": data_recovery_passed,
         },
@@ -181,9 +183,9 @@ def build_proof(
         "target": TARGET,
         "mode": MODE,
         "claim_scope": (
-            "Execution evidence for pinned upstream Raiden CPU-safe recovery "
-            "primitives: shared-memory data/schema behavior and KV metadata/model "
-            "identity behavior. This proof does not claim execution of the JAX "
+            "Execution evidence from a CaPU CPU adapter against the pinned upstream "
+            "shared-memory allocator and the official upstream KV metadata/model "
+            "identity test. This proof does not claim execution of the JAX "
             "device-transfer E2E or direct observation of SIGKILL."
         ),
         "tuple": [
@@ -223,7 +225,7 @@ def build_proof(
 def self_test() -> int:
     source = "\n".join(REQUIRED_CONTRACT_SNIPPETS.values()).encode()
     targets = [
-        "//tpu_raiden/core:host_memory_allocator_test",
+        "//tpu_raiden/core:host_memory_allocator_cpu_test",
         "//tpu_raiden/kv_cache:kv_cache_store_wrapper_test",
     ]
     kwargs = dict(
