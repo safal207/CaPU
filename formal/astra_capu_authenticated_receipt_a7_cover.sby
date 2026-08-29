@@ -1,0 +1,19 @@
+[options]
+mode cover
+depth 56
+
+[engines]
+smtbmc --unroll z3 -- --noincr
+
+[script]
+read -formal -sv astra_capu_effect_counter_a3.sv astra_capu_persistent_outcome_store_a6.sv astra_capu_outcome_authority_shim_a6.sv astra_capu_reconciled_effect_device_a6.sv astra_capu_authenticated_receipt_gate_a7.sv astra_capu_authenticated_reconciled_effect_device_a7.sv astra_capu_authenticated_receipt_a7_formal.sv
+prep -top astra_capu_authenticated_receipt_a7_formal
+
+[files]
+rtl/astra_capu_effect_counter_a3.sv
+rtl/astra_capu_persistent_outcome_store_a6.sv
+rtl/astra_capu_outcome_authority_shim_a6.sv
+rtl/astra_capu_reconciled_effect_device_a6.sv
+rtl/astra_capu_authenticated_receipt_gate_a7.sv
+rtl/astra_capu_authenticated_reconciled_effect_device_a7.sv
+formal/astra_capu_authenticated_receipt_a7_formal.sv
