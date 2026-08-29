@@ -1,0 +1,257 @@
+name: ASTRA-CaPU v1.0-A7 Authenticated Device Receipts
+
+on:
+  pull_request:
+    paths:
+      - 'rtl/astra_capu_effect_counter_a3.sv'
+      - 'rtl/astra_capu_persistent_outcome_store_a6.sv'
+      - 'rtl/astra_capu_outcome_authority_shim_a6.sv'
+      - 'rtl/astra_capu_reconciled_effect_device_a6.sv'
+      - 'rtl/astra_capu_authenticated_receipt_gate_a7.sv'
+      - 'rtl/astra_capu_authenticated_reconciled_effect_device_a7.sv'
+      - 'rtl/tb/astra_capu_authenticated_reconciled_effect_device_a7_tb.sv'
+      - 'formal/astra_capu_authenticated_receipt_a7*'
+      - 'tools/astra_capu_authenticated_receipt_a7.py'
+      - 'tests/test_astra_capu_authenticated_receipt_a7.py'
+      - 'schemas/hardware/astra-capu-authenticated-device-receipt-v1.0-a7.schema.json'
+      - 'examples/hardware/astra-capu-v1-a7-expected.json'
+      - 'docs/hardware/ASTRA_CAPU_V1_A7_AUTHENTICATED_DEVICE_RECEIPTS.md'
+      - '.github/workflows/astra-capu-v1-a7-authenticated-device-receipts.yml'
+
+jobs:
+  deterministic:
+    name: A7 authenticated receipt trajectory
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+          iverilog -V
+      - name: Compile A7 authenticated reconciled device
+        run: |
+          set -euo pipefail
+          iverilog -g2012 \
+            -o /tmp/astra-capu-a7.vvp \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/astra_capu_persistent_outcome_store_a6.sv \
+            rtl/astra_capu_outcome_authority_shim_a6.sv \
+            rtl/astra_capu_reconciled_effect_device_a6.sv \
+            rtl/astra_capu_authenticated_receipt_gate_a7.sv \
+            rtl/astra_capu_authenticated_reconciled_effect_device_a7.sv \
+            rtl/tb/astra_capu_authenticated_reconciled_effect_device_a7_tb.sv
+      - name: Run deterministic A7 trajectory
+        run: |
+          set -euo pipefail
+          vvp /tmp/astra-capu-a7.vvp | tee astra-capu-v1-a7-rtl.log
+          grep -F 'a7_attempt0_forwarded outcome=UNKNOWN effect_count=0' astra-capu-v1-a7-rtl.log
+          grep -F 'a7_forged_receipt_blocked reject_code=5 next_receipt_seq=0' astra-capu-v1-a7-rtl.log
+          grep -F 'a7_negative_receipt_authenticated seq=0 outcome=NOT_COMMITTED next_receipt_seq=1' astra-capu-v1-a7-rtl.log
+          grep -F 'a7_attempt1_forwarded outcome=UNKNOWN effect_count=1' astra-capu-v1-a7-rtl.log
+          grep -F 'a7_stale_receipt_replay_blocked reject_code=4 next_receipt_seq=1' astra-capu-v1-a7-rtl.log
+          grep -F 'a7_foreign_device_receipt_blocked reject_code=2 next_receipt_seq=1' astra-capu-v1-a7-rtl.log
+          grep -F 'a7_committed_receipt_authenticated seq=1 terminal_committed=1 next_receipt_seq=2' astra-capu-v1-a7-rtl.log
+          grep -F 'a7_terminal_replay_blocked reject_code=11 effect_count=1' astra-capu-v1-a7-rtl.log
+          grep -F 'ASTRA_CAPU_V1_A7_AUTHENTICATED_DEVICE_RECEIPT_PASS' astra-capu-v1-a7-rtl.log
+      - name: Run A7 reference and unit tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_astra_capu_authenticated_receipt_a7.py \
+            2>&1 | tee astra-capu-v1-a7-test.log
+          python3 -m tools.astra_capu_authenticated_receipt_a7 \
+            | tee astra-capu-v1-a7-reference.log
+          grep -F 'Ran 11 tests' astra-capu-v1-a7-test.log
+          grep -F 'OK' astra-capu-v1-a7-test.log
+          grep -F 'ASTRA_CAPU_V1_A7_AUTHENTICATED_DEVICE_RECEIPT_PASS' astra-capu-v1-a7-reference.log
+      - name: Regress A6 outcome reconciliation
+        run: |
+          set -euo pipefail
+          iverilog -g2012 \
+            -o /tmp/astra-capu-a6.vvp \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/astra_capu_persistent_outcome_store_a6.sv \
+            rtl/astra_capu_outcome_authority_shim_a6.sv \
+            rtl/astra_capu_reconciled_effect_device_a6.sv \
+            rtl/tb/astra_capu_reconciled_effect_device_a6_tb.sv
+          vvp /tmp/astra-capu-a6.vvp | tee astra-capu-v1-a6-regression.log
+          python3 -m unittest -v tests/test_astra_capu_outcome_reconciliation_a6.py \
+            2>&1 | tee astra-capu-v1-a6-test-regression.log
+          grep -F 'ASTRA_CAPU_V1_A6_OUTCOME_RECONCILIATION_PASS' astra-capu-v1-a6-regression.log
+          grep -F 'Ran 13 tests' astra-capu-v1-a6-test-regression.log
+          grep -F 'OK' astra-capu-v1-a6-test-regression.log
+      - name: Generate and validate machine-readable result
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from tools.astra_capu_authenticated_receipt_a7 import scenario_result
+
+          result = scenario_result()
+          output = Path('astra-capu-v1-a7-result.json')
+          output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          schema = json.loads(Path('schemas/hardware/astra-capu-authenticated-device-receipt-v1.0-a7.schema.json').read_text())
+          expected = json.loads(Path('examples/hardware/astra-capu-v1-a7-expected.json').read_text())['expected']
+          assert schema['title'] == 'ASTRA–CaPU Authenticated Device Receipt v1.0-A7 Result'
+          assert result == expected
+          assert result['forged_receipt_reject_code'] == 5
+          assert result['stale_receipt_reject_code'] == 4
+          assert result['foreign_device_reject_code'] == 2
+          assert result['terminal_replay_reject_code'] == 11
+          assert result['next_receipt_sequence'] == 2
+          print(f"a7_machine_result_digest={result['result_digest_sha256']}")
+          print('A7_MACHINE_RESULT_PASS')
+          PY
+      - name: Seal executable A7 evidence
+        run: |
+          cp /tmp/astra-capu-a7.vvp ./astra-capu-a7.vvp
+          sha256sum \
+            rtl/astra_capu_effect_counter_a3.sv \
+            rtl/astra_capu_persistent_outcome_store_a6.sv \
+            rtl/astra_capu_outcome_authority_shim_a6.sv \
+            rtl/astra_capu_reconciled_effect_device_a6.sv \
+            rtl/astra_capu_authenticated_receipt_gate_a7.sv \
+            rtl/astra_capu_authenticated_reconciled_effect_device_a7.sv \
+            rtl/tb/astra_capu_authenticated_reconciled_effect_device_a7_tb.sv \
+            tools/astra_capu_authenticated_receipt_a7.py \
+            tests/test_astra_capu_authenticated_receipt_a7.py \
+            schemas/hardware/astra-capu-authenticated-device-receipt-v1.0-a7.schema.json \
+            examples/hardware/astra-capu-v1-a7-expected.json \
+            docs/hardware/ASTRA_CAPU_V1_A7_AUTHENTICATED_DEVICE_RECEIPTS.md \
+            astra-capu-a7.vvp \
+            astra-capu-v1-a7-rtl.log \
+            astra-capu-v1-a7-test.log \
+            astra-capu-v1-a7-reference.log \
+            astra-capu-v1-a6-regression.log \
+            astra-capu-v1-a6-test-regression.log \
+            astra-capu-v1-a7-result.json \
+            > astra-capu-v1-a7.sha256
+          cat astra-capu-v1-a7.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a7-authenticated-device-receipt-evidence
+          path: |
+            astra-capu-a7.vvp
+            astra-capu-v1-a7-rtl.log
+            astra-capu-v1-a7-test.log
+            astra-capu-v1-a7-reference.log
+            astra-capu-v1-a6-regression.log
+            astra-capu-v1-a6-test-regression.log
+            astra-capu-v1-a7-result.json
+            astra-capu-v1-a7.sha256
+
+  formal:
+    name: Bounded A7 authenticated receipt proof
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys and Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys z3 git
+          yosys -V
+          z3 --version
+      - name: Install pinned SBY
+        run: |
+          set -euo pipefail
+          SBY_SHA='b1a1e98cba941ec8433f8dc27f416cd7bb7f14be'
+          git init /tmp/sby
+          git -C /tmp/sby remote add origin https://github.com/YosysHQ/sby.git
+          git -C /tmp/sby fetch --depth 1 origin "$SBY_SHA"
+          git -C /tmp/sby checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/sby rev-parse HEAD)" = "$SBY_SHA"
+          printf '%s\n' "$SBY_SHA" > /tmp/sby-sha.txt
+      - name: Prove bounded A7 safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/astra-capu-a7-formal
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/astra-capu-a7-formal/safety-work \
+            formal/astra_capu_authenticated_receipt_a7.sby \
+            2>&1 | tee target/astra-capu-a7-formal/formal.log
+          grep -q 'DONE (PASS' target/astra-capu-a7-formal/formal.log
+      - name: Prove A7 authenticated paths reachable
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/astra-capu-a7-formal/cover-work \
+            formal/astra_capu_authenticated_receipt_a7_cover.sby \
+            2>&1 | tee target/astra-capu-a7-formal/cover.log
+          grep -q 'DONE (PASS' target/astra-capu-a7-formal/cover.log
+          test "$(find target/astra-capu-a7-formal/cover-work -name 'trace*.vcd' | wc -l)" -ge 1
+      - name: Regress bounded A6 safety
+        run: |
+          set -euo pipefail
+          python3 /tmp/sby/sbysrc/sby.py -f \
+            -d target/astra-capu-a7-formal/a6-regression-work \
+            formal/astra_capu_outcome_reconciliation_a6.sby \
+            2>&1 | tee target/astra-capu-a7-formal/a6-regression.log
+          grep -q 'DONE (PASS' target/astra-capu-a7-formal/a6-regression.log
+      - name: Seal formal evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import subprocess
+          from pathlib import Path
+
+          root = Path('target/astra-capu-a7-formal')
+          safety = (root / 'formal.log').read_text(errors='replace')
+          cover = (root / 'cover.log').read_text(errors='replace')
+          a6 = (root / 'a6-regression.log').read_text(errors='replace')
+          inputs = [Path(x) for x in [
+              'rtl/astra_capu_effect_counter_a3.sv',
+              'rtl/astra_capu_persistent_outcome_store_a6.sv',
+              'rtl/astra_capu_outcome_authority_shim_a6.sv',
+              'rtl/astra_capu_reconciled_effect_device_a6.sv',
+              'rtl/astra_capu_authenticated_receipt_gate_a7.sv',
+              'rtl/astra_capu_authenticated_reconciled_effect_device_a7.sv',
+              'formal/astra_capu_authenticated_receipt_a7_formal.sv',
+              'formal/astra_capu_authenticated_receipt_a7.sby',
+              'formal/astra_capu_authenticated_receipt_a7_cover.sby',
+              'tools/astra_capu_authenticated_receipt_a7.py',
+          ]]
+          h = hashlib.sha256()
+          for path in inputs:
+              h.update(str(path).encode() + b'\0' + path.read_bytes() + b'\0')
+          proof = {
+              'schema': 'capu.hardware.astra-authenticated-device-receipt-formal-proof.v1.0-a7',
+              'result': 'PASS',
+              'proof_method': 'bounded model checking',
+              'depth': 32,
+              'cover_depth': 56,
+              'cover_witnesses': len(list((root / 'cover-work').rglob('trace*.vcd'))),
+              'formal_device_width_bits': 2,
+              'formal_tag_width_bits': 2,
+              'formal_identity_width_bits': 2,
+              'formal_auth_tag_width_bits': 4,
+              'trusted_device_count': 1,
+              'trusted_key_epoch_count': 1,
+              'max_unresolved_attempts': 1,
+              'synthetic_mac_model': True,
+              'monotonic_receipt_sequence': True,
+              'authenticated_semantic_reject_consumes_sequence': True,
+              'a6_regression': 'PASS',
+              'formal_input_sha256': h.hexdigest(),
+              'formal_log_sha256': hashlib.sha256(safety.encode()).hexdigest(),
+              'cover_log_sha256': hashlib.sha256(cover.encode()).hexdigest(),
+              'a6_regression_log_sha256': hashlib.sha256(a6.encode()).hexdigest(),
+              'sby_git_sha': Path('/tmp/sby-sha.txt').read_text().strip(),
+              'yosys_version': subprocess.check_output(['yosys', '-V'], text=True).strip(),
+              'z3_version': subprocess.check_output(['z3', '--version'], text=True).strip(),
+              'claim_boundary': 'bounded reduced-width single-device synthetic authenticated-envelope model; the rotate/XOR tag is not production cryptography or SPDM conformance, and key secrecy, key rotation, actual NVRAM, real accelerator transport, liveness and unbounded correctness remain outside scope',
+          }
+          (root / 'formal-proof.json').write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(proof, indent=2, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astra-capu-v1-a7-authenticated-device-receipt-formal-evidence
+          path: |
+            target/astra-capu-a7-formal/formal.log
+            target/astra-capu-a7-formal/cover.log
+            target/astra-capu-a7-formal/a6-regression.log
+            target/astra-capu-a7-formal/formal-proof.json
+            target/astra-capu-a7-formal/safety-work/
+            target/astra-capu-a7-formal/cover-work/
