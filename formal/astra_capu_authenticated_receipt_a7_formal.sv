@@ -236,6 +236,14 @@ module astra_capu_authenticated_receipt_a7_formal;
 
       if (unresolved_valid && command_valid && active_valid &&
           active_committed && !attempt_spent && !authority_revoke_valid &&
+          persistent_valid &&
+          active_authority_tag == persistent_tag &&
+          active_incarnation == persistent_incarnation &&
+          active_queue_epoch == persistent_queue_epoch &&
+          active_slot_id == persistent_slot_id &&
+          active_command_id == persistent_command_id &&
+          active_effect_id == persistent_effect_id &&
+          !terminal_committed && !terminal_conflict &&
           command_authority_tag == active_authority_tag &&
           command_incarnation == active_incarnation &&
           command_queue_epoch == active_queue_epoch &&
@@ -249,6 +257,13 @@ module astra_capu_authenticated_receipt_a7_formal;
 
       if (terminal_committed && command_valid && active_valid &&
           active_committed && !attempt_spent && !authority_revoke_valid &&
+          persistent_valid &&
+          active_authority_tag == persistent_tag &&
+          active_incarnation == persistent_incarnation &&
+          active_queue_epoch == persistent_queue_epoch &&
+          active_slot_id == persistent_slot_id &&
+          active_command_id == persistent_command_id &&
+          active_effect_id == persistent_effect_id &&
           command_authority_tag == active_authority_tag &&
           command_incarnation == active_incarnation &&
           command_queue_epoch == active_queue_epoch &&
