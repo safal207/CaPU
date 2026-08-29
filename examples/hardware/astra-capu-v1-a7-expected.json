@@ -1,0 +1,31 @@
+{
+  "expected": {
+    "committed_receipt_applied": true,
+    "committed_receipt_authenticated": true,
+    "exact_device_identity_binding": true,
+    "exact_key_epoch_binding": true,
+    "external_effect_count": 1,
+    "first_attempt_forwarded": true,
+    "foreign_device_receipt_blocked": true,
+    "foreign_device_reject_code": 2,
+    "forged_receipt_blocked": true,
+    "forged_receipt_reject_code": 5,
+    "last_outcome": "COMMITTED",
+    "negative_receipt_applied": true,
+    "negative_receipt_authenticated": true,
+    "next_receipt_sequence": 2,
+    "persistent_next_attempt": 2,
+    "receipt_sequence_after_forgery": 0,
+    "receipt_sequence_after_negative": 1,
+    "result_digest_sha256": "6781dbfbd1b529866709980a3a85a38bd37f505daaddd53fd7c8e106ab863d2f",
+    "schema": "capu.astra.authenticated-device-receipt.result.v1.0-a7",
+    "stale_receipt_reject_code": 4,
+    "stale_receipt_replay_blocked": true,
+    "successor_attempt_forwarded": true,
+    "successor_effect_committed": true,
+    "synthetic_mac_model": true,
+    "terminal_committed": true,
+    "terminal_replay_blocked": true,
+    "terminal_replay_reject_code": 11
+  }
+}
