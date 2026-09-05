@@ -1,0 +1,4 @@
+.upstream/
+__pycache__/
+evidence/
+*.sqlite*
