@@ -1,178 +1,55 @@
-# CaPU (Causal Processing Unit)
+# CaPU
 
-[![CMC Rust Simulator](https://github.com/safal207/CaPU/actions/workflows/cmc-rust.yml/badge.svg)](https://github.com/safal207/CaPU/actions/workflows/cmc-rust.yml)
+**Causal execution admission and recovery — executable references and bounded research.**
 
-CaPU is a permission-first execution runtime for high-risk actions.
+CaPU separates authorization to act from evidence that an external effect occurred. An unknown outcome is not permission to retry.
 
-It ensures that side effects occur only after validation, maturity checks, durable commit, and reproducible causal justification. A requested action is not enough; execution must be causally permitted before effects are allowed to occur.
+## Start here
 
-CaPU is most relevant when actions can produce costly, irreversible, or security-sensitive effects.
+| Your goal | Entry point |
+|---|---|
+| Start in Russian / начать по-русски | [START_HERE.md](START_HERE.md) |
+| Run the existing software reference | Commands below |
+| Find research, exact sources and limitations | [RESEARCH_INDEX.md](RESEARCH_INDEX.md) |
+| Inspect readiness | [PROJECT_STATUS.json](PROJECT_STATUS.json) |
+| Preserve work and manage branches | [REPOSITORY_GUIDE.md](REPOSITORY_GUIDE.md) |
+| Read the complete previous technical introduction | [README.previous.md](README.previous.md) |
 
-```mermaid
-graph LR
-    Input(vCML Record) --> Gate{Gate: Validation + Permission}
-    Gate -- Reject --> Reject[Reject]
-    Gate -- Permit --> Incubate[Incubate: Hold Until Mature]
-    Incubate -- Not Mature --> Hold[Hold/Defer]
-    Incubate -- Mature --> Commit[Commit: Durable Authorization]
-    Commit -- Committed --> Execute[Execute]
-    Execute --> Effect(Side Effects)
+## What can be used today
+
+| Track | Use | Boundary |
+|---|---|---|
+| Software reference on main | Learn the lifecycle, validate fixtures, run the reference demo | Development/research use; not production certification |
+| CaPU × ATMAN v1 | Reproduce process-crash recovery at an exact revision | Draft PR #103; not integrated into main |
+| CaPU × ATMAN HTTP v2 | Reproduce separate controller, loopback HTTP device and observer | Draft PR #104; one trusted host, no bypass resistance |
+| RTL / formal work | Inspect each profile's own contract and evidence | A software or bounded formal PASS is not a physical-device result |
+
+## Run the main software reference
+
+From a repository checkout with Node.js/npm installed:
+
+```sh
+npm ci
+npm test
+npm run demo:reference
 ```
 
-ASCII fallback:
+These commands come from the existing package scripts. They were not rerun during this documentation pass. The baseline main revision is `0d7b369a2ed70acdbb7df70f24e18b5e7d35f3c5`; navigation publication changes no runtime files or dependencies.
 
-```text
-[vCML Record] -> [GATE] -> (Permitted?) -> [INCUBATE] -> (Mature?) -> [COMMIT] -> [EXECUTE] -> [Side Effects]
-                      |                      |
-                      +-> [REJECT]          +-> [HOLD / DEFER]
-```
+For the separate recovery laboratories, follow the pinned worktree instructions in the [research index](RESEARCH_INDEX.md), not commands for folders absent from main.
 
-## Review links
+## Durable evidence
 
-- Live interactive progress dashboard: [https://safal207.github.io/CaPU/](https://safal207.github.io/CaPU/)
-- Dashboard source fallback: [docs/hardware/CAPU_PROGRESS_DASHBOARD.html](docs/hardware/CAPU_PROGRESS_DASHBOARD.html)
-- Public status and roadmap snapshot: [docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md](docs/hardware/CAPU_PUBLIC_STATUS_AND_ROADMAP.md)
-- **ASTRA–CaPU v1.0 reference architecture:** [docs/hardware/ASTRA_CAPU_V1_REFERENCE_ARCHITECTURE.md](docs/hardware/ASTRA_CAPU_V1_REFERENCE_ARCHITECTURE.md)
-- Core terminology: [docs/GLOSSARY.md](docs/GLOSSARY.md)
-- Lifecycle conformance matrix: [docs/CONFORMANCE_MATRIX.md](docs/CONFORMANCE_MATRIX.md)
-- Draft embedded profile: [docs/EMBEDDED_PROFILE.md](docs/EMBEDDED_PROFILE.md)
-- Mock robot-arm commit-before-effect scenario: [docs/examples/robot_arm_commit_before_effect.md](docs/examples/robot_arm_commit_before_effect.md)
-- Minimal FPGA exploration: [docs/FPGA_EXPLORATION.md](docs/FPGA_EXPLORATION.md)
-- CaPU software reference units status: [docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md](docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_STATUS.md)
-- CaPU processor model: [docs/hardware/CAPU_PROCESSOR_MODEL.md](docs/hardware/CAPU_PROCESSOR_MODEL.md)
-- CaPU semantic ISA v0: [docs/hardware/CAPU_PROCESSOR_ISA_V0.md](docs/hardware/CAPU_PROCESSOR_ISA_V0.md)
-- CaPU microarchitecture v0: [docs/hardware/CAPU_MICROARCHITECTURE_V0.md](docs/hardware/CAPU_MICROARCHITECTURE_V0.md)
-- CaPU legitimacy coprocessor brief: [docs/hardware/CAPU_LEGITIMACY_COPROCESSOR_BRIEF.md](docs/hardware/CAPU_LEGITIMACY_COPROCESSOR_BRIEF.md)
-- CaPU software reference units roadmap: [docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_ROADMAP.md](docs/hardware/CAPU_SOFTWARE_REFERENCE_UNITS_ROADMAP.md)
-- CMC current reviewer path: [docs/hardware/CMC_CURRENT_REVIEWER_PATH.md](docs/hardware/CMC_CURRENT_REVIEWER_PATH.md)
-- CMC persona/action reviewer path: [docs/hardware/CMC_PERSONA_ACTION_REVIEWER_PATH.md](docs/hardware/CMC_PERSONA_ACTION_REVIEWER_PATH.md)
-- Why causal computation: [docs/hardware/WHY_CAUSAL_COMPUTATION.md](docs/hardware/WHY_CAUSAL_COMPUTATION.md)
-- Causal execution architecture: [docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md](docs/hardware/CAUSAL_EXECUTION_ARCHITECTURE.md)
-- CMC evidence map: [docs/hardware/CMC_EVIDENCE_MAP.md](docs/hardware/CMC_EVIDENCE_MAP.md)
-- CMC reviewer quickstart: [docs/hardware/CMC_REVIEWER_QUICKSTART.md](docs/hardware/CMC_REVIEWER_QUICKSTART.md)
-- CMC baseline status: [docs/hardware/CMC_BASELINE_STATUS.md](docs/hardware/CMC_BASELINE_STATUS.md)
-- CMC Phase 2 roadmap: [docs/hardware/CMC_PHASE_2_ROADMAP.md](docs/hardware/CMC_PHASE_2_ROADMAP.md)
-- CMC invariants: [docs/hardware/CMC_INVARIANTS.md](docs/hardware/CMC_INVARIANTS.md)
-- Device vision: [docs/DEVICE_VISION.md](docs/DEVICE_VISION.md)
-- Hardware roadmap: [docs/HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
-- Causal Memory Controller thesis: [docs/hardware/CAUSAL_MEMORY_CONTROLLER.md](docs/hardware/CAUSAL_MEMORY_CONTROLLER.md)
-- CMC replay model: [docs/hardware/CMC_REPLAY.md](docs/hardware/CMC_REPLAY.md)
-- CMC hash-chain sketch: [docs/hardware/CMC_HASH_CHAIN.md](docs/hardware/CMC_HASH_CHAIN.md)
-- CMC TraceOut spec: [docs/hardware/CMC_TRACEOUT.md](docs/hardware/CMC_TRACEOUT.md)
-- CMC investor one-pager: [docs/hardware/CMC_INVESTOR_ONE_PAGER.md](docs/hardware/CMC_INVESTOR_ONE_PAGER.md)
-- CMC Rust simulator: [rust/cmc-core/README.md](rust/cmc-core/README.md)
-- Grant evidence: [docs/GRANT_EVIDENCE.md](docs/GRANT_EVIDENCE.md)
-- Validation snapshot: [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md)
-- Runtime state machine: [STATE_MACHINE.md](STATE_MACHINE.md)
-- Dependency boundaries: [DEPENDENCIES.md](DEPENDENCIES.md)
-- Threat model: [docs/safety/agentic_execution_threat_model.md](docs/safety/agentic_execution_threat_model.md)
+[CaPU × ATMAN evidence](evidence/capu-atman/2026-09-05/README.md) contains losslessly compressed copies of the original v1/v2 result JSON and test logs, with file hashes, source revisions and reproduction instructions. These are archived historical observations, not new tests or independent attestations. Code remains in its existing pinned PRs.
 
-## ASTRA–CaPU v1.0 architecture map
+## Architecture family
 
-[![ASTRA–CaPU v1.0 reference architecture](docs/hardware/assets/astra-capu-v1-reference-architecture.svg)](docs/hardware/ASTRA_CAPU_V1_REFERENCE_ARCHITECTURE.md)
+[BardoCompute](https://github.com/safal207/BardoCompute): transition representation · [COSMIC-ORGANICS](https://github.com/safal207/COSMIC-ORGANICS): sparse execution · [ATMAN-LATTICE](https://github.com/safal207/ATMAN-LATTICE): authority and governed revision · [CaPU](https://github.com/safal207/CaPU): effect admission and recovery.
 
-The diagram is a reference architecture, not a silicon floorplan. It positions verified CaPU recovery/effect-authority work as a candidate control-plane boundary around autonomous agents, accelerator command queues, DMA, memory, and external effects.
+This is an integration map, not a verified four-repository system. Full ATMAN, Bardo and COSMIC are not integrated by the recovery experiments.
 
-## Core Concepts and Architecture
+## Status and history
 
-The shortest conceptual entrypoint is:
+Readiness snapshot: **2026-09-05**. No production deployment, universal exactly-once guarantee, physical-power-loss guarantee or CPU advantage is established here. UNKNOWN may remain blocked indefinitely.
 
-```text
-Traditional computing verifies state transitions.
-Causal computing verifies transition legitimacy.
-```
-
-CaPU/CMC treats legitimacy as something that should be represented, replayed, and checked near execution and memory/effect boundaries.
-
-Recommended reviewer path:
-
-```text
-LIVE_CAPU_PROGRESS_DASHBOARD
- -> CAPU_PROGRESS_DASHBOARD_SOURCE
- -> CAPU_PUBLIC_STATUS_AND_ROADMAP
- -> ASTRA_CAPU_V1_REFERENCE_ARCHITECTURE
- -> CAPU_SOFTWARE_REFERENCE_UNITS_STATUS
- -> CAPU_PROCESSOR_MODEL
- -> CAPU_PROCESSOR_ISA_V0
- -> CAPU_MICROARCHITECTURE_V0
- -> CAPU_LEGITIMACY_COPROCESSOR_BRIEF
- -> CAPU_SOFTWARE_REFERENCE_UNITS_ROADMAP
- -> CMC_CURRENT_REVIEWER_PATH
- -> CMC_PERSONA_ACTION_REVIEWER_PATH
- -> WHY_CAUSAL_COMPUTATION
- -> CAUSAL_EXECUTION_ARCHITECTURE
- -> CAUSAL_MEMORY_CONTROLLER
- -> CMC_REPLAY
- -> CMC_HASH_CHAIN
- -> CMC_EVIDENCE_MAP
- -> CMC_REVIEWER_QUICKSTART
- -> CMC_BASELINE_STATUS
- -> CMC_PHASE_2_ROADMAP
- -> CMC_INVARIANTS
- -> rust/cmc-core
- -> CMC GitHub Actions
-```
-
-Core distinction:
-
-```text
-Blockchain protects transaction history.
-CMC protects causal legitimacy.
-```
-
-The emerging primitive is:
-
-```text
-legitimate transition history
-```
-
-Not only what changed, but whether the change had the right to happen.
-
-## Why CaPU Exists
-
-Many systems can validate or describe actions, but still allow execution to happen too early. CaPU exists to prevent side effects from occurring before permission, maturity, and durable commit conditions have been satisfied.
-
-## What CaPU Is
-
-- A permission-first execution runtime for controlling whether actions may progress toward side effects.
-- An execution state machine for the hold / reject / commit / execute lifecycle.
-- The execution-control layer that enforces commit-before-effect guarantees.
-- A deterministic runtime that produces reproducible decision codes and traceable transitions.
-
-## Runtime Pipeline (Central Guarantee)
-
-CaPU's core pipeline is **Gate -> Incubate -> Commit -> Execute**:
-
-- **Gate:** Validate the record and make the permission decision.
-- **Incubate:** Hold/defer until maturity and preconditions are satisfied.
-- **Commit:** Durably authorize the decision before any side effects can occur.
-- **Execute:** Allow side effects only after prior stages have succeeded.
-
-This pipeline makes **commit-before-effect** the default runtime behavior, not a best-effort convention.
-
-## Commit-Before-Effect Identity
-
-CaPU is designed for systems where side effects must not happen before durable commit. If commit fails or preconditions are unresolved, execution does not proceed.
-
-## Device Metaphor (Secondary)
-
-CaPU can be understood as a device boundary with stable ports, but this is secondary to its practical role as an execution runtime.
-
-## Causal Memory Controller (CMC)
-
-CaPU now includes an early research branch for **Causal Memory Controller (CMC)**.
-
-The thesis is simple:
-
-```text
-Ordinary memory stores what changed.
-Causal Memory stores why the change was allowed.
-```
-
-CMC explores whether causal metadata can be preserved near memory and controller boundaries so agentic systems keep continuity across:
-
-```text
-context -> permission -> action -> memory write -> later effect
-```
-
-This is the README entrypoint. More detailed reviewer evidence lives under `docs/hardware/`.
+The original README is preserved byte-for-byte at [README.previous.md](README.previous.md). Existing [license](LICENSE), source layout, CI and research-review gates are unchanged.

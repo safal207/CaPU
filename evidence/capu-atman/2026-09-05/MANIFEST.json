@@ -1,0 +1,17 @@
+{
+  "schema": "research-evidence-lossless-gzip/1",
+  "archived_on": "2026-09-05",
+  "provenance": "Original conversation-local result JSON and logs; not downloaded CI artifacts or independent attestation.",
+  "verification_this_pass": "Four gzip streams decompressed byte-for-byte to the original attachments; eight recorded experiment source hashes matched source files in the attached v2 package; remote Git blob identities matched local calculations. No runtime suite rerun.",
+  "source_revisions": {"v1":"977864167c65f161e6db87b3d14257a11a67516f","v2":"8a2f2a37023a50aeac52cb8c8aed84b2eeceec88"},
+  "embedded_result_digests": {"v1":"7e0d4e80d71bbfb27dfda5939809992d39a993e70097779db8a911568f6ce38f","v2":"1eb8e50a35df8cb9312616c0c21f6182c10592db10e0ba77e96943b9d22128d5"},
+  "files": [
+    {"path":"CaPU_ATMAN_result.json.gz","compressed_bytes":1878,"compressed_sha256":"1b0b50e4c5f22f5df36fb4de9d85f873e74a4867e9a2a16ad9135a12fc109f30","original_bytes":6053,"original_sha256":"13ac7fd561130044ea46f4f509b40f6c29fef0194a03828da13c7aabb7ecc3a0","git_blob_sha1":"28baff523acee45e5d658d58b2d3652c2f72ab31"},
+    {"path":"CaPU_ATMAN_tests.txt.gz","compressed_bytes":744,"compressed_sha256":"983942c4cd766f5c19320094043082754dd33d529f5ee5db24cd3ae426bd1e6b","original_bytes":5652,"original_sha256":"e8f70cb1e456d8f4c511afb6de06f371e75dfdda983f1698db131aa41926a319","git_blob_sha1":"2cd3f22395f87009b2c9fd67d07569762e890ded"},
+    {"path":"CaPU_ATMAN_HTTP_result.json.gz","compressed_bytes":4165,"compressed_sha256":"446ffc2690b6e098d9d2d35f15ecf1b587a830c9b884e3e8a17c67042bb0a1ed","original_bytes":97864,"original_sha256":"dc76b0cd98d62901069604b2a0f513343cc220d40b79f662984364e49d5cd590","git_blob_sha1":"6c48da52615af9b3f0245e98a02f0544f76403db"},
+    {"path":"CaPU_ATMAN_HTTP_tests.txt.gz","compressed_bytes":526,"compressed_sha256":"c978fdcb0a0616d3a960646f4dd615fb156d298660cb25a6b10853b31a24ebb5","original_bytes":3601,"original_sha256":"a8009338b1252444f2a66f94f854a1b083498c2cefd4340c3bb07a39ce2c09da","git_blob_sha1":"8f3e5453433dd85fc3cf9c90d1d77cad405d61dc"}
+  ],
+  "code_storage": "Existing pinned repository commits and draft PRs 103/104; source ZIP packages are not duplicated in this evidence directory.",
+  "review": "Native Codex quota blocked on code candidates; no approval inferred.",
+  "claims": "Bounded process/loopback HTTP recovery observations only. Checksums establish byte identity, not truth, completeness or independent timestamps."
+}

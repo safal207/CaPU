@@ -1,0 +1,19 @@
+{
+  "schema": "research-repository-status/1",
+  "repository": "safal207/CaPU",
+  "observed_on": "2026-09-05",
+  "default_branch": "main",
+  "baseline_main_sha": "0d7b369a2ed70acdbb7df70f24e18b5e7d35f3c5",
+  "publication_scope": "documentation and historical evidence only; no code promotion",
+  "production_ready": false,
+  "coverage": "selected entry tracks, not a complete branch audit",
+  "tracks": [
+    {"id":"main-reference","source_sha":"0d7b369a2ed70acdbb7df70f24e18b5e7d35f3c5","availability":"main software reference","on_baseline_main":true,"rerun_during_organization":false},
+    {"id":"recovery-v1","source_sha":"977864167c65f161e6db87b3d14257a11a67516f","availability":"draft PR 103","evidence":"historical local result: 55 tests","on_baseline_main":false,"review":"native Codex quota blocked; not approved","rerun_during_organization":false},
+    {"id":"http-recovery-v2","source_sha":"8a2f2a37023a50aeac52cb8c8aed84b2eeceec88","availability":"draft PR 104","evidence":"historical local result: 28 tests, 14 scenarios, 37 paired observations","on_baseline_main":false,"review":"native Codex quota blocked; not approved","rerun_during_organization":false}
+  ],
+  "evidence_manifest": "evidence/capu-atman/2026-09-05/MANIFEST.json",
+  "non_claims": ["production authentication", "bypass resistance", "physical power-loss safety", "universal exactly-once", "advantage over equal-guarantee FSM", "full ATMAN or Bardo/COSMIC integration"],
+  "branch_deletions": [],
+  "review_of_linked_code": "unchanged by documentation publication"
+}
