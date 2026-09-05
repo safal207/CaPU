@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import sys
 
+from dependency_preflight import DependencyError, validate_report
 from provenance import DEPENDENCY_COMMIT, ROOT, SOURCE_FILES, revision, source_hashes
 
 POLICIES = ('hold', 'snapshot_negative', 'admission_fence', 'atomic_fence')
@@ -169,6 +170,10 @@ def validate(root: Path, historical: bool = False, source_root: Path = ROOT,
         mode = 'exact historical archive; legacy source_commit labels the v2 dependency, not the v3 producer'
     else:
         require(s['schema'] == 'recovery-closure-experiment/2', 'Fresh evidence requires schema /2; use --historical for archive')
+        try:
+            validate_report(s.get('environment', {}).get('dependencies'))
+        except DependencyError as exc:
+            raise ValidationError(str(exc)) from exc
         require(set(s['source_sha256']) == set(SOURCE_FILES), 'Incomplete/unexpected source inventory')
         equal(s['source_sha256'], source_hashes(source_root), 'Producer files changed')
         for name, expected in revision(source_root).items():
