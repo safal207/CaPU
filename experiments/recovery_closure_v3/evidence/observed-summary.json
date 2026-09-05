@@ -1,0 +1,35 @@
+{
+  "schema": "recovery-closure-observation/1",
+  "observed_on": "2026-09-05",
+  "source_commit": "8a2f2a37023a50aeac52cb8c8aed84b2eeceec88",
+  "http_tests": {"errors": 0, "failures": 0, "run": 40, "skipped": 0},
+  "model_trace_count": 560,
+  "model_summary": [
+    {"policy":"hold","initial_request_dropped":false,"schedules":56,"duplicate_traces":0,"incomplete_traces":0},
+    {"policy":"hold","initial_request_dropped":true,"schedules":56,"duplicate_traces":0,"incomplete_traces":56},
+    {"policy":"snapshot_negative","initial_request_dropped":false,"schedules":56,"duplicate_traces":50,"incomplete_traces":0},
+    {"policy":"snapshot_negative","initial_request_dropped":true,"schedules":56,"duplicate_traces":0,"incomplete_traces":0},
+    {"policy":"admission_fence","initial_request_dropped":false,"schedules":56,"duplicate_traces":15,"incomplete_traces":0},
+    {"policy":"admission_fence","initial_request_dropped":true,"schedules":56,"duplicate_traces":0,"incomplete_traces":0},
+    {"policy":"atomic_fence","initial_request_dropped":false,"schedules":56,"duplicate_traces":0,"incomplete_traces":0},
+    {"policy":"atomic_fence","initial_request_dropped":true,"schedules":56,"duplicate_traces":0,"incomplete_traces":0},
+    {"policy":"operation_idempotency","initial_request_dropped":false,"schedules":56,"duplicate_traces":0,"incomplete_traces":0},
+    {"policy":"operation_idempotency","initial_request_dropped":true,"schedules":56,"duplicate_traces":0,"incomplete_traces":0}
+  ],
+  "native_fsm_pairs":16,
+  "native_fsm_all_equal":true,
+  "source_sha256": {
+    "finite_model.py":"1f9fd3ec837d710e99a1bc78605fe9d8cde7e4414f5ed2c5520b816cab190316",
+    "observer.py":"ae1a51df68ae1212528daf0f179294404c752a61e4e89df4ca0dfdc0ccd441fe",
+    "receiver.py":"326d762c8588da616b8139d237ab769b4d5e7a48d927e7c5b9a8acada8e88380",
+    "run.py":"64ce50e2fcefc522fb335b17a1a8f6174af4bfa83e27e28c8772a8d8e8961d6c",
+    "source_pins.py":"a71be4bd193a4b5d6a7079418f6d50054f24095f2a8cc4109eb78c17138c4d98",
+    "test_http.py":"9a6ff9b58d2e2e0e9d245eb4537998081205826dd06f0d44143093ff0ec01ef8"
+  },
+  "prior_regressions": {
+    "v1_tests":55,"v2_tests":28,
+    "v1_digest":"7e0d4e80d71bbfb27dfda5939809992d39a993e70097779db8a911568f6ce38f",
+    "v2_digest":"1eb8e50a35df8cb9312616c0c21f6182c10592db10e0ba77e96943b9d22128d5"
+  },
+  "non_claims":["Not a defect in conservative upstream v2","Not a new fencing or idempotency algorithm","Not a production risk probability","Not superiority over equal-guarantee FSM","Not external payment or hardware validation","Not independent review"]
+}

@@ -1,0 +1,40 @@
+name: Recovery closure v3
+on:
+  pull_request:
+    paths:
+      - 'experiments/recovery_closure_v3/**'
+      - '.github/workflows/recovery-closure-v3.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install pinned dependency
+        run: python -m pip install -r experiments/recovery_closure_v3/requirements.txt
+      - name: Verify pinned source dependencies
+        run: python experiments/recovery_closure_v3/source_pins.py
+      - name: Restore and validate recorded evidence
+        run: |
+          python experiments/recovery_closure_v3/restore_evidence.py --output recorded-evidence
+          python experiments/recovery_closure_v3/validate_results.py recorded-evidence
+      - name: Run new model and HTTP experiments
+        run: |
+          python experiments/recovery_closure_v3/run.py --output evidence-v3
+          python experiments/recovery_closure_v3/validate_results.py evidence-v3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovery-closure-v3-python-${{ matrix.python }}
+          path: evidence-v3/
+          if-no-files-found: error
