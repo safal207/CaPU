@@ -10,31 +10,65 @@ permissions:
 jobs:
   recovery:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
         python: ['3.11', '3.13']
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Install pinned dependency
-        run: python -m pip install -r experiments/recovery_closure_v3/requirements.txt
+      - name: Install and record pinned dependency
+        shell: bash
+        run: |
+          mkdir -p ci-evidence
+          python -m pip install -r experiments/recovery_closure_v3/requirements.txt 2>&1 | tee ci-evidence/install.txt
+          python -m pip check | tee ci-evidence/pip-check.txt
+          python -m pip freeze > ci-evidence/packages.txt
+          python - <<'PY'
+          import json, platform
+          from importlib.metadata import version
+          from pathlib import Path
+          from cryptography.hazmat.backends.openssl.backend import backend
+          data = {'python': platform.python_version(), 'cryptography': version('cryptography'), 'openssl': backend.openssl_version_text()}
+          Path('ci-evidence/runtime.json').write_text(json.dumps(data, indent=2) + '\n')
+          if data['cryptography'] != '50.0.1':
+              raise SystemExit('Wrong cryptography version')
+          PY
       - name: Verify pinned source dependencies
         run: python experiments/recovery_closure_v3/source_pins.py
       - name: Restore and validate recorded evidence
+        shell: bash
         run: |
           python experiments/recovery_closure_v3/restore_evidence.py --output recorded-evidence
-          python experiments/recovery_closure_v3/validate_results.py recorded-evidence
-      - name: Run new model and HTTP experiments
+          python experiments/recovery_closure_v3/validate_results.py recorded-evidence --historical | tee ci-evidence/validation-history.json
+      - name: Validator and restoration regression tests
+        shell: bash
         run: |
-          python experiments/recovery_closure_v3/run.py --output evidence-v3
-          python experiments/recovery_closure_v3/validate_results.py evidence-v3
+          cd experiments/recovery_closure_v3
+          python -m unittest -v test_validation 2>&1 | tee ../../ci-evidence/validator-tests.txt
+          python -O -m unittest -v test_validation 2>&1 | tee ../../ci-evidence/validator-tests-optimized.txt
+      - name: Run new model and HTTP experiments
+        shell: bash
+        run: |
+          python experiments/recovery_closure_v3/run.py --output evidence-v3 | tee ci-evidence/run.txt
+          python experiments/recovery_closure_v3/validate_results.py evidence-v3 | tee ci-evidence/validation-fresh.json
+          python -O experiments/recovery_closure_v3/validate_results.py evidence-v3 | tee ci-evidence/validation-fresh-optimized.json
+      - name: Audit resolved runtime requirements
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/capu-audit"
+          "$RUNNER_TEMP/capu-audit/bin/python" -m pip install 'pip-audit==2.10.1'
+          "$RUNNER_TEMP/capu-audit/bin/python" -m pip_audit -r experiments/recovery_closure_v3/requirements.txt --strict --progress-spinner off --format json --output ci-evidence/dependency-audit.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: recovery-closure-v3-python-${{ matrix.python }}
-          path: evidence-v3/
+          path: |
+            evidence-v3/
+            ci-evidence/
           if-no-files-found: error

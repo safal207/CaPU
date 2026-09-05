@@ -68,7 +68,8 @@ def run():
     # Independent combinatorial check: all permutations filtered by both chains.
     brute = {p for p in itertools.permutations(sum(CHAINS, ()))
              if all(all(p.index(a) < p.index(b) for a, b in zip(c, c[1:])) for c in CHAINS)}
-    assert set(orders) == brute and len(orders) == 56
+    if not (set(orders) == brute and len(orders) == 56):
+        raise AssertionError('finite_model.py invariant at original line 71')
     traces, summary = [], []
     for policy in POLICIES:
         for dropped in (False, True):
@@ -78,11 +79,15 @@ def run():
                             'schedules': len(batch), 'duplicate_traces': sum(r['duplicate'] for r in batch),
                             'incomplete_traces': sum(r['incomplete'] for r in batch)})
     for policy in ('hold', 'atomic_fence', 'operation_idempotency'):
-        assert not any(r['duplicate'] for r in traces if r['policy'] == policy)
+        if not (not any(r['duplicate'] for r in traces if r['policy'] == policy)):
+            raise AssertionError('finite_model.py invariant at original line 81')
     for policy in ('snapshot_negative', 'admission_fence'):
-        assert any(r['duplicate'] for r in traces if r['policy'] == policy)
-    assert all(r['effect_count'] == 1 for r in traces if r['policy'] in ('atomic_fence', 'operation_idempotency'))
-    assert all(r['incomplete'] for r in traces if r['policy'] == 'hold' and r['initial_request_dropped'])
+        if not (any(r['duplicate'] for r in traces if r['policy'] == policy)):
+            raise AssertionError('finite_model.py invariant at original line 83')
+    if not (all(r['effect_count'] == 1 for r in traces if r['policy'] in ('atomic_fence', 'operation_idempotency'))):
+        raise AssertionError('finite_model.py invariant at original line 84')
+    if not (all(r['incomplete'] for r in traces if r['policy'] == 'hold' and r['initial_request_dropped'])):
+        raise AssertionError('finite_model.py invariant at original line 85')
     encoded = json.dumps(traces, sort_keys=True, separators=(',', ':')).encode()
     return {'summary': summary, 'trace_count': len(traces),
             'trace_sha256': hashlib.sha256(encoded).hexdigest(), 'traces': traces}

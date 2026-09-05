@@ -1,0 +1,22 @@
+{
+  "artifact_sha256": {
+    "http-tests.txt": "ae9e39170a70dbffe7130a09f536adf73c1398484f5ff8a07141ccf7b4ca5101",
+    "http-traces.json": "b347cf7d47e8886b31341946f43555e0684260ec3421032ae822c95ca01eb69d",
+    "model.json": "c9465a2bc29c40e817deda895ebddc8706d04fb9d8d3d72263f4bb972967a854",
+    "summary.json": "53f09e04095bf4eb975240e8ce619833e0797caf040c34bc7e86e305cc071129"
+  },
+  "http_canonical_sha256": "39a58e931eb522bd305b28e5b254af5a25620e2c108f8281dee9763baf807410",
+  "legacy_dependency_label": "8a2f2a37023a50aeac52cb8c8aed84b2eeceec88",
+  "model_trace_sha256": "8ec4fe5a66067ab23c77bf6ff589136d1a51a915191ed6c46b71178dee9b6a40",
+  "observation_sha256": "abe52266a298a237a25c67ba506050f554a9fd1e76a9fb81b4e4f451de2f4ca7",
+  "producer_candidate": "d64f9809f90532d52c2992174e63c1a216a50211",
+  "repository_observation_sha256": "0248c7daaa86ddca9af6f3ef52a4fc936c967e036a16f2d11a4948c3a0bcfe82",
+  "source_sha256": {
+    "finite_model.py": "1f9fd3ec837d710e99a1bc78605fe9d8cde7e4414f5ed2c5520b816cab190316",
+    "observer.py": "ae1a51df68ae1212528daf0f179294404c752a61e4e89df4ca0dfdc0ccd441fe",
+    "receiver.py": "326d762c8588da616b8139d237ab769b4d5e7a48d927e7c5b9a8acada8e88380",
+    "run.py": "64ce50e2fcefc522fb335b17a1a8f6174af4bfa83e27e28c8772a8d8e8961d6c",
+    "source_pins.py": "a71be4bd193a4b5d6a7079418f6d50054f24095f2a8cc4109eb78c17138c4d98",
+    "test_http.py": "9a6ff9b58d2e2e0e9d245eb4537998081205826dd06f0d44143093ff0ec01ef8"
+  }
+}

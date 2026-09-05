@@ -105,13 +105,15 @@ def scenario(policy, gate, engine):
         steps = []
         try:
             first = h.dispatch(0)
-            assert first['forwarded'], first
+            if not (first['forwarded']):
+                raise AssertionError(first)
             if gate != 'normal':
                 h.wait('arrived')
             steps.append(h.snapshot('INITIAL_REQUEST'))
             closure = h.resolve(0)
             if engine and 'receipt' in closure:
-                assert closure['application']['applied'], closure
+                if not (closure['application']['applied']):
+                    raise AssertionError(closure)
             retry = h.dispatch(1)
             steps.append(h.snapshot('AFTER_RECOVERY_BEFORE_RELEASE'))
             h.request('/release')
@@ -120,10 +122,12 @@ def scenario(policy, gate, engine):
             if engine:
                 if retry['forwarded']:
                     positive = h.resolve(1)
-                    assert positive['status'] == 'COMMITTED' and positive['application']['applied'], positive
+                    if not (positive['status'] == 'COMMITTED' and positive['application']['applied']):
+                        raise AssertionError(positive)
                 elif gate != 'drop_before_effect' and closure['status'] != 'COMMITTED':
                     positive = h.resolve(0)
-                    assert positive['status'] == 'COMMITTED' and positive['application']['applied'], positive
+                    if not (positive['status'] == 'COMMITTED' and positive['application']['applied']):
+                        raise AssertionError(positive)
             steps.append(h.snapshot('FINAL'))
             if policy == 'operation_idempotency':
                 expected = 1
@@ -136,9 +140,12 @@ def scenario(policy, gate, engine):
             else:
                 expected = 1
             actual = steps[-1]['witness']['effect_count']
-            assert actual == expected, (policy, gate, actual, expected)
-            assert all(s['witness']['integrity'] == 'ok' for s in steps)
-            assert not (Path(temp) / 'controller/device.sqlite').exists()
+            if not (actual == expected):
+                raise AssertionError((policy, gate, actual, expected))
+            if not (all(s['witness']['integrity'] == 'ok' for s in steps)):
+                raise AssertionError('test_http.py invariant at original line 140')
+            if not (not (Path(temp) / 'controller/device.sqlite').exists()):
+                raise AssertionError('test_http.py invariant at original line 141')
             return {'policy': policy, 'gate': gate, 'engine': engine or 'ordinary_operation_idempotency',
                     'closure_status': closure['status'], 'retry_forwarded': retry['forwarded'],
                     'effects_at_recovery': steps[1]['witness']['effect_count'],

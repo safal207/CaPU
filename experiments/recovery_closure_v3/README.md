@@ -1,3 +1,8 @@
+> **2026-09-05 review follow-up:** see [PUBLICATION.md](PUBLICATION.md).
+> Historical evidence requires `--historical`; fresh evidence uses schema `/2`.
+> The dependency is pinned to 50.0.1; inspect the actual CI run for compatibility
+> and audit results. No production approval or external endorsement is implied.
+
 # Recovery closure: where a safe retry becomes possible
 
 **Experimental reference — not production infrastructure.** This directory investigates a missing *integration contract*, not a newly discovered defect in CaPU HTTP v2. The original v2 correctly refuses to reinterpret a missing record as a negative outcome.
@@ -46,7 +51,7 @@ SQLite row insertion **is** the effect. Closure and that effect are in the same 
 
 ## Evidence and review
 
-`evidence/observed-summary.json` is the observed summary, while `evidence/archive-parts/` retains all new trace files and the test log without losing bytes. Run `python restore_evidence.py` and `python validate_results.py evidence-restored` to verify the original observations. The downloadable ZIP additionally preserves the complete v1/v2 regression outputs. `EVIDENCE_MANIFEST.json` records uncompressed and compressed hashes. `PROTOCOL.md` records the hypotheses written before the new trials. `VALIDATION.md` records recomputation and limitations. Test PASS is not independent code review. Keep this work in a draft PR without merging until the agreed review gate is satisfied.
+`evidence/observed-summary.json` is the observed summary, while `evidence/archive-parts/` retains all new trace files and the test log without losing bytes. Run `python restore_evidence.py` and `python validate_results.py evidence-restored --historical` to verify the original observations. The downloadable ZIP additionally preserves the complete v1/v2 regression outputs. `EVIDENCE_MANIFEST.json` records uncompressed and compressed hashes. `PROTOCOL.md` records the hypotheses written before the new trials. `VALIDATION.md` records recomputation and limitations. Test PASS is not independent code review. Keep this work in a draft PR without merging until the agreed review gate is satisfied.
 
 ## Why this is useful
 
@@ -67,3 +72,8 @@ Martin Kleppmann, "How to do distributed locking" (2016): https://martin.kleppma
 gRPC, "Cancellation": https://grpc.io/docs/guides/cancellation/
 
 These sources already establish relevant retry, receiver-enforcement and cancellation limitations. This experiment makes those boundaries executable in the pinned CaPU/ATMAN composition; it does not establish scientific priority.
+
+## Publication follow-up
+
+See [PUBLICATION.md](PUBLICATION.md) for the dependency update, CI contract,
+historical provenance correction, and current review boundary.
