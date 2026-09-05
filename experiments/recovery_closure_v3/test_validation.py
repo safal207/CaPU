@@ -15,6 +15,7 @@ import unittest
 from unittest import mock
 
 import finite_model
+from dependency_preflight import EXPECTED_VERSION
 import provenance
 import restore_evidence
 import validate_results as vr
@@ -42,6 +43,12 @@ class ValidationTests(unittest.TestCase):
             (self.path / name).write_text(raw)
         self.s = copy.deepcopy(self.original['summary.json'])
         self.s.update(schema='recovery-closure-experiment/2', **provenance.revision())
+        # Synthetic metadata for validator tests, NOT a measured dependency run.
+        self.s['environment'] = {'dependencies': {
+            'schema': 'capu-dependency-preflight/1', 'package': 'cryptography',
+            'installed_version': EXPECTED_VERSION, 'module_version': EXPECTED_VERSION,
+            'openssl': 'synthetic unit fixture', 'python': 'synthetic unit fixture',
+            'ed25519_roundtrip': True, 'changed_message_rejected': True}}
         self.s['dependency_commit'] = provenance.DEPENDENCY_COMMIT
         self.s['source_sha256'] = provenance.source_hashes()
         self.m = copy.deepcopy(self.original['model.json'])
@@ -83,6 +90,21 @@ class ValidationTests(unittest.TestCase):
             with self.subTest(keys=sorted(variant)):
                 self.s['source_sha256'] = variant
                 self.rejected()
+
+    def test_dependency_version_mislabel_is_rejected(self):
+        """A fresh result made with the old dependency is not an upgrade result."""
+        self.s['environment']['dependencies']['installed_version'] = '46.0.4'
+        self.rejected('Recorded distribution')
+
+    def test_missing_dependency_report_is_rejected(self):
+        """Fresh evidence must include actual runtime compatibility metadata."""
+        self.s['environment'].pop('dependencies')
+        self.rejected('dependency report')
+
+    def test_failed_dependency_smoke_is_rejected(self):
+        """A version string alone does not count as a successful runtime check."""
+        self.s['environment']['dependencies']['changed_message_rejected'] = False
+        self.rejected('smoke test')
 
     def test_source_file_absence(self):
         """Missing local producer inputs are errors, not optional entries."""
