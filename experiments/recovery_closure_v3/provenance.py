@@ -8,6 +8,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parent
 DEPENDENCY_COMMIT = '8a2f2a37023a50aeac52cb8c8aed84b2eeceec88'
 SOURCE_FILES = (
+    'dependency_preflight.py', 'test_dependency_preflight.py',
     'demo.py', 'finite_model.py', 'observer.py', 'provenance.py',
     'receiver.py', 'restore_evidence.py', 'run.py', 'source_pins.py',
     'test_http.py', 'test_validation.py', 'validate_results.py',
