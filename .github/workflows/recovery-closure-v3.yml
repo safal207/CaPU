@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -39,6 +40,11 @@ jobs:
           if data['cryptography'] != '50.0.1':
               raise SystemExit('Wrong cryptography version')
           PY
+      - name: Check actual dependency API before execution
+        shell: bash
+        run: |
+          python experiments/recovery_closure_v3/dependency_preflight.py --output ci-evidence/dependency-preflight.json
+          python -O experiments/recovery_closure_v3/dependency_preflight.py --output ci-evidence/dependency-preflight-optimized.json
       - name: Verify pinned source dependencies
         run: python experiments/recovery_closure_v3/source_pins.py
       - name: Restore and validate recorded evidence
@@ -46,18 +52,23 @@ jobs:
         run: |
           python experiments/recovery_closure_v3/restore_evidence.py --output recorded-evidence
           python experiments/recovery_closure_v3/validate_results.py recorded-evidence --historical | tee ci-evidence/validation-history.json
-      - name: Validator and restoration regression tests
+      - name: Validator restoration and dependency regression tests
         shell: bash
         run: |
           cd experiments/recovery_closure_v3
-          python -m unittest -v test_validation 2>&1 | tee ../../ci-evidence/validator-tests.txt
-          python -O -m unittest -v test_validation 2>&1 | tee ../../ci-evidence/validator-tests-optimized.txt
+          python -m unittest -v test_validation test_dependency_preflight 2>&1 | tee ../../ci-evidence/validator-tests.txt
+          python -O -m unittest -v test_validation test_dependency_preflight 2>&1 | tee ../../ci-evidence/validator-tests-optimized.txt
       - name: Run new model and HTTP experiments
         shell: bash
         run: |
           python experiments/recovery_closure_v3/run.py --output evidence-v3 | tee ci-evidence/run.txt
           python experiments/recovery_closure_v3/validate_results.py evidence-v3 | tee ci-evidence/validation-fresh.json
           python -O experiments/recovery_closure_v3/validate_results.py evidence-v3 | tee ci-evidence/validation-fresh-optimized.json
+      - name: Run bounded demonstrations with the installed pin
+        shell: bash
+        run: |
+          python experiments/recovery_closure_v3/demo.py --case delayed | tee ci-evidence/demo-delayed.txt
+          python experiments/recovery_closure_v3/demo.py --case lost | tee ci-evidence/demo-lost.txt
       - name: Audit resolved runtime requirements
         shell: bash
         run: |
