@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "kind": "historical-local-patch-run-not-50.0.1-ci",
+  "source_patch_sha256": "1a9c00ca9c67b0368a1acd503764aabf0790dbc91570f17a50f74f6ac49be044",
+  "compressed_sha256": "2f0328511e4d29c0b18aa73942ed419a8fa51b50a9a243e11209012708157b63",
+  "files": {
+    "http-tests.txt": {
+      "bytes": 4566,
+      "sha256": "ebfe0a1d433be47dac527589457dca850cdc974a4f5771d5b06b036c551c33e6"
+    },
+    "semantic-replay-comparison.json": {
+      "bytes": 455,
+      "sha256": "4188916ffa453943b80d50f47e8d7f2faf2adfaa93d69ea6f1f16114f8f8fafc"
+    },
+    "summary.json": {
+      "bytes": 14528,
+      "sha256": "595498b8b7dbd1da325d22234df5b1c597b988ed96565795fb9986f96f249b63"
+    },
+    "validation-fresh.json": {
+      "bytes": 266,
+      "sha256": "12079e3c675a03ac698d305e8e817552afe7fde2267424239cd98954d223f960"
+    },
+    "validation-history.json": {
+      "bytes": 300,
+      "sha256": "bb06156411077d937614e73a8cbfb41fed9819736cfb49ea4062998e273a5733"
+    },
+    "validator-tests-optimized.txt": {
+      "bytes": 5405,
+      "sha256": "46dd1e1b9c68509b611b41895a934e90e5a8e43db6c2070b378cb1e4055c3fa3"
+    },
+    "validator-tests.txt": {
+      "bytes": 5405,
+      "sha256": "1e973b431acc389e8c9d3c5717d9d10aa8014b2d96f1ee9f14b867fcf9f671db"
+    },
+    "verification.json": {
+      "bytes": 3250,
+      "sha256": "7b1658b7a376105da50dca0e27c22ae634147c5a02180949ca5e05cc6f1c4350"
+    }
+  }
+}

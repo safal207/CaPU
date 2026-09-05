@@ -1,0 +1,36 @@
+{
+  "schema": "recovery-closure-evidence/1",
+  "codec": "bz2 of UTF-8 JSON object; *.json values re-serialize with indent=2, sort_keys=True and final newline; logs write verbatim",
+  "compressed_bytes": 5476,
+  "compressed_sha256": "af053ef76da16f703248aa65b0e2116ca2c5ab2d49ad91856f90af1f2d886b88",
+  "files": {
+    "http-tests.txt": {
+      "bytes": 4566,
+      "sha256": "ae9e39170a70dbffe7130a09f536adf73c1398484f5ff8a07141ccf7b4ca5101"
+    },
+    "http-traces.json": {
+      "bytes": 62744,
+      "sha256": "b347cf7d47e8886b31341946f43555e0684260ec3421032ae822c95ca01eb69d"
+    },
+    "model.json": {
+      "bytes": 1057600,
+      "sha256": "c9465a2bc29c40e817deda895ebddc8706d04fb9d8d3d72263f4bb972967a854"
+    },
+    "summary.json": {
+      "bytes": 13736,
+      "sha256": "53f09e04095bf4eb975240e8ce619833e0797caf040c34bc7e86e305cc071129"
+    }
+  },
+  "parts": [
+    "evidence/archive-parts/000.b64",
+    "evidence/archive-parts/001.b64",
+    "evidence/archive-parts/002.b64",
+    "evidence/archive-parts/003.b64",
+    "evidence/archive-parts/004.b64",
+    "evidence/archive-parts/005.b64",
+    "evidence/archive-parts/006.b64",
+    "evidence/archive-parts/007.b64",
+    "evidence/archive-parts/008.b64",
+    "evidence/archive-parts/009.b64"
+  ]
+}
