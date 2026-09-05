@@ -2,7 +2,6 @@
 from __future__ import annotations
 import argparse
 import hashlib
-import importlib.metadata
 import json
 from pathlib import Path
 import platform
@@ -10,7 +9,7 @@ import sys
 import time
 import unittest
 import finite_model
-import test_http
+from dependency_preflight import verify_runtime
 from provenance import DEPENDENCY_COMMIT, revision, source_hashes
 
 ROOT = Path(__file__).resolve().parent
@@ -25,6 +24,8 @@ def run(output):
     """Execute the unchanged scenario matrix and validate its generated evidence."""
     if sys.flags.optimize:
         raise RuntimeError("Run the HTTP harness without optimization; the validator supports -O separately")
+    dependency_report = verify_runtime()
+    import test_http
     before = source_hashes()
     output.mkdir(parents=True, exist_ok=True)
     start = time.monotonic()
@@ -45,7 +46,7 @@ def run(output):
             a, b = [{k: v for k, v in r.items() if k != 'engine'} for r in pair]
             paired.append({'policy': policy, 'gate': gate, 'equal': a == b})
     summary = {'schema': 'recovery-closure-experiment/2', **revision(), 'dependency_commit': DEPENDENCY_COMMIT,
-               'environment': {'python': sys.version, 'platform': platform.platform(), 'cryptography': importlib.metadata.version('cryptography')},
+               'environment': {'python': sys.version, 'platform': platform.platform(), 'dependencies': dependency_report},
                'model_trace_count': model['trace_count'], 'model_summary': model['summary'],
                'http_tests': {'run': result.testsRun, 'failures': len(result.failures), 'errors': len(result.errors), 'skipped': len(result.skipped)},
                'http_matrix': [{k: v for k, v in r.items() if k != 'steps'} for r in matrix],
