@@ -1,8 +1,11 @@
 # CaPU v0.29 native Bitwuzla evaluation
 
-Status: experimental, manually triggered evaluation. The existing Z3 workflow
-and its required checks remain unchanged. A local experiment or a parsed
-workflow file is not evidence that the GitHub Actions workflow has run.
+Status: experimental evaluation, runnable manually and on pull requests that
+change its workflow, adapter, or Bitwuzla configuration files. The existing Z3
+workflow and its required checks remain unchanged. A local experiment or a
+parsed workflow file is not evidence that the GitHub Actions workflow has run.
+Manual dispatch is available only after this workflow exists on the default
+branch. The pull-request trigger allows a hosted run to be checked beforehand.
 
 The evaluation uses three separately named SymbiYosys configurations:
 
@@ -12,7 +15,7 @@ The evaluation uses three separately named SymbiYosys configurations:
 | v0.29 cover | Cover depth 36 | Existing reachability properties and generated witnesses |
 | v0.28 regression | BMC depth 18 | Existing durable-negative-completion safety model |
 
-The manual workflow also runs the existing v0.29/v0.28 deterministic RTL
+The evaluation workflow also runs the existing v0.29/v0.28 deterministic RTL
 trajectories and checkpoint tests. A bounded PASS concerns the modeled states,
 assumptions and bound; it is not an unbounded proof or production DMA claim.
 A timeout is a failure to complete the evaluation, not a passing proof.
