@@ -1,0 +1,130 @@
+name: CaPU v0.29 native Bitwuzla evaluation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/vcml-multibeat-dma-bitwuzla-evaluation.yml"
+      - "formal/capu_multibeat_dma_recovery_v29_bitwuzla.sby"
+      - "formal/capu_multibeat_dma_recovery_v29_cover_bitwuzla.sby"
+      - "formal/capu_durable_negative_completion_v28_bitwuzla.sby"
+      - "tools/bitwuzla_cli_compat.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    name: Optional bounded safety, cover and v0.28 regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out source revision
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+      - name: Install build and formal dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential git iverilog libgmp-dev libmpfr-dev pkg-config python3-venv yosys
+          python3 -m venv "$RUNNER_TEMP/capu-venv"
+          "$RUNNER_TEMP/capu-venv/bin/python" -m pip install 'meson==1.12.1' 'ninja==1.13.2' 'click==8.5.0'
+          echo "$RUNNER_TEMP/capu-venv/bin" >> "$GITHUB_PATH"
+      - name: Run v0.29 and v0.28 deterministic regressions
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-bitwuzla
+          iverilog -g2012 -o /tmp/capu-v29 rtl/capu_multibeat_dma_recovery_v29.sv rtl/tb/capu_multibeat_dma_recovery_v29_tb.sv
+          vvp /tmp/capu-v29 | tee target/capu-bitwuzla/v29-trajectory.log
+          grep -F 'CAPU_VCML_MULTIBEAT_DMA_RECOVERY_V29_PASS' target/capu-bitwuzla/v29-trajectory.log
+          grep -F 'partial_restore committed_prefix_replay_blocked=1 unresolved_beat_requires_evidence=1 tail_blocked=1' target/capu-bitwuzla/v29-trajectory.log
+          python3 tests/test_vcml_multibeat_dma_checkpoint_v29.py | tee target/capu-bitwuzla/v29-checkpoint.log
+          grep -F 'VCML_MULTIBEAT_DMA_CHECKPOINT_V29_PASS' target/capu-bitwuzla/v29-checkpoint.log
+          iverilog -g2012 -o /tmp/capu-v28 rtl/capu_durable_negative_completion_v28.sv rtl/tb/capu_durable_negative_completion_v28_tb.sv
+          vvp /tmp/capu-v28 | tee target/capu-bitwuzla/v28-trajectory.log
+          grep -F 'CAPU_VCML_DURABLE_NEGATIVE_COMPLETION_V28_PASS' target/capu-bitwuzla/v28-trajectory.log
+          python3 tests/test_vcml_durable_negative_checkpoint_v28.py | tee target/capu-bitwuzla/v28-checkpoint.log
+          grep -F 'VCML_DURABLE_NEGATIVE_CHECKPOINT_V28_PASS' target/capu-bitwuzla/v28-checkpoint.log
+      - name: Build pinned native Bitwuzla
+        run: |
+          set -euo pipefail
+          BITWUZLA_SHA=8d1eb01093ae54d9b4586456b69c3bf31000a4c2
+          git init "$RUNNER_TEMP/bitwuzla"
+          git -C "$RUNNER_TEMP/bitwuzla" remote add origin https://github.com/bitwuzla/bitwuzla.git
+          git -C "$RUNNER_TEMP/bitwuzla" fetch --depth 1 origin "$BITWUZLA_SHA"
+          git -C "$RUNNER_TEMP/bitwuzla" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/bitwuzla" rev-parse HEAD)" = "$BITWUZLA_SHA"
+          cd "$RUNNER_TEMP/bitwuzla"
+          python configure.py release --no-testing --no-unit-testing
+          meson compile -C build -j 2
+          native="$RUNNER_TEMP/bitwuzla/build/src/main/bitwuzla"
+          "$native" --version
+          mkdir -p "$RUNNER_TEMP/capu-bin"
+          cp "$GITHUB_WORKSPACE/tools/bitwuzla_cli_compat.sh" "$RUNNER_TEMP/capu-bin/bitwuzla"
+          chmod +x "$RUNNER_TEMP/capu-bin/bitwuzla"
+          echo "$RUNNER_TEMP/capu-bin" >> "$GITHUB_PATH"
+          echo "CAPU_BITWUZLA_BIN=$native" >> "$GITHUB_ENV"
+      - name: Install pinned SymbiYosys
+        run: |
+          set -euo pipefail
+          SBY_SHA=b1a1e98cba941ec8433f8dc27f416cd7bb7f14be
+          git init "$RUNNER_TEMP/sby"
+          git -C "$RUNNER_TEMP/sby" remote add origin https://github.com/YosysHQ/sby.git
+          git -C "$RUNNER_TEMP/sby" fetch --depth 1 origin "$SBY_SHA"
+          git -C "$RUNNER_TEMP/sby" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/sby" rev-parse HEAD)" = "$SBY_SHA"
+      - name: Check v0.29 bounded safety
+        run: |
+          set -euo pipefail
+          mkdir -p target/capu-bitwuzla
+          timeout -k 10s 300s python "$RUNNER_TEMP/sby/sbysrc/sby.py" -f -d target/capu-bitwuzla/safety-work formal/capu_multibeat_dma_recovery_v29_bitwuzla.sby 2>&1 | tee target/capu-bitwuzla/safety.log
+          grep -q 'DONE (PASS' target/capu-bitwuzla/safety.log
+      - name: Check v0.29 reachability
+        run: |
+          set -euo pipefail
+          timeout -k 10s 600s python "$RUNNER_TEMP/sby/sbysrc/sby.py" -f -d target/capu-bitwuzla/cover-work formal/capu_multibeat_dma_recovery_v29_cover_bitwuzla.sby 2>&1 | tee target/capu-bitwuzla/cover.log
+          grep -q 'DONE (PASS' target/capu-bitwuzla/cover.log
+          test "$(grep -c 'Reached cover statement' target/capu-bitwuzla/cover.log)" -ge 11
+          test "$(find target/capu-bitwuzla/cover-work -name 'trace*.vcd' | wc -l)" -ge 11
+      - name: Check v0.28 bounded safety regression
+        run: |
+          set -euo pipefail
+          timeout -k 10s 300s python "$RUNNER_TEMP/sby/sbysrc/sby.py" -f -d target/capu-bitwuzla/v28-work formal/capu_durable_negative_completion_v28_bitwuzla.sby 2>&1 | tee target/capu-bitwuzla/v28.log
+          grep -q 'DONE (PASS' target/capu-bitwuzla/v28.log
+      - name: Record source and tool identities
+        if: always()
+        run: |
+          mkdir -p target/capu-bitwuzla
+          git rev-parse HEAD > target/capu-bitwuzla/source-sha.txt
+          printf '%s\n' "$GITHUB_WORKFLOW_SHA" > target/capu-bitwuzla/workflow-sha.txt
+          yosys -V > target/capu-bitwuzla/yosys-version.txt || true
+          "$CAPU_BITWUZLA_BIN" --version > target/capu-bitwuzla/bitwuzla-version.txt 2>&1 || true
+          git -C "$RUNNER_TEMP/sby" rev-parse HEAD > target/capu-bitwuzla/sby-sha.txt 2>&1 || true
+          git -C "$RUNNER_TEMP/bitwuzla" rev-parse HEAD > target/capu-bitwuzla/bitwuzla-sha.txt 2>&1 || true
+          sha256sum "$CAPU_BITWUZLA_BIN" tools/bitwuzla_cli_compat.sh rtl/capu_multibeat_dma_recovery_v29.sv formal/capu_multibeat_dma_recovery_v29_formal.sv rtl/capu_durable_negative_completion_v28.sv formal/capu_durable_negative_completion_v28_formal.sv formal/capu_multibeat_dma_recovery_v29_bitwuzla.sby formal/capu_multibeat_dma_recovery_v29_cover_bitwuzla.sby formal/capu_durable_negative_completion_v28_bitwuzla.sby > target/capu-bitwuzla/inputs.sha256 || true
+      - name: Verify successful-run evidence completeness
+        if: success()
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          evidence=target/capu-bitwuzla
+          test "$(cat "$evidence/source-sha.txt")" = "$EXPECTED_SOURCE_SHA"
+          test "$(cat "$evidence/sby-sha.txt")" = b1a1e98cba941ec8433f8dc27f416cd7bb7f14be
+          test "$(cat "$evidence/bitwuzla-sha.txt")" = 8d1eb01093ae54d9b4586456b69c3bf31000a4c2
+          test "$(cat "$evidence/bitwuzla-version.txt")" = 0.9.1
+          test -s "$evidence/yosys-version.txt"
+          grep -Eq '^[0-9a-f]{40}$' "$evidence/workflow-sha.txt"
+          test "$(wc -l < "$evidence/inputs.sha256")" -eq 9
+          sha256sum -c "$evidence/inputs.sha256"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capu-bitwuzla-evaluation
+          path: target/capu-bitwuzla/
