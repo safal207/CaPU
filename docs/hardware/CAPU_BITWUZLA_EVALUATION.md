@@ -12,7 +12,7 @@ The evaluation uses three separately named SymbiYosys configurations:
 | Check | Mode and bound | Scope |
 |---|---|---|
 | v0.29 safety | BMC depth 22 | The existing reduced-width, four-beat recovery model |
-| v0.29 cover | Cover depth 36 | Existing reachability properties and generated witnesses |
+| v0.29 cover | Cover depth 36 | At least 11 reached properties and generated VCD witnesses |
 | v0.28 regression | BMC depth 18 | Existing durable-negative-completion safety model |
 
 The evaluation workflow also runs the existing v0.29/v0.28 deterministic RTL
@@ -46,7 +46,9 @@ sby -f formal/capu_durable_negative_completion_v28_bitwuzla.sby
 ```
 
 The optional workflow retains logs, witness files, version information, source
-revision and input digests as an artifact. A separate successful run of the
-workflow on the exact reviewed revision is required before making CI or release
-claims about it. Repeated measurements under comparable conditions are needed
-before asserting a general performance advantage.
+revision and input digests as an artifact. A successful run requires at least
+11 cover log entries and 11 VCD witnesses, plus a complete, verified nine-entry
+input hash list and matching tool/source identities. A separate successful run
+of the workflow on the exact reviewed revision is required before making CI or
+release claims about it. Repeated measurements under comparable conditions are
+needed before asserting a general performance advantage.

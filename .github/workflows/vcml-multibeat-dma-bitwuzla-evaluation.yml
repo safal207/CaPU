@@ -90,7 +90,8 @@ jobs:
           set -euo pipefail
           timeout -k 10s 600s python "$RUNNER_TEMP/sby/sbysrc/sby.py" -f -d target/capu-bitwuzla/cover-work formal/capu_multibeat_dma_recovery_v29_cover_bitwuzla.sby 2>&1 | tee target/capu-bitwuzla/cover.log
           grep -q 'DONE (PASS' target/capu-bitwuzla/cover.log
-          test "$(find target/capu-bitwuzla/cover-work -name 'trace*.vcd' | wc -l)" -ge 1
+          test "$(grep -c 'Reached cover statement' target/capu-bitwuzla/cover.log)" -ge 11
+          test "$(find target/capu-bitwuzla/cover-work -name 'trace*.vcd' | wc -l)" -ge 11
       - name: Check v0.28 bounded safety regression
         run: |
           set -euo pipefail
@@ -107,6 +108,21 @@ jobs:
           git -C "$RUNNER_TEMP/sby" rev-parse HEAD > target/capu-bitwuzla/sby-sha.txt 2>&1 || true
           git -C "$RUNNER_TEMP/bitwuzla" rev-parse HEAD > target/capu-bitwuzla/bitwuzla-sha.txt 2>&1 || true
           sha256sum "$CAPU_BITWUZLA_BIN" tools/bitwuzla_cli_compat.sh rtl/capu_multibeat_dma_recovery_v29.sv formal/capu_multibeat_dma_recovery_v29_formal.sv rtl/capu_durable_negative_completion_v28.sv formal/capu_durable_negative_completion_v28_formal.sv formal/capu_multibeat_dma_recovery_v29_bitwuzla.sby formal/capu_multibeat_dma_recovery_v29_cover_bitwuzla.sby formal/capu_durable_negative_completion_v28_bitwuzla.sby > target/capu-bitwuzla/inputs.sha256 || true
+      - name: Verify successful-run evidence completeness
+        if: success()
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          evidence=target/capu-bitwuzla
+          test "$(cat "$evidence/source-sha.txt")" = "$EXPECTED_SOURCE_SHA"
+          test "$(cat "$evidence/sby-sha.txt")" = b1a1e98cba941ec8433f8dc27f416cd7bb7f14be
+          test "$(cat "$evidence/bitwuzla-sha.txt")" = 8d1eb01093ae54d9b4586456b69c3bf31000a4c2
+          test "$(cat "$evidence/bitwuzla-version.txt")" = 0.9.1
+          test -s "$evidence/yosys-version.txt"
+          grep -Eq '^[0-9a-f]{40}$' "$evidence/workflow-sha.txt"
+          test "$(wc -l < "$evidence/inputs.sha256")" -eq 9
+          sha256sum -c "$evidence/inputs.sha256"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
